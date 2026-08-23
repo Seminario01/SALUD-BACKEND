@@ -1,1 +1,0 @@
-CREATE DATABASE salud_db;
