@@ -1,5 +1,6 @@
 from flask import Flask
 from flasgger import Swagger
+from flask_cors import CORS
 from config import Config
 from extensions import db
 from routes.init import registrar_rutas
@@ -31,6 +32,8 @@ SWAGGER_TEMPLATE = {
 def crear_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    CORS(app, origins=Config.CORS_ORIGINS, supports_credentials=True)
 
     db.init_app(app)
     registrar_rutas(app)

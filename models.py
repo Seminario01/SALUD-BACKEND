@@ -94,3 +94,39 @@ class Vacunacion(db.Model):
     esquema_completo = db.Column(db.Boolean, default=False)
     vacunas_pendientes = db.Column(db.Text)
     fecha_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Establecimiento(db.Model):
+    __tablename__ = "establecimientos"
+    id_establecimiento = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(150), nullable=False)
+    tipo = db.Column(db.String(50))
+    direccion = db.Column(db.String(250))
+    departamento = db.Column(db.String(100))
+    municipio = db.Column(db.String(100))
+    telefono = db.Column(db.String(20))
+    estado_servicio = db.Column(db.String(50), default="ACTIVO")
+    tipo_atencion_disponible = db.Column(db.String(150))
+
+
+class Practicante(db.Model):
+    __tablename__ = "practicantes"
+    id_practicante = db.Column(db.Integer, primary_key=True)
+    dpi = db.Column(db.String(20), unique=True, nullable=False)
+    nombres = db.Column(db.String(100), nullable=False)
+    apellidos = db.Column(db.String(100), nullable=False)
+    universidad = db.Column(db.String(100))
+    carrera = db.Column(db.String(100))
+    fecha_inicio = db.Column(db.Date)
+    fecha_fin = db.Column(db.Date)
+    supervisor = db.Column(db.String(100))
+    estado = db.Column(db.String(20), default="ACTIVO")
+
+
+class HorasPractica(db.Model):
+    __tablename__ = "horas_practica"
+    id_hora = db.Column(db.Integer, primary_key=True)
+    id_practicante = db.Column(db.Integer, db.ForeignKey("practicantes.id_practicante"), nullable=False)
+    fecha = db.Column(db.Date, nullable=False)
+    horas = db.Column(db.Integer, nullable=False)
+    actividad = db.Column(db.Text)

@@ -56,7 +56,9 @@ def validar_api_key(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         api_key = request.headers.get("X-API-Key")
+        if not api_key:
+            return jsonify(success=False, error="sin_api_key", message="No se envió la API Key en la petición"), 401
         if api_key != Config.MODULOS_API_KEY:
-            return jsonify(success=False, error="api_key_invalida", message="API key inválida"), 403
+            return jsonify(success=False, error="api_key_invalida", message="La API Key enviada es inválida o no corresponde a un módulo autorizado"), 403
         return f(*args, **kwargs)
     return wrapper
