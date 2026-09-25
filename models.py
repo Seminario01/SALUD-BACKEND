@@ -1,22 +1,17 @@
 from extensions import db
 from datetime import datetime
 
-class UsuarioRol(db.Model):
-    __tablename__ = "usuarios_roles"
-    id = db.Column(db.Integer, primary_key=True)
-    cognito_sub = db.Column(db.String(100), unique=True, nullable=False)
-    email = db.Column(db.String(150), unique=True, nullable=False)
-    rol = db.Column(db.Enum("admin", "medico", "paciente", "recepcion"), nullable=False)
-    nombre_completo = db.Column(db.String(200))
-    cui = db.Column(db.String(20))
-    activo = db.Column(db.Boolean, default=True)
-    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+# Nota: no existe tabla de usuarios. Los usuarios viven en el Login Único
+# (Keycloak) y aquí se referencian por su `sub` (UUID, único e inmutable).
+SUB_LEN = 36
 
 
 class Paciente(db.Model):
     __tablename__ = "pacientes"
     id = db.Column(db.Integer, primary_key=True)
-    usuario_id = db.Column(db.Integer, db.ForeignKey("usuarios_roles.id"), nullable=True)
+    # `sub` del ciudadano en el Login Único, si el paciente tiene cuenta.
+    # Es lo que permite que un ciudadano vea SOLO su propio registro.
+    usuario_sub = db.Column(db.String(SUB_LEN), unique=True, nullable=True)
     cui = db.Column(db.String(20))
     nombre_completo = db.Column(db.String(200), nullable=False)
     fecha_nacimiento = db.Column(db.Date)
@@ -31,7 +26,7 @@ class CitaMedica(db.Model):
     __tablename__ = "citas_medicas"
     id = db.Column(db.Integer, primary_key=True)
     paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
-    medico_id = db.Column(db.Integer, db.ForeignKey("usuarios_roles.id"))
+    medico_sub = db.Column(db.String(SUB_LEN))  # `sub` del médico en el Login Único
     fecha_hora = db.Column(db.DateTime, nullable=False)
     estado = db.Column(db.Enum("pendiente", "confirmada", "atendida", "cancelada"), default="pendiente")
     motivo = db.Column(db.String(300))
@@ -45,7 +40,7 @@ class ExpedienteClinico(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
     cita_id = db.Column(db.Integer, db.ForeignKey("citas_medicas.id"), nullable=True)
-    medico_id = db.Column(db.Integer, db.ForeignKey("usuarios_roles.id"))
+    medico_sub = db.Column(db.String(SUB_LEN))  # `sub` del médico en el Login Único
     diagnostico = db.Column(db.Text)
     tratamiento = db.Column(db.Text)
     notas = db.Column(db.Text)

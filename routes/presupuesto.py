@@ -1,13 +1,13 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import PresupuestoHospitalario
-from auth import validar_token, requiere_rol, validar_api_key
+from auth import validar_token, requiere_rol, validar_api_key, ROL_ADMIN
 
 presupuesto_bp = Blueprint("presupuesto", __name__)
 
 @presupuesto_bp.route("/api/v1/salud/presupuesto", methods=["PUT"])
 @validar_token
-@requiere_rol("admin")
+@requiere_rol(ROL_ADMIN)
 def actualizar_presupuesto():
     data = request.get_json()
     presupuesto = PresupuestoHospitalario.query.filter_by(periodo=data["periodo"]).first()

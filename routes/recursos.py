@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import RecursoHospitalario
-from auth import validar_token, requiere_rol
+from auth import validar_token, requiere_rol, ROL_ADMIN
 
 recursos_bp = Blueprint("recursos", __name__)
 
@@ -20,7 +20,7 @@ def listar_recursos():
 
 @recursos_bp.route("/api/v1/salud/recursos/<int:id>", methods=["PUT"])
 @validar_token
-@requiere_rol("admin")
+@requiere_rol(ROL_ADMIN)
 def actualizar_recurso(id):
     recurso = RecursoHospitalario.query.get(id)
     if not recurso:
@@ -40,7 +40,7 @@ def actualizar_recurso(id):
 
 @recursos_bp.route("/api/v1/salud/recursos", methods=["POST"])
 @validar_token
-@requiere_rol("admin")
+@requiere_rol(ROL_ADMIN)
 def crear_recurso():
     data = request.get_json()
     recurso = RecursoHospitalario(

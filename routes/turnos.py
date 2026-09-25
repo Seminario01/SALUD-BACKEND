@@ -2,13 +2,13 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, date
 from extensions import db
 from models import Turno
-from auth import validar_token, requiere_rol
+from auth import validar_token, requiere_rol, ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION
 
 turnos_bp = Blueprint("turnos", __name__)
 
 @turnos_bp.route("/api/v1/salud/turnos", methods=["POST"])
 @validar_token
-@requiere_rol("admin", "recepcion")
+@requiere_rol(ROL_ADMIN, ROL_RECEPCION)
 def generar_turno():
     data = request.get_json()
 
@@ -47,7 +47,7 @@ def turnos_activos():
 
 @turnos_bp.route("/api/v1/salud/turnos/<int:id>/llamar", methods=["PUT"])
 @validar_token
-@requiere_rol("admin", "medico")
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
 def llamar_turno(id):
     turno = Turno.query.get(id)
     if not turno:
@@ -61,7 +61,7 @@ def llamar_turno(id):
 
 @turnos_bp.route("/api/v1/salud/turnos/<int:id>/atender", methods=["PUT"])
 @validar_token
-@requiere_rol("admin", "medico")
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
 def atender_turno(id):
     turno = Turno.query.get(id)
     if not turno:
@@ -75,7 +75,7 @@ def atender_turno(id):
 
 @turnos_bp.route("/api/v1/salud/turnos/<int:id>/finalizar", methods=["PUT"])
 @validar_token
-@requiere_rol("admin", "medico")
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
 def finalizar_turno(id):
     turno = Turno.query.get(id)
     if not turno:

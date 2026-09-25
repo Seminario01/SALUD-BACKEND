@@ -1,7 +1,7 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from extensions import db
-from models import Vacunacion
-from auth import validar_token, requiere_rol
+from models import Vacunacion, Paciente
+from auth import validar_token, requiere_rol, es_personal, ROL_MEDICO, ROL_ADMIN
 
 vacunacion_bp = Blueprint("vacunacion", __name__)
 
@@ -19,7 +19,7 @@ def _serializar(registro):
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion", methods=["POST"])
 @validar_token
-@requiere_rol("admin", "medico")
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
 def registrar_vacunacion():
     """
     Registrar un nuevo registro de vacunación
@@ -63,7 +63,7 @@ def registrar_vacunacion():
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion", methods=["GET"])
 @validar_token
-@requiere_rol("admin", "medico")
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
 def listar_vacunacion():
     """
     Listar todos los registros de vacunación
@@ -98,9 +98,17 @@ def obtener_vacunacion(paciente_id):
     responses:
       200:
         description: Registro de vacunación encontrado
+      403:
+        description: El registro no pertenece al usuario
       404:
         description: Sin registro de vacunación
     """
+    # OWASP API1 (BOLA): personal de Salud, o el ciudadano dueño del registro.
+    if not es_personal():
+        paciente = Paciente.query.get(paciente_id)
+        if paciente is None or paciente.usuario_sub != g.usuario["sub"]:
+            return jsonify(success=False, error="permiso_denegado", message="Solo puede ver su propio registro"), 403
+
     registro = Vacunacion.query.filter_by(paciente_id=paciente_id).first()
     if not registro:
         return jsonify(success=False, error="no_encontrado", message="Sin registro de vacunación"), 404
@@ -110,7 +118,7 @@ def obtener_vacunacion(paciente_id):
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion/<int:paciente_id>", methods=["PUT"])
 @validar_token
-@requiere_rol("admin", "medico")
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
 def actualizar_vacunacion(paciente_id):
     """
     Actualizar el registro de vacunación de un paciente
@@ -159,7 +167,7 @@ def actualizar_vacunacion(paciente_id):
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion/<int:paciente_id>", methods=["DELETE"])
 @validar_token
-@requiere_rol("admin")
+@requiere_rol(ROL_ADMIN)
 def eliminar_vacunacion(paciente_id):
     """
     Eliminar el registro de vacunación de un paciente

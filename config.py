@@ -10,12 +10,12 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    COGNITO_REGION = os.getenv("COGNITO_REGION", "us-east-1")
-    COGNITO_USER_POOL_ID = os.getenv("COGNITO_USER_POOL_ID", "")
-    COGNITO_JWKS_URL = (
-        f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/"
-        f"{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
-    )
+    # Login Único (Keycloak). El issuer cambia cada día mientras el servicio corra
+    # sobre un túnel temporal: se configura SOLO en el .env, nunca en el código.
+    # Ejemplo: https://<url-del-dia>.trycloudflare.com/realms/rsd
+    AUTH_ISSUER = os.getenv("AUTH_ISSUER", "http://localhost:8081/realms/rsd").rstrip("/")
+    AUTH_AUDIENCE = os.getenv("AUTH_AUDIENCE", "rsd-api")
+    AUTH_JWKS_URL = f"{AUTH_ISSUER}/protocol/openid-connect/certs"
 
     # API Key para comunicación server-to-server con otros módulos
     MODULOS_API_KEY = os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")
@@ -23,7 +23,7 @@ class Config:
     # Orígenes permitidos para CORS (frontend en desarrollo con Vite)
     CORS_ORIGINS = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:5173,http://127.0.0.1:5173"
+        "http://localhost:4200,http://127.0.0.1:4200,http://localhost:5173"
     ).split(",")
 
     # URLs base de los módulos externos del sistema

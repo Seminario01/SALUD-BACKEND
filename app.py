@@ -4,6 +4,7 @@ from flask_cors import CORS
 from config import Config
 from extensions import db
 from routes.init import registrar_rutas
+from auth import precargar_jwks
 
 SWAGGER_TEMPLATE = {
     "swagger": "2.0",
@@ -17,7 +18,7 @@ SWAGGER_TEMPLATE = {
             "type": "apiKey",
             "name": "Authorization",
             "in": "header",
-            "description": "Token JWT de Cognito. Formato: Bearer <token>",
+            "description": "Access token del Login Único (Keycloak). Formato: Bearer <token>",
         },
         "ApiKeyAuth": {
             "type": "apiKey",
@@ -41,6 +42,10 @@ def crear_app():
 
     with app.app_context():
         db.create_all()
+
+    # Descarga las llaves del Login Único al arrancar: así el backend sigue
+    # validando tokens aunque el servidor de identidad se apague después.
+    precargar_jwks()
 
     return app
 

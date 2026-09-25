@@ -1,20 +1,21 @@
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import ExpedienteClinico, Paciente
-from auth import validar_token, requiere_rol
+from auth import validar_token, requiere_rol, tiene_rol, ROL_MEDICO, ROL_ADMIN
 
 expedientes_bp = Blueprint("expedientes", __name__)
 
 @expedientes_bp.route("/api/v1/salud/expedientes/<int:paciente_id>", methods=["GET"])
 @validar_token
 def obtener_expediente(paciente_id):
-    if g.usuario.rol == "paciente" and g.usuario.id != paciente_id:
+    paciente = Paciente.query.get(paciente_id)
+
+    # OWASP API1 (BOLA): datos clínicos. Solo médico/admin de Salud, o el propio
+    # ciudadano dueño del registro. Recepción NO ve expedientes.
+    es_dueno = paciente is not None and paciente.usuario_sub == g.usuario["sub"]
+    if not (tiene_rol(ROL_MEDICO, ROL_ADMIN) or es_dueno):
         return jsonify(success=False, error="permiso_denegado", message="Solo puede ver su propio expediente"), 403
 
-    if g.usuario.rol == "recepcion":
-        return jsonify(success=False, error="permiso_denegado", message="No tiene permiso para ver expedientes"), 403
-
-    paciente = Paciente.query.get(paciente_id)
     if not paciente:
         return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
 
@@ -24,6 +25,7 @@ def obtener_expediente(paciente_id):
     return jsonify(success=True, data=[{
         "id": r.id,
         "cita_id": r.cita_id,
+        "medico_sub": r.medico_sub,
         "diagnostico": r.diagnostico,
         "tratamiento": r.tratamiento,
         "notas": r.notas,
@@ -33,7 +35,7 @@ def obtener_expediente(paciente_id):
 
 @expedientes_bp.route("/api/v1/salud/expedientes/<int:paciente_id>/atenciones", methods=["POST"])
 @validar_token
-@requiere_rol("medico")
+@requiere_rol(ROL_MEDICO)
 def registrar_atencion(paciente_id):
     paciente = Paciente.query.get(paciente_id)
     if not paciente:
@@ -43,7 +45,7 @@ def registrar_atencion(paciente_id):
     registro = ExpedienteClinico(
         paciente_id=paciente_id,
         cita_id=data.get("cita_id"),
-        medico_id=g.usuario.id,
+        medico_sub=g.usuario["sub"],
         diagnostico=data.get("diagnostico"),
         tratamiento=data.get("tratamiento"),
         notas=data.get("notas"),
