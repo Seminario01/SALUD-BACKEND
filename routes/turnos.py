@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from datetime import datetime, date
+from datetime import datetime
 from extensions import db
 from models import Turno
 from auth import validar_token, requiere_rol, ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION
@@ -12,8 +12,13 @@ turnos_bp = Blueprint("turnos", __name__)
 def generar_turno():
     data = request.get_json()
 
-    hoy = date.today()
-    ultimo = Turno.query.filter(db.func.date(Turno.fecha_hora_ingreso) == hoy).order_by(Turno.numero_turno.desc()).first()
+    # Los turnos usan la hora LOCAL del servidor (TZ=America/Guatemala en Docker).
+    # Antes se guardaba en UTC pero se comparaba con la fecha local: después de
+    # las 18:00 en Guatemala ya era "mañana" en UTC y la numeración volvía a 1.
+    ahora = datetime.now()
+    inicio_del_dia = datetime.combine(ahora.date(), datetime.min.time())
+    ultimo = Turno.query.filter(Turno.fecha_hora_ingreso >= inicio_del_dia) \
+        .order_by(Turno.numero_turno.desc()).first()
     siguiente_numero = (ultimo.numero_turno + 1) if ultimo else 1
 
     turno = Turno(
@@ -21,6 +26,7 @@ def generar_turno():
         tipo_atencion=data["tipo_atencion"],
         prioridad=data.get("prioridad", "normal"),
         numero_turno=siguiente_numero,
+        fecha_hora_ingreso=ahora,
     )
     db.session.add(turno)
     db.session.commit()
@@ -54,7 +60,7 @@ def llamar_turno(id):
         return jsonify(success=False, error="no_encontrado", message="Turno no existe"), 404
 
     turno.estado = "llamado"
-    turno.fecha_hora_llamado = datetime.utcnow()
+    turno.fecha_hora_llamado = datetime.now()
     db.session.commit()
     return jsonify(success=True, data={"id": turno.id}, message="Turno llamado"), 200
 
@@ -68,7 +74,7 @@ def atender_turno(id):
         return jsonify(success=False, error="no_encontrado", message="Turno no existe"), 404
 
     turno.estado = "en_atencion"
-    turno.fecha_hora_atencion = datetime.utcnow()
+    turno.fecha_hora_atencion = datetime.now()
     db.session.commit()
     return jsonify(success=True, data={"id": turno.id}, message="Turno en atención"), 200
 
