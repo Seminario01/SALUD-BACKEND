@@ -44,7 +44,8 @@ class ExpedienteClinico(db.Model):
     diagnostico = db.Column(db.Text)
     tratamiento = db.Column(db.Text)
     notas = db.Column(db.Text)
-    fecha_atencion = db.Column(db.DateTime, default=datetime.utcnow)
+    # Hora local del servidor (TZ=America/Guatemala), igual que los turnos.
+    fecha_atencion = db.Column(db.DateTime, default=datetime.now)
 
 
 class RecursoHospitalario(db.Model):

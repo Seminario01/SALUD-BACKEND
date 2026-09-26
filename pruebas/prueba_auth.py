@@ -66,7 +66,10 @@ def paciente_de(usuario, nombre, cui):
 
 p1 = paciente_de("ciudadano1", "Carlos Perez", "1111")
 p2 = paciente_de("ciudadano2", "Maria Garcia", "2222")
-check("medico1 registra vacunacion p2", "POST", "/vacunacion", T["medico1"], 201, json={"paciente_id": p2})
+if requests.get(f"{API}/vacunacion/{p2}", headers={"Authorization": f"Bearer {T['medico1']}"}).status_code == 200:
+    print("OK       p2 ya tenia registro de vacunacion, se reutiliza")
+else:
+    check("medico1 registra vacunacion p2", "POST", "/vacunacion", T["medico1"], 201, json={"paciente_id": p2})
 check("medico1 registra atencion p2", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 201, json={"diagnostico": "Gripe"})
 c2 = check("admin agenda cita p2", "POST", "/citas", T["admin.salud"], 201,
            json={"paciente_id": p2, "fecha_hora": "2026-10-01 10:00:00"}).json()["data"]["id"]
@@ -99,6 +102,21 @@ check("ciudadano1 en panel -> solo personal", "GET", "/panel", T["ciudadano1"], 
 r = check("medico1 en panel", "GET", "/panel", T["medico1"], 200)
 ok = "citas" in r.json()["data"] and "recursos_hospitalarios" in r.json()["data"]; resultados.append(ok)
 print(f"{'OK ' if ok else 'FALLA'}      panel trae el mismo formato que /indicadores")
+
+print("--- Validaciones de datos (formularios)")
+check("vacunacion duplicada -> 409", "POST", "/vacunacion", T["medico1"], 409, json={"paciente_id": p2})
+check("vacunacion de paciente inexistente -> 404", "POST", "/vacunacion", T["medico1"], 404, json={"paciente_id": 999999})
+check("atencion sin diagnostico -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400, json={"notas": "x"})
+cita_p1 = check("cita de p1 para probar", "POST", "/citas", T["admin.salud"], 201,
+                json={"paciente_id": p1, "fecha_hora": "2026-11-01 08:00:00"}).json()["data"]["id"]
+check("atencion con cita de OTRO paciente -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400,
+      json={"diagnostico": "X", "cita_id": cita_p1})
+check("recurso con tipo invalido -> 400", "POST", "/recursos", T["admin.salud"], 400, json={"tipo": "helicoptero", "total": 1})
+check("recurso con disponible > total -> 400", "POST", "/recursos", T["admin.salud"], 400,
+      json={"tipo": "cama", "disponible": 15, "total": 10})
+check("recurso con numeros negativos -> 400", "POST", "/recursos", T["admin.salud"], 400,
+      json={"tipo": "ambulancia", "disponible": -1, "total": 2})
+check("medico no puede crear recursos -> 403", "POST", "/recursos", T["medico1"], 403, json={"tipo": "cama", "total": 1})
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

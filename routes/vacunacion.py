@@ -48,10 +48,22 @@ def registrar_vacunacion():
     responses:
       201:
         description: Registro de vacunación creado
+      404:
+        description: Paciente no existe
+      409:
+        description: El paciente ya tiene registro (usar PUT)
     """
-    data = request.get_json()
+    data = request.get_json() or {}
+    paciente_id = data.get("paciente_id")
+    if not paciente_id or Paciente.query.get(paciente_id) is None:
+        return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
+    # Un solo registro de vacunación por paciente: para cambiarlo se usa PUT.
+    if Vacunacion.query.filter_by(paciente_id=paciente_id).first():
+        return jsonify(success=False, error="ya_existe",
+                       message="El paciente ya tiene registro de vacunación; actualícelo"), 409
+
     registro = Vacunacion(
-        paciente_id=data["paciente_id"],
+        paciente_id=paciente_id,
         es_estudiante=data.get("es_estudiante", False),
         esquema_completo=data.get("esquema_completo", False),
         vacunas_pendientes=data.get("vacunas_pendientes"),
@@ -153,7 +165,7 @@ def actualizar_vacunacion(paciente_id):
     if not registro:
         return jsonify(success=False, error="no_encontrado", message="Sin registro de vacunación"), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     if "es_estudiante" in data:
         registro.es_estudiante = data["es_estudiante"]
     if "esquema_completo" in data:
