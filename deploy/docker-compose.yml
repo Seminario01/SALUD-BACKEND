@@ -1,0 +1,70 @@
+# Despliegue del Módulo de Salud: MySQL + backend (gunicorn) + frontend (nginx).
+#
+# Estructura esperada en el servidor (los tres repos, uno al lado del otro):
+#   ~/salud/SALUD-BACKEND     <- este repo (aquí está deploy/)
+#   ~/salud/SALUD-FRONTEND
+#   ~/salud/SALUD-DATABASE
+#
+# Uso (desde SALUD-BACKEND/deploy):
+#   cp .env.example .env      # y completar los valores
+#   docker compose up -d --build
+#
+# Solo el frontend se publica, y únicamente en 127.0.0.1: el túnel de Cloudflare
+# (cloudflared en el servidor) lo expone como https://saludumg.online.
+# MySQL y el backend NO quedan accesibles desde fuera.
+
+name: salud
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Falta MYSQL_ROOT_PASSWORD en .env}
+      MYSQL_DATABASE: salud_db
+      MYSQL_USER: salud
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Falta MYSQL_PASSWORD en .env}
+      TZ: America/Guatemala
+    volumes:
+      - salud_mysql:/var/lib/mysql
+      # Solo se ejecutan la PRIMERA vez (con el volumen vacío)
+      - ../../SALUD-DATABASE/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../../SALUD-DATABASE/datos insertados.sql:/docker-entrypoint-initdb.d/02-datos.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    build: ..
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://salud:${MYSQL_PASSWORD}@db:3306/salud_db
+      AUTH_ISSUER: ${AUTH_ISSUER:?Falta AUTH_ISSUER en .env}
+      AUTH_AUDIENCE: rsd-api
+      MODULOS_API_KEY: ${MODULOS_API_KEY:?Falta MODULOS_API_KEY en .env}
+      URL_EDUCACION: ${URL_EDUCACION:-}
+      URL_SEGURIDAD: ${URL_SEGURIDAD:-}
+      URL_TRIBUTARIO: ${URL_TRIBUTARIO:-}
+      TZ: America/Guatemala
+
+  frontend:
+    build: ../../SALUD-FRONTEND
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Se inyectan al arrancar (config.js): cambiar la URL del día solo
+      # requiere "docker compose up -d", no recompilar.
+      AUTH_URL: ${AUTH_ISSUER}
+      CLIENT_ID: salud-web
+    ports:
+      - "127.0.0.1:${PUERTO_WEB:-8080}:80"
+
+volumes:
+  salud_mysql:
