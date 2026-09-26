@@ -35,7 +35,7 @@ def check(nombre, metodo, ruta, tok, esperado, **kw):
     print(f"{'OK ' if ok else 'FALLA'} {r.status_code} (esperado {esperado})  {nombre}")
     return r
 
-T = {u: token(u) for u in ["medico1", "admin.salud", "ciudadano1", "ciudadano2"]}
+T = {u: token(u) for u in ["medico1", "admin.salud", "ciudadano1", "ciudadano2", "analista1"]}
 modo = sys.argv[1] if len(sys.argv) > 1 else "completo"
 
 if modo == "idp_apagado":
@@ -117,6 +117,42 @@ check("recurso con disponible > total -> 400", "POST", "/recursos", T["admin.sal
 check("recurso con numeros negativos -> 400", "POST", "/recursos", T["admin.salud"], 400,
       json={"tipo": "ambulancia", "disponible": -1, "total": 2})
 check("medico no puede crear recursos -> 403", "POST", "/recursos", T["medico1"], 403, json={"tipo": "cama", "total": 1})
+
+print("--- Auditoría Social (analista1: solo lectura de datos agregados)")
+check("analista1 ve el panel de indicadores", "GET", "/panel", T["analista1"], 200)
+check("analista1 consulta /indicadores con su token (sin API key)", "GET", "/indicadores", T["analista1"], 200)
+check("analista1 consulta /presupuesto/ejecucion con su token", "GET", "/presupuesto/ejecucion", T["analista1"], 200)
+check("ciudadano1 NO puede usar /indicadores con su token", "GET", "/indicadores", T["ciudadano1"], 403)
+check("analista1 NO ve el listado de pacientes (datos personales)", "GET", "/pacientes", T["analista1"], 403)
+check("analista1 NO ve expedientes", "GET", f"/expedientes/{p1}", T["analista1"], 403)
+check("/indicadores sin credenciales", "GET", "/indicadores", None, 401)
+
+print("--- Integración con otros módulos (Salud consume sus servicios)")
+r = check("estado de integraciones (medico1)", "GET", "/integraciones/estado", T["medico1"], 200)
+estado = r.json()["data"]
+print("         " + ", ".join(f"{m}: {e['estado']}{' (simulador)' if e['simulado'] else ''}" for m, e in estado.items()))
+check("ciudadano1 NO consulta integraciones", "GET", "/integraciones/estado", T["ciudadano1"], 403)
+check("ciudadano1 NO consulta antecedentes", "GET", f"/pacientes/{p1}/antecedentes", T["ciudadano1"], 403)
+if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
+    riesgo = check("admin registra paciente con CUI que termina en 9", "POST", "/pacientes", T["admin.salud"], 201,
+                   json={"nombre_completo": "Paciente Riesgo Prueba", "cui": "3000000000009"}).json()["data"]["id"]
+    d = check("Seguridad: antecedentes de riesgo ALTO", "GET", f"/pacientes/{riesgo}/antecedentes", T["medico1"], 200).json()["data"]
+    ok = d.get("tieneAntecedentes") is True and d.get("nivelRiesgo") == "ALTO" and d.get("requiereCustodia") is True
+    resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      requiereCustodia=True, nivelRiesgo=ALTO")
+    d = check("Seguridad: paciente sin antecedentes", "GET", f"/pacientes/{p1}/antecedentes", T["medico1"], 200).json()["data"]
+    ok = d.get("tieneAntecedentes") is False; resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      tieneAntecedentes=False")
+    d = check("Educación: CUI par es estudiante", "GET", "/educacion/estudiantes/2222", T["medico1"], 200).json()["data"]
+    ok = d.get("esEstudiante") is True and bool(d.get("establecimiento")); resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      esEstudiante=True, establecimiento={d.get('establecimiento')}")
+    d = check("Educación: CUI impar no es estudiante", "GET", "/educacion/estudiantes/1111", T["medico1"], 200).json()["data"]
+    ok = d.get("esEstudiante") is False; resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      esEstudiante=False")
+    d = check("Tributario: verificar pago de una cita", "POST", f"/citas/{cita_p1}/verificar-pago", T["admin.salud"], 200).json()["data"]
+    ok = d.get("pagoConfirmado") is True; resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      pagoConfirmado=True, referencia {d.get('numeroReferencia')}")
+    citas = requests.get(API + "/citas", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
+    ok = any(c["id"] == cita_p1 and c["pago_confirmado"] for c in citas); resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      la cita queda marcada como pagada")
+else:
+    print("         (se omiten las pruebas de datos: los simuladores no están corriendo)")
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

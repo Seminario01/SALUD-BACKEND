@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from auth import validar_token, requiere_rol, ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION
+from auth import validar_token, requiere_rol, ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION, ROLES_AUDITORIA
 from routes.externos import calcular_indicadores
 
 panel_bp = Blueprint("panel", __name__)
@@ -7,10 +7,10 @@ panel_bp = Blueprint("panel", __name__)
 
 @panel_bp.route("/api/v1/salud/panel", methods=["GET"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION)
+@requiere_rol(ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION, *ROLES_AUDITORIA)
 def panel():
     """
-    Resumen para el Dashboard del frontend (solo personal de Salud)
+    Resumen para el Dashboard (personal de Salud y Auditoría Social, solo lectura)
     ---
     tags:
       - Panel
@@ -26,6 +26,6 @@ def panel():
       401:
         description: Sin token o token inválido
       403:
-        description: El usuario no es personal de Salud
+        description: El usuario no es personal de Salud ni de Auditoría
     """
     return jsonify(success=True, data=calcular_indicadores()), 200

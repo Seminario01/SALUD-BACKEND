@@ -126,6 +126,26 @@
         "default-roles-rsd",
         "ciudadano"
       ]
+    },
+    {
+      "username": "analista1",
+      "enabled": true,
+      "email": "analista1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Laura",
+      "lastName": "Mendez",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "auditoria:analista"
+      ]
     }
   ],
   "clients": [

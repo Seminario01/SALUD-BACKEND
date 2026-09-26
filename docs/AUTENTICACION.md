@@ -67,6 +67,7 @@ El frontend **no** tiene la API key: todo lo que llega al navegador es público.
 | `salud:admin` | Login Único | Administración: pacientes, recursos, presupuesto, turnos |
 | `salud:recepcion` | **Pendiente de solicitar** | Registro de pacientes y generación de turnos. Mientras no exista, esas operaciones las hace `salud:admin` |
 | `ciudadano` | Login Único | Solo sus propios datos: su paciente, sus citas, su expediente y su vacunación |
+| `auditoria:analista`, `auditoria:admin` | Login Único | Auditoría Social: solo indicadores **agregados** (`/panel`, `/indicadores`, `/presupuesto/ejecucion`). Nunca datos personales |
 
 En la tabla siguiente, **"Personal"** significa cualquiera de `salud:medico`, `salud:admin` o `salud:recepcion`.
 
@@ -101,9 +102,15 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | POST | `/recursos` | `salud:admin` | — |
 | PUT | `/recursos/<id>` | `salud:admin` | — |
 | PUT | `/presupuesto` | `salud:admin` | — |
-| GET | `/panel` | Personal | Indicadores del Dashboard (reemplaza el uso de la API key en el navegador) |
+| GET | `/panel` | Personal y Auditoría | Indicadores agregados del Dashboard (reemplaza el uso de la API key en el navegador) |
+| GET | `/integraciones/estado` | Personal | Estado de conexión con Educación, Seguridad y Tributario |
+| GET | `/pacientes/<id>/antecedentes` | Personal | Consulta a Seguridad (WS-SALUD-08). Ver `docs/INTEGRACIONES.md` |
+| GET | `/educacion/estudiantes/<cui>` | `salud:medico`, `salud:admin` | Consulta a Educación |
+| POST | `/citas/<id>/verificar-pago` | Personal | Consulta a Tributario (WS-SALUD-09); si está pagada, marca la cita |
 
 ### 5.2 Operaciones entre módulos (`X-API-Key`, servidor a servidor)
+
+`/indicadores` y `/presupuesto/ejecucion` aceptan además el **token de un usuario de Auditoría** (`auditoria:analista` o `auditoria:admin`) reenviado por ese módulo.
 
 | Método | Ruta | Consumidor |
 |---|---|---|
@@ -126,6 +133,8 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | 403 | `permiso_denegado` | Token válido pero sin el rol, o el registro no pertenece al usuario |
 | 503 | `auth_no_disponible` | Llave nueva y el Login Único no responde |
 | 401 | `sin_api_key` | Endpoint entre módulos sin `X-API-Key` |
+| 401 | `sin_credenciales` | `/indicadores` o `/presupuesto/ejecucion` sin API key ni token |
+| 503 | `modulo_no_disponible` / `no_configurado` | Un módulo externo (Educación, Seguridad, Tributario) no responde o no tiene URL |
 | 403 | `api_key_invalida` | `X-API-Key` incorrecta |
 
 **401 = autenticación** ("no sé quién sos"). **403 = autorización** ("sé quién sos, pero no podés hacer esto").
@@ -150,7 +159,7 @@ Todas las rutas empiezan con `/api/v1/salud`.
 
 1. Levantar el Login Único local (ver `keycloak-local/README.md`) o usar la URL del día.
 2. Levantar el backend con `AUTH_ISSUER` apuntando a ese issuer.
-3. Correr el script de pruebas `pruebas/prueba_auth.py` (35 verificaciones de 401, 200, 403, BOLA, `/panel` y API key):
+3. Correr el script de pruebas `pruebas/prueba_auth.py` (65 verificaciones: 401, 200, 403, BOLA, validaciones, `/panel`, Auditoría, integración y API key):
    ```bash
    venv/Scripts/python.exe pruebas/prueba_auth.py
    ```

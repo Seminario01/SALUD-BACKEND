@@ -11,33 +11,66 @@ import uuid
 from datetime import datetime
 
 import requests
+from flask import has_request_context, request
+
 from config import Config
 
-TIMEOUT_SEGUNDOS = 5
+TIMEOUT_SEGUNDOS = 3
+
+
+def _headers():
+    """Cabeceras para llamar a otro módulo.
+
+    - X-API-Key: el acuerdo entre equipos para comunicación servidor a servidor.
+    - Authorization: si la petición viene de un usuario, se REENVÍA su access
+      token (guía del Login Único, sección 7: todos comparten aud=rsd-api).
+    """
+    headers = {"X-API-Key": Config.MODULOS_API_KEY}
+    if has_request_context():
+        token = request.headers.get("Authorization", "")
+        if token.startswith("Bearer "):
+            headers["Authorization"] = token
+    return headers
+
+
+def _llamar(metodo, base_url, path, **kwargs):
+    """Llama a un módulo externo y normaliza el resultado:
+       {"success": True, "data": ...}
+       {"success": False, "error": <codigo>, "message": ...} con codigo en:
+         no_configurado, modulo_no_disponible, no_encontrado, respuesta_invalida
+    """
+    if not base_url:
+        return {"success": False, "error": "no_configurado",
+                "message": "La URL del módulo no está configurada en el .env"}
+    try:
+        respuesta = requests.request(metodo, f"{base_url.rstrip('/')}{path}", headers=_headers(),
+                                     timeout=TIMEOUT_SEGUNDOS, **kwargs)
+    except requests.exceptions.RequestException as error:
+        return {"success": False, "error": "modulo_no_disponible",
+                "message": f"No se pudo conectar ({error.__class__.__name__})"}
+
+    if respuesta.status_code == 404:
+        return {"success": False, "error": "no_encontrado", "message": "El módulo no encontró el dato solicitado"}
+    if respuesta.status_code >= 500:
+        return {"success": False, "error": "modulo_no_disponible",
+                "message": f"El módulo respondió con error {respuesta.status_code}"}
+    if respuesta.status_code >= 400:
+        return {"success": False, "error": "respuesta_invalida",
+                "message": f"El módulo rechazó la petición ({respuesta.status_code})"}
+    try:
+        cuerpo = respuesta.json()
+    except ValueError:
+        return {"success": False, "error": "respuesta_invalida", "message": "La respuesta no es JSON"}
+    datos = cuerpo.get("data", cuerpo) if isinstance(cuerpo, dict) else cuerpo
+    return {"success": True, "data": datos}
 
 
 def _get(base_url, path, params=None):
-    """Realiza un GET autenticado contra un módulo externo y normaliza la respuesta."""
-    url = f"{base_url}{path}"
-    headers = {"X-API-Key": Config.MODULOS_API_KEY}
-    try:
-        respuesta = requests.get(url, headers=headers, params=params, timeout=TIMEOUT_SEGUNDOS)
-        respuesta.raise_for_status()
-        return {"success": True, "data": respuesta.json().get("data", respuesta.json())}
-    except requests.exceptions.RequestException as error:
-        return {"success": False, "error": "error_conexion", "message": str(error)}
+    return _llamar("GET", base_url, path, params=params)
 
 
 def _post(base_url, path, payload=None):
-    """Realiza un POST autenticado contra un módulo externo y normaliza la respuesta."""
-    url = f"{base_url}{path}"
-    headers = {"X-API-Key": Config.MODULOS_API_KEY}
-    try:
-        respuesta = requests.post(url, headers=headers, json=payload, timeout=TIMEOUT_SEGUNDOS)
-        respuesta.raise_for_status()
-        return {"success": True, "data": respuesta.json().get("data", respuesta.json())}
-    except requests.exceptions.RequestException as error:
-        return {"success": False, "error": "error_conexion", "message": str(error)}
+    return _llamar("POST", base_url, path, json=payload)
 
 
 # ---------------------------------------------------------------------------
@@ -87,10 +120,13 @@ def obtener_indicadores_seguridad():
     return _get(Config.URL_SEGURIDAD, "/api/v1/seguridad/indicadores")
 
 
-def consultar_antecedentes_seguridad(cui):
+def consultar_antecedentes_seguridad(cui, nombre_completo=None):
     """WS-SALUD-08: consulta a Seguridad si una persona (CUI/DPI) tiene
-    antecedentes, tipo, nivel de riesgo y si requiere custodia."""
-    return _get(Config.URL_SEGURIDAD, f"/api/v1/seguridad/ciudadanos/antecedentes/{cui}")
+    antecedentes, tipo, nivel de riesgo y si requiere custodia.
+    Acordado: Salud envía CUI y nombre completo; Seguridad responde
+    tieneAntecedentes, tipoAntecedente, nivelRiesgo, requiereCustodia."""
+    params = {"nombreCompleto": nombre_completo} if nombre_completo else None
+    return _get(Config.URL_SEGURIDAD, f"/api/v1/seguridad/ciudadanos/antecedentes/{cui}", params=params)
 
 
 # ---------------------------------------------------------------------------

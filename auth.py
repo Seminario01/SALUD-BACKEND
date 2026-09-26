@@ -32,6 +32,8 @@ ROL_ADMIN = "salud:admin"
 # las operaciones de recepción las hace salud:admin (nadie recibe este rol).
 ROL_RECEPCION = "salud:recepcion"
 ROL_CIUDADANO = "ciudadano"
+# Auditoría Social: solo lectura de datos AGREGADOS (indicadores), nunca datos personales.
+ROLES_AUDITORIA = ("auditoria:analista", "auditoria:admin")
 
 # Personal del hospital: puede ver datos de cualquier paciente.
 ROLES_PERSONAL = (ROL_MEDICO, ROL_ADMIN, ROL_RECEPCION)
@@ -141,6 +143,27 @@ def requiere_rol(*roles_permitidos):
             if not tiene_rol(*roles_permitidos):
                 return _error(403, "permiso_denegado", "No tiene permiso para esta acción")
             return f(*args, **kwargs)
+        return wrapper
+    return decorador
+
+
+def validar_api_key_o_token(*roles_token):
+    """Para endpoints que consumen otros módulos.
+
+    Acepta cualquiera de las dos formas:
+      - X-API-Key (proceso sin usuario, servidor a servidor), o
+      - el access token del usuario reenviado por el otro módulo (guía del
+        Login Único, sección 7), siempre que tenga uno de roles_token.
+    """
+    def decorador(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if request.headers.get("X-API-Key"):
+                return validar_api_key(f)(*args, **kwargs)
+            if request.headers.get("Authorization", "").startswith("Bearer "):
+                return validar_token(requiere_rol(*roles_token)(f))(*args, **kwargs)
+            return jsonify(success=False, error="sin_credenciales",
+                           message="Envíe X-API-Key o un token del Login Único"), 401
         return wrapper
     return decorador
 

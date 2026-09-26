@@ -4,7 +4,7 @@ from models import (
     Paciente, CitaMedica, RecursoHospitalario, Turno, PresupuestoHospitalario,
     Vacunacion, Establecimiento, Practicante, HorasPractica,
 )
-from auth import validar_api_key
+from auth import validar_api_key, validar_api_key_o_token, ROLES_AUDITORIA
 from services_externos import coordinar_jornada
 
 externos_bp = Blueprint("externos", __name__)
@@ -265,15 +265,19 @@ def calcular_indicadores():
 
 
 @externos_bp.route("/api/v1/salud/indicadores", methods=["GET"])
-@validar_api_key
+@validar_api_key_o_token(*ROLES_AUDITORIA)
 def indicadores():
     """
     Indicadores generales del módulo de salud
     ---
     tags:
       - Integración externa
+    description: >
+      Para otros módulos con X-API-Key, o para Auditoría Social con el token
+      del usuario (rol auditoria:analista / auditoria:admin).
     security:
       - ApiKeyAuth: []
+      - BearerAuth: []
     responses:
       200:
         description: Indicadores del módulo de salud

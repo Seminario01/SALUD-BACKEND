@@ -7,6 +7,7 @@ from routes.presupuesto import presupuesto_bp
 from routes.externos import externos_bp
 from routes.vacunacion import vacunacion_bp
 from routes.panel import panel_bp
+from routes.integraciones import integraciones_bp
 
 def registrar_rutas(app):
     app.register_blueprint(pacientes_bp)
@@ -18,3 +19,4 @@ def registrar_rutas(app):
     app.register_blueprint(externos_bp)
     app.register_blueprint(vacunacion_bp)
     app.register_blueprint(panel_bp)
+    app.register_blueprint(integraciones_bp)

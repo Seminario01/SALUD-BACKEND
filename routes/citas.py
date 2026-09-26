@@ -213,4 +213,6 @@ def listar_citas():
         "fecha_hora": str(c.fecha_hora),
         "estado": c.estado,
         "motivo": c.motivo,
+        "costo": float(c.costo) if c.costo is not None else None,
+        "pago_confirmado": bool(c.pago_confirmado),
     } for c in citas]), 200

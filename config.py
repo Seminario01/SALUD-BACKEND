@@ -30,3 +30,6 @@ class Config:
     URL_EDUCACION = os.getenv("URL_EDUCACION", "http://localhost:5001")
     URL_SEGURIDAD = os.getenv("URL_SEGURIDAD", "http://localhost:5002")
     URL_TRIBUTARIO = os.getenv("URL_TRIBUTARIO", "http://localhost:5003")
+
+    # Monto por defecto de una consulta cuando la cita no tiene costo registrado
+    COSTO_CONSULTA = float(os.getenv("COSTO_CONSULTA", "150"))
