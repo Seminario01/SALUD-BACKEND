@@ -210,20 +210,10 @@ def costo_cita(id):
     }), 200
 
 
-@externos_bp.route("/api/v1/salud/indicadores", methods=["GET"])
-@validar_api_key
-def indicadores():
-    """
-    Indicadores generales del módulo de salud
-    ---
-    tags:
-      - Integración externa
-    security:
-      - ApiKeyAuth: []
-    responses:
-      200:
-        description: Indicadores del módulo de salud
-    """
+def calcular_indicadores():
+    """Indicadores agregados del módulo (sin datos personales). Los usan:
+    - GET /indicadores (otros módulos, con API key)
+    - GET /panel (frontend de Salud, con el token del usuario)"""
     citas_atendidas = CitaMedica.query.filter_by(estado="atendida").count()
     citas_pendientes = CitaMedica.query.filter_by(estado="pendiente").count()
     citas_canceladas = CitaMedica.query.filter_by(estado="cancelada").count()
@@ -253,7 +243,7 @@ def indicadores():
             "monto_ejecutado_servicio_social": float(presupuesto.monto_ejecutado_servicio_social or 0),
         }
 
-    return jsonify(success=True, data={
+    return {
         "pacientes_totales": pacientes_totales,
         "citas": {
             "atendidas": citas_atendidas,
@@ -271,4 +261,21 @@ def indicadores():
         },
         "recursos_hospitalarios": recursos_resumen,
         "presupuesto_servicio_social": presupuesto_resumen,
-    }), 200
+    }
+
+
+@externos_bp.route("/api/v1/salud/indicadores", methods=["GET"])
+@validar_api_key
+def indicadores():
+    """
+    Indicadores generales del módulo de salud
+    ---
+    tags:
+      - Integración externa
+    security:
+      - ApiKeyAuth: []
+    responses:
+      200:
+        description: Indicadores del módulo de salud
+    """
+    return jsonify(success=True, data=calcular_indicadores()), 200
