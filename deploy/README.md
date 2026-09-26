@@ -61,7 +61,15 @@ docker compose ps          # los 3 servicios en "running" (db en "healthy")
 docker compose logs -f backend
 ```
 
-La **primera vez** MySQL ejecuta `schema.sql` y `datos insertados.sql` de `SALUD-DATABASE` (tarda unos 30 segundos). En los arranques siguientes los datos se conservan en el volumen `salud_mysql`.
+La **primera vez** MySQL ejecuta `schema.sql`, `datos insertados.sql`, `datos_demo.sql` (20 pacientes ficticios con citas, expedientes y vacunación) y `demo_turnos_hoy.sql` de `SALUD-DATABASE` (tarda unos 30 segundos). En los arranques siguientes los datos se conservan en el volumen `salud_mysql`.
+
+**Turnos para la presentación:** los turnos son "del día", así que los de la carga inicial dejan de verse al día siguiente. El día de la presentación, recargarlos con:
+
+```bash
+docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /demo/demo_turnos_hoy.sql'
+```
+
+(Si ese día ya hay turnos, no hace nada.)
 
 Comprobación local en el servidor:
 

@@ -81,9 +81,9 @@ Todas las rutas empiezan con `/api/v1/salud`.
 |---|---|---|---|
 | GET | `/pacientes` | Personal | — |
 | POST | `/pacientes` | `salud:admin`, `salud:recepcion` | — |
-| GET | `/pacientes/me` | Cualquier usuario autenticado | Devuelve solo el paciente vinculado a su `sub` |
+| GET | `/pacientes/me` | Cualquier usuario autenticado | Devuelve solo el paciente vinculado a su `sub`. Si no hay: 404 `no_vinculado` con su `sub` (el "código de vinculación" que ve en *Mi resumen*) |
 | GET | `/pacientes/<id>` | Personal, o el ciudadano dueño | Ciudadano: solo si `usuario_sub == sub`. Un id ajeno o inexistente responde `403` (no revela si existe) |
-| PUT | `/pacientes/<id>` | `salud:admin`, `salud:recepcion`, o el ciudadano dueño | Ciudadano: solo su propio registro |
+| PUT | `/pacientes/<id>` | `salud:admin`, `salud:recepcion`, o el ciudadano dueño | Admin/recepción: todos los campos, incluido `usuario_sub` (vincular; 36 caracteres → si no, 400; si ya lo usa otro paciente → 409). Ciudadano: solo su propio registro y solo `telefono`, `tipo_seguro`, `cuidador` |
 | GET | `/citas` | Cualquier usuario autenticado | Personal: todas (filtro `?paciente_id` opcional). Ciudadano: **solo sus citas**; el filtro se ignora |
 | POST | `/citas` | Personal, o ciudadano para sí mismo | Ciudadano: solo con su propio `paciente_id` |
 | PUT | `/citas/<id>` | Personal, o el ciudadano dueño | Ciudadano: solo puede reprogramar la fecha; el **estado** lo cambia el personal |
@@ -96,8 +96,8 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | PUT | `/vacunacion/<paciente_id>` | `salud:medico`, `salud:admin` | — |
 | DELETE | `/vacunacion/<paciente_id>` | `salud:admin` | — |
 | POST | `/turnos` | `salud:admin`, `salud:recepcion` | — |
-| GET | `/turnos/activos` | Cualquier usuario autenticado | Solo número, estado y prioridad (sin datos personales) |
-| PUT | `/turnos/<id>/llamar`, `/atender`, `/finalizar` | `salud:medico`, `salud:admin` | — |
+| GET | `/turnos/activos` | Cualquier usuario autenticado | Solo los de hoy. Número, estado, prioridad y consultorio; el nombre del paciente **solo** para el personal (la pantalla de sala de espera no lo muestra) |
+| PUT | `/turnos/<id>/llamar`, `/atender`, `/finalizar` | `salud:medico`, `salud:admin` | `llamar` acepta `{"modulo_asignado": "Consultorio 2"}` |
 | GET | `/recursos` | Cualquier usuario autenticado | Datos agregados (camas, ambulancias) |
 | POST | `/recursos` | `salud:admin` | — |
 | PUT | `/recursos/<id>` | `salud:admin` | — |
