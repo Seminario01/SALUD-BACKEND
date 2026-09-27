@@ -59,6 +59,10 @@ def get_jwk_client():
             cache_jwk_set=True,
             lifespan=12 * 60 * 60,
             timeout=5,
+            # Sin esto, PyJWKClient usa urllib con su user-agent por defecto
+            # ("Python-urllib/3.x"), que Cloudflare bloquea con 403 al pasar
+            # por el túnel. Con un user-agent normal, la petición pasa.
+            headers={"User-Agent": "salud-backend/1.0"},
         )
     return _jwk_client
 
