@@ -104,6 +104,8 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | PUT | `/presupuesto` | `salud:admin` | — |
 | GET | `/panel` | Personal y Auditoría | Indicadores agregados del Dashboard (reemplaza el uso de la API key en el navegador) |
 | GET | `/integraciones/estado` | Personal | Estado de conexión con Educación, Seguridad y Tributario |
+| GET | `/integraciones/bitacora` | Personal | Bitácora de llamadas entre módulos (CUI enmascarados) |
+| POST | `/integraciones/simular/<caso>` | `salud:medico`, `salud:admin` | Demostración: un módulo simulado consume un servicio de Salud |
 | GET | `/pacientes/<id>/antecedentes` | Personal | Consulta a Seguridad (WS-SALUD-08). Ver `docs/INTEGRACIONES.md` |
 | GET | `/educacion/estudiantes/<cui>` | `salud:medico`, `salud:admin` | Consulta a Educación |
 | POST | `/citas/<id>/verificar-pago` | Personal | Consulta a Tributario (WS-SALUD-09); si está pagada, marca la cita |

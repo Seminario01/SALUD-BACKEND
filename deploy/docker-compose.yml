@@ -54,9 +54,25 @@ services:
       AUTH_ISSUER: ${AUTH_ISSUER:?Falta AUTH_ISSUER en .env}
       AUTH_AUDIENCE: rsd-api
       MODULOS_API_KEY: ${MODULOS_API_KEY:?Falta MODULOS_API_KEY en .env}
-      URL_EDUCACION: ${URL_EDUCACION:-}
-      URL_SEGURIDAD: ${URL_SEGURIDAD:-}
-      URL_TRIBUTARIO: ${URL_TRIBUTARIO:-}
+      # Mientras los otros módulos no publiquen su servicio, se usan los
+      # simuladores (servicio de abajo). Cuando un equipo tenga su URL real,
+      # se pone en el .env y se corre "docker compose up -d".
+      URL_EDUCACION: ${URL_EDUCACION:-http://simuladores:5055}
+      URL_SEGURIDAD: ${URL_SEGURIDAD:-http://simuladores:5055}
+      URL_TRIBUTARIO: ${URL_TRIBUTARIO:-http://simuladores:5055}
+      TZ: America/Guatemala
+
+  # Simuladores de Educación, Seguridad y Tributario (datos ficticios; todas
+  # las respuestas dicen "simulado": true). Solo en la red interna de Docker:
+  # no se publican a internet.
+  simuladores:
+    build: ..
+    restart: unless-stopped
+    command: ["gunicorn", "--workers", "1", "--threads", "4", "--bind", "0.0.0.0:5055",
+              "--chdir", "simuladores", "--access-logfile", "-", "app:app"]
+    environment:
+      MODULOS_API_KEY: ${MODULOS_API_KEY}
+      SALUD_URL: http://backend:5050
       TZ: America/Guatemala
 
   frontend:

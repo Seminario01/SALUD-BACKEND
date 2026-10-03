@@ -10,6 +10,7 @@ Variables opcionales: AUTH_ISSUER (por defecto la réplica local) y MODULOS_API_
 Es repetible: si los pacientes de prueba ya existen, los reutiliza.
 """
 import json, os, sys, base64, tempfile, requests
+import re
 
 TMP = tempfile.gettempdir()
 
@@ -151,6 +152,20 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
     citas = requests.get(API + "/citas", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
     ok = any(c["id"] == cita_p1 and c["pago_confirmado"] for c in citas); resultados.append(ok)
     print(f"{'OK ' if ok else 'FALLA'}      la cita queda marcada como pagada")
+
+    print("--- Demostracion: un modulo simulado consume a Salud, y bitacora")
+    d = check("Seguridad (simulada) consulta establecimientos", "POST", "/integraciones/simular/seguridad-establecimientos",
+              T["admin.salud"], 200).json()["data"]
+    ok = d.get("origen") == "Seguridad" and d["respuesta"]["status"] == 200; resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      Salud respondio {d['respuesta']['status']} a Seguridad (simulada)")
+    check("ciudadano1 NO dispara la demostracion", "POST", "/integraciones/simular/seguridad-establecimientos", T["ciudadano1"], 403)
+    check("caso de demostracion inexistente", "POST", "/integraciones/simular/no-existe", T["admin.salud"], 404)
+    b = check("bitacora (admin)", "GET", "/integraciones/bitacora?limite=20", T["admin.salud"], 200).json()["data"]
+    ok = any(r["direccion"] == "entrante" and r["modulo"] == "Seguridad" for r in b) and \
+        any(r["direccion"] == "saliente" for r in b) and not any(re.search(r"\d{13}", r["ruta"]) for r in b)
+    resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      registra entrantes y salientes, CUI enmascarados")
+    check("ciudadano1 NO ve la bitacora", "GET", "/integraciones/bitacora", T["ciudadano1"], 403)
+    check("analista1 (auditoria) NO ve la bitacora", "GET", "/integraciones/bitacora", T["analista1"], 403)
 else:
     print("         (se omiten las pruebas de datos: los simuladores no están corriendo)")
 

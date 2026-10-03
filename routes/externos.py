@@ -1,3 +1,5 @@
+import time
+
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import (
@@ -5,9 +7,46 @@ from models import (
     Vacunacion, Establecimiento, Practicante, HorasPractica,
 )
 from auth import validar_api_key, validar_api_key_o_token, ROLES_AUDITORIA
+from bitacora import registrar, resumir
 from services_externos import coordinar_jornada
 
 externos_bp = Blueprint("externos", __name__)
+
+OPERACIONES = {
+    "externos.coordinar_jornada_vacunacion": "Coordinar jornada de vacunación (WS-SALUD-01)",
+    "externos.establecimientos_disponibilidad": "Disponibilidad de establecimientos (WS-SALUD-02)",
+    "externos.horas_practicante": "Horas de práctica (WS-SALUD-06)",
+    "externos.costo_cita": "Costo y pago de una cita",
+    "externos.indicadores": "Indicadores agregados",
+}
+MODULOS = {"seguridad": "Seguridad", "educacion": "Educación", "educación": "Educación",
+           "tributario": "Tributario", "auditoria": "Auditoría", "auditoría": "Auditoría"}
+
+
+@externos_bp.before_request
+def _inicio():
+    request._inicio_bitacora = time.perf_counter()
+
+
+@externos_bp.after_request
+def _registrar_entrante(respuesta):
+    """Bitácora: otro módulo consumió un servicio de Salud con su API key."""
+    if request.headers.get("X-API-Key"):
+        origen = (request.headers.get("X-Modulo-Origen") or "").strip().lower()
+        try:
+            cuerpo = respuesta.get_json(silent=True) or {}
+        except Exception:  # noqa: BLE001
+            cuerpo = {}
+        datos = cuerpo.get("data") if isinstance(cuerpo, dict) else None
+        registrar(
+            "entrante", MODULOS.get(origen, "Otro"), OPERACIONES.get(request.endpoint, request.path),
+            request.method, request.full_path.rstrip("?"), respuesta.status_code,
+            "ok" if respuesta.status_code < 400 else (cuerpo.get("error") or f"error_{respuesta.status_code}"),
+            round((time.perf_counter() - getattr(request, "_inicio_bitacora", time.perf_counter())) * 1000),
+            request.headers.get("X-Simulado", "").lower() == "true",
+            resumir(datos if datos is not None else cuerpo) or cuerpo.get("message"),
+        )
+    return respuesta
 
 
 @externos_bp.route("/api/v1/salud/jornadas/coordinar", methods=["POST"])

@@ -50,24 +50,48 @@ COSTO_CONSULTA=150
 
 Con una URL vacía, ese módulo aparece como **"No configurado"** en el Dashboard.
 
-## 4. Simuladores (solo desarrollo)
+## 4. Simuladores, demostración y bitácora
 
-`simuladores/app.py` imita los tres módulos, con las mismas rutas y campos. Todas sus respuestas llevan `"simulado": true`, y el Dashboard y las pantallas lo indican con "(simulador)".
+El contrato completo para los otros equipos está en **`docs/CONTRATOS.md`**.
 
-```bash
-python simuladores/app.py          # http://localhost:5055
-```
+**Simuladores.** `simuladores/app.py` imita Educación, Seguridad y Tributario con las mismas rutas y campos del contrato.
+- Sus datos son ficticios (`simuladores/datos.py`) y coherentes con los pacientes de `datos_demo.sql`: los mismos CUI, nombres y edades.
+- Todas sus respuestas llevan `"simulado": true`, y la interfaz lo muestra.
 
-En el `.env`: `URL_EDUCACION`, `URL_SEGURIDAD` y `URL_TRIBUTARIO` apuntando a `http://localhost:5055`.
-
-| Módulo | Regla del simulador |
+| Dónde | Cómo se levantan |
 |---|---|
-| Seguridad | CUI que termina en **9**: riesgo ALTO, requiere custodia. En **7**: riesgo BAJO. Otro: sin antecedentes |
-| Educación | CUI que termina en número **par**: es estudiante. Impar: no es estudiante |
-| Tributario | monto mayor a 0: pago CONFIRMADO |
+| Servidor (Docker) | Servicio `simuladores` de `deploy/docker-compose.yml`, solo en la red interna. Con `URL_*` vacías en `.env`, el backend los usa |
+| Local | `python simuladores/app.py` (puerto 5055) y en el `.env`: `URL_EDUCACION`, `URL_SEGURIDAD` y `URL_TRIBUTARIO` apuntando a `http://localhost:5055` |
 
-**Cuando un equipo publique su servicio real**, solo se cambia su URL en el `.env` y se reinicia el backend. El código no cambia.
-Si sus rutas o campos son distintos a los acordados, se ajustan en `services_externos.py`.
+| Caso de demostración | Paciente de `datos_demo.sql` |
+|---|---|
+| Seguridad: riesgo ALTO, requiere custodia | José Antonio Pérez García, Juan Carlos Ixcoy Batz |
+| Seguridad: riesgo BAJO | Carlos Enrique Ramírez Solís, Fernando José Barrios Ochoa |
+| Educación: estudiante | Ana Lucía Morales, Sofía Gómez, Gabriela Díaz, Diego Méndez, Karla Estrada, Lucía Tzul, Kevin Coyoy |
+| Tributario: pago no registrado | Pedro Pablo Juárez, Rosa Elena Velásquez, Marta Julia Orellana |
+| Tributario: pago confirmado | cualquier otro |
+
+Para CUI que no están en el padrón (pacientes nuevos) hay reglas por último dígito:
+- Seguridad: si termina en 9, riesgo ALTO; si termina en 7, riesgo BAJO.
+- Educación: si termina en número par, es estudiante.
+- Tributario: si termina en 3, el pago no está registrado.
+
+**Demostración en las dos direcciones.** En *Integraciones*, admin y médico pueden pedirle a un módulo simulado que **consuma un servicio de Salud**. Lo hace con `POST /api/v1/salud/integraciones/simular/{caso}`, y se ve la petición y la respuesta. Los casos disponibles:
+
+| Caso | Quién consulta | Qué pide |
+|---|---|---|
+| `seguridad-establecimientos` | Seguridad | WS-SALUD-02 |
+| `educacion-jornada` | Educación | WS-SALUD-01; Salud a su vez le consulta a Educación |
+| `educacion-practicante` | Educación | WS-SALUD-06 |
+| `tributario-costo` | Tributario | Costo de una cita |
+| `auditoria-indicadores` | Auditoría | Indicadores agregados |
+
+**Bitácora** (`GET /api/v1/salud/integraciones/bitacora`, solo el personal; tabla `bitacora_integraciones`).
+- Registra cada llamada saliente, desde `services_externos.py`, y cada entrante con API key, desde `routes/externos.py`.
+- Los CUI se guardan enmascarados.
+- No registra las verificaciones de conexión del panel.
+
+**Cuando un equipo publique su servicio real**, solo se pone su URL en el `.env` y se reinicia. El código no cambia.
 
 ## 5. Auditoría Social
 

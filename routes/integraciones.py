@@ -6,14 +6,15 @@ usuario, y el backend de Salud llama al módulo destino (servidor a servidor).
 Si el otro módulo no está configurado o no responde, se devuelve un error
 claro (503) y la operación propia de Salud no se ve afectada.
 """
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from auth import validar_token, requiere_rol, ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION
 from config import Config
 from extensions import db
-from models import CitaMedica, Paciente
+from models import BitacoraIntegracion, CitaMedica, Paciente
 from services_externos import (
     consultar_antecedentes_seguridad,
+    disparar_caso_simulado,
     generar_numero_referencia_pago,
     obtener_estudiante,
     obtener_indicadores_educacion,
@@ -62,10 +63,12 @@ def estado_integraciones():
     }
     estado = {}
     for nombre, (url, ping) in modulos.items():
-        r = ping()
+        r = ping(registrar=False)
         if r["success"] or r.get("error") == "no_encontrado":
             datos = r.get("data") if isinstance(r.get("data"), dict) else {}
-            estado[nombre] = {"estado": "conectado", "simulado": bool(datos.get("simulado"))}
+            indicadores = {k: v for k, v in datos.items() if k not in ("simulado", "modulo")}
+            estado[nombre] = {"estado": "conectado", "simulado": bool(r.get("simulado") or datos.get("simulado")),
+                              "indicadores": indicadores}
         elif r.get("error") == "no_configurado":
             estado[nombre] = {"estado": "no_configurado", "simulado": False}
         else:
@@ -197,3 +200,119 @@ def verificar_pago_cita(id):
         "monto": monto,
         "respuestaTributario": datos,
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# Bitácora y demostración de la integración
+# ---------------------------------------------------------------------------
+MODULOS_BITACORA = ("Educación", "Seguridad", "Tributario", "Auditoría", "Otro")
+
+
+@integraciones_bp.route("/api/v1/salud/integraciones/bitacora", methods=["GET"])
+@validar_token
+@requiere_rol(*PERSONAL)
+def bitacora_integraciones():
+    """
+    Bitácora de llamadas entre Salud y los otros módulos
+    ---
+    tags:
+      - Integraciones
+    security:
+      - BearerAuth: []
+    description: >
+      Cada consulta que Salud hace a otro módulo (saliente) y cada servicio de
+      Salud que otro módulo consume con API key (entrante). Los CUI se muestran
+      enmascarados.
+    parameters:
+      - name: modulo
+        in: query
+        type: string
+        enum: [Educación, Seguridad, Tributario, Auditoría, Otro]
+      - name: direccion
+        in: query
+        type: string
+        enum: [saliente, entrante]
+      - name: limite
+        in: query
+        type: integer
+        default: 50
+    responses:
+      200:
+        description: Registros, del más reciente al más antiguo, y totales por módulo
+    """
+    query = BitacoraIntegracion.query
+    modulo = request.args.get("modulo")
+    direccion = request.args.get("direccion")
+    if modulo:
+        query = query.filter(BitacoraIntegracion.modulo == modulo)
+    if direccion in ("saliente", "entrante"):
+        query = query.filter(BitacoraIntegracion.direccion == direccion)
+    try:
+        limite = max(1, min(int(request.args.get("limite", 50)), 200))
+    except ValueError:
+        limite = 50
+    registros = query.order_by(BitacoraIntegracion.id.desc()).limit(limite).all()
+
+    totales = dict(db.session.query(BitacoraIntegracion.modulo, db.func.count())
+                   .group_by(BitacoraIntegracion.modulo).all())
+    return jsonify(success=True, data=[{
+        "id": r.id, "fecha": r.fecha.isoformat(timespec="seconds"), "direccion": r.direccion,
+        "modulo": r.modulo, "operacion": r.operacion, "metodo": r.metodo, "ruta": r.ruta,
+        "estadoHttp": r.estado_http, "resultado": r.resultado, "duracionMs": r.duracion_ms,
+        "simulado": r.simulado, "usuario": r.usuario, "detalle": r.detalle,
+    } for r in registros], totales=totales), 200
+
+
+CASOS_SIMULADOS = {
+    # caso: (módulo simulado que hace la consulta, URL de ese módulo)
+    "seguridad-establecimientos": "URL_SEGURIDAD",
+    "educacion-jornada": "URL_EDUCACION",
+    "educacion-practicante": "URL_EDUCACION",
+    "tributario-costo": "URL_TRIBUTARIO",
+    "auditoria-indicadores": "URL_SEGURIDAD",   # Auditoría la maneja la ingeniera; se simula desde el mismo servidor
+}
+
+
+@integraciones_bp.route("/api/v1/salud/integraciones/simular/<string:caso>", methods=["POST"])
+@validar_token
+@requiere_rol(ROL_ADMIN, ROL_MEDICO)
+def simular_consulta_entrante(caso):
+    """
+    Demostración - un módulo SIMULADO consume un servicio de Salud
+    ---
+    tags:
+      - Integraciones
+    security:
+      - BearerAuth: []
+    description: >
+      Le pide al simulador que haga de Seguridad, Educación, Tributario o
+      Auditoría y llame a un servicio de Salud con su API key. Solo funciona
+      mientras ese módulo esté configurado con los simuladores.
+    parameters:
+      - name: caso
+        in: path
+        type: string
+        required: true
+        enum: [seguridad-establecimientos, educacion-jornada, educacion-practicante, tributario-costo, auditoria-indicadores]
+    responses:
+      200:
+        description: Petición que hizo el módulo simulado y respuesta de Salud
+      404:
+        description: Caso desconocido
+      503:
+        description: El módulo no está configurado con los simuladores
+    """
+    if caso not in CASOS_SIMULADOS:
+        return jsonify(success=False, error="no_encontrado", message="Caso desconocido"), 404
+    url = getattr(Config, CASOS_SIMULADOS[caso])
+    cuerpo = {}
+    if caso == "tributario-costo":
+        cita = CitaMedica.query.filter(CitaMedica.costo.isnot(None)).order_by(CitaMedica.id.desc()).first()
+        cuerpo["cita_id"] = cita.id if cita else 1
+    r = disparar_caso_simulado(url, caso, cuerpo)
+    if not r["success"]:
+        if r.get("error") in ("no_encontrado", "respuesta_invalida"):
+            return jsonify(success=False, error="no_simulado",
+                           message="Ese módulo no está usando los simuladores: la demostración solo funciona con ellos."), 503
+        return _error_modulo(r, "simulado")
+    return jsonify(success=True, data=r["data"]), 200

@@ -126,3 +126,21 @@ class HorasPractica(db.Model):
     fecha = db.Column(db.Date, nullable=False)
     horas = db.Column(db.Integer, nullable=False)
     actividad = db.Column(db.Text)
+
+class BitacoraIntegracion(db.Model):
+    """Registro de cada llamada entre Salud y otro módulo (en ambas direcciones).
+    Los CUI se guardan enmascarados (solo los últimos 4 dígitos)."""
+    __tablename__ = "bitacora_integraciones"
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    direccion = db.Column(db.Enum("saliente", "entrante"), nullable=False)
+    modulo = db.Column(db.String(30), nullable=False)
+    operacion = db.Column(db.String(120), nullable=False)
+    metodo = db.Column(db.String(10), nullable=False)
+    ruta = db.Column(db.String(255), nullable=False)
+    estado_http = db.Column(db.Integer)
+    resultado = db.Column(db.String(30), nullable=False)
+    duracion_ms = db.Column(db.Integer)
+    simulado = db.Column(db.Boolean, default=False, nullable=False)
+    usuario = db.Column(db.String(100))
+    detalle = db.Column(db.String(255))

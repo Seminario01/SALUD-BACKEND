@@ -69,7 +69,9 @@ La **primera vez** MySQL ejecuta `schema.sql`, `datos insertados.sql`, `datos_de
 docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /demo/demo_turnos_hoy.sql'
 ```
 
-(Si ese día ya hay turnos, no hace nada.)
+(Si los turnos demo de ese día ya están, no hace nada; si alguien ya generó turnos, numera después de ellos.)
+
+**Integración con otros módulos (simuladores):** el servicio `simuladores` del compose imita a Educación, Seguridad y Tributario con datos ficticios (ver `docs/INTEGRACIONES.md` y `docs/CONTRATOS.md`). Con `URL_EDUCACION`, `URL_SEGURIDAD` y `URL_TRIBUTARIO` vacías en `.env`, el backend los usa. Cuando un equipo publique su servicio, se pone su URL en `.env` y se corre `docker compose up -d`.
 
 Comprobación local en el servidor:
 
