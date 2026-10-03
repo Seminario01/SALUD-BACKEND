@@ -101,11 +101,11 @@ def antecedentes(cui):
         if d == 9:
             return ok({"cui": cui, "nombreCompleto": nombre, "tieneAntecedentes": True,
                        "tipoAntecedente": "Robo agravado", "nivelRiesgo": "ALTO", "requiereCustodia": True,
-                       "detalle": "Registro de prueba (regla del simulador)."})
+                       "detalle": "Proceso penal registrado; requiere custodia durante la atención."})
         if d == 7:
             return ok({"cui": cui, "nombreCompleto": nombre, "tieneAntecedentes": True,
                        "tipoAntecedente": "Falta menor", "nivelRiesgo": "BAJO", "requiereCustodia": False,
-                       "detalle": "Registro de prueba (regla del simulador)."})
+                       "detalle": "Falta menor resuelta."})
     return ok({"cui": cui, "nombreCompleto": nombre, "tieneAntecedentes": False, "tipoAntecedente": None,
                "nivelRiesgo": "NINGUNO", "requiereCustodia": False})
 
@@ -130,7 +130,7 @@ def estudiante(cui):
     if cui not in datos.NOMBRES and _ultimo_digito(cui) % 2 == 0:
         return ok({"cui": cui, "estado": "INSCRITO", "cicloEscolar": 2026, "nivel": "Básico",
                    "establecimiento": "INEB Jornada Matutina, Antigua Guatemala", "grado": "2do. Básico",
-                   "seccion": "A", "jornada": "Matutina", "detalle": "Registro de prueba (regla del simulador)."})
+                   "seccion": "A", "jornada": "Matutina"})
     return no_encontrado("El CUI no corresponde a un estudiante inscrito en el ciclo 2026")
 
 
