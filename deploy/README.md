@@ -123,18 +123,25 @@ cd ~/salud/SALUD-FRONTEND && git pull
 cd ~/salud/SALUD-BACKEND/deploy && docker compose up -d --build
 ```
 
-**Respaldo de la base de datos:**
+**Respaldo de las bases de datos** (Salud y el Keycloak local), con `deploy/respaldo.sh`:
 
 ```bash
-cd ~/salud/SALUD-BACKEND/deploy
-docker compose exec -T db sh -c 'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" salud_db' > respaldo_$(date +%F).sql
+bash ~/proyecto-salud/SALUD-BACKEND/deploy/respaldo.sh      # a mano
+crontab -e                                                  # automático, todos los días a las 3:15
+# agregar la línea:
+15 3 * * * bash $HOME/proyecto-salud/SALUD-BACKEND/deploy/respaldo.sh >> $HOME/respaldos-salud/respaldo.log 2>&1
 ```
 
-**Restaurar un respaldo:**
+Se guardan en `~/respaldos-salud` y se conservan los últimos 7 días.
+
+**Restaurar** (desde `SALUD-BACKEND/deploy`; reemplaza los datos actuales):
 
 ```bash
-docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" salud_db' < respaldo_AAAA-MM-DD.sql
+gunzip -c ~/respaldos-salud/salud_db_AAAA-MM-DD_HHMM.sql.gz | docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'
+gunzip -c ~/respaldos-salud/keycloak_AAAA-MM-DD_HHMM.sql.gz | docker exec -i rsd-postgres-local psql -U keycloak -d keycloak
 ```
+
+(Para Keycloak, detener antes el contenedor `rsd-keycloak-local` y restaurar sobre una base vacía.)
 
 ## 8. Si ya tienen datos en una base anterior
 
