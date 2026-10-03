@@ -45,6 +45,26 @@
       },
       {
         "name": "auditoria:admin"
+      },
+      {
+        "name": "salud:enfermeria",
+        "description": "Enfermería: triaje, vacunación, hospitalización y camas"
+      },
+      {
+        "name": "salud:recepcion",
+        "description": "Recepción / Admisión: pacientes, citas y turnos (sin datos clínicos)"
+      },
+      {
+        "name": "salud:farmacia",
+        "description": "Farmacia: despacho de recetas e inventario de medicamentos"
+      },
+      {
+        "name": "salud:caja",
+        "description": "Caja: cobros, cuentas del paciente y verificación de pagos"
+      },
+      {
+        "name": "salud:jefatura",
+        "description": "Jefatura médica: personal médico, practicantes y reportes clínicos"
       }
     ]
   },
@@ -145,6 +165,107 @@
         "default-roles-rsd",
         "servidor_publico",
         "auditoria:analista"
+      ]
+    },
+    {
+      "username": "enfermera1",
+      "enabled": true,
+      "email": "enfermera1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Marta",
+      "lastName": "Ramírez",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "salud:enfermeria"
+      ]
+    },
+    {
+      "username": "recepcion1",
+      "enabled": true,
+      "email": "recepcion1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Julio",
+      "lastName": "Castillo",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "salud:recepcion"
+      ]
+    },
+    {
+      "username": "farmacia1",
+      "enabled": true,
+      "email": "farmacia1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Silvia",
+      "lastName": "Ordóñez",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "salud:farmacia"
+      ]
+    },
+    {
+      "username": "caja1",
+      "enabled": true,
+      "email": "caja1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Roberto",
+      "lastName": "Méndez",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "salud:caja"
+      ]
+    },
+    {
+      "username": "jefatura1",
+      "enabled": true,
+      "email": "jefatura1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Carmen",
+      "lastName": "Recinos",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "salud:jefatura",
+        "salud:medico"
       ]
     }
   ],

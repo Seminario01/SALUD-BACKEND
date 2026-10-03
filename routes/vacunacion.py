@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import Vacunacion, Paciente
-from auth import validar_token, requiere_rol, es_personal, ROL_MEDICO, ROL_ADMIN
+from auth import validar_token, requiere_permiso, puede
 
 vacunacion_bp = Blueprint("vacunacion", __name__)
 
@@ -19,7 +19,7 @@ def _serializar(registro):
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion", methods=["POST"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO)
+@requiere_permiso("vacunacion.registrar")
 def registrar_vacunacion():
     """
     Registrar un nuevo registro de vacunación
@@ -75,7 +75,7 @@ def registrar_vacunacion():
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion", methods=["GET"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO)
+@requiere_permiso("vacunacion.ver")
 def listar_vacunacion():
     """
     Listar todos los registros de vacunación
@@ -115,8 +115,8 @@ def obtener_vacunacion(paciente_id):
       404:
         description: Sin registro de vacunación
     """
-    # OWASP API1 (BOLA): personal de Salud, o el ciudadano dueño del registro.
-    if not es_personal():
+    # OWASP API1 (BOLA): puestos con "vacunacion.ver", o el ciudadano dueño del registro.
+    if not puede("vacunacion.ver"):
         paciente = Paciente.query.get(paciente_id)
         if paciente is None or paciente.usuario_sub != g.usuario["sub"]:
             return jsonify(success=False, error="permiso_denegado", message="Solo puede ver su propio registro"), 403
@@ -130,7 +130,7 @@ def obtener_vacunacion(paciente_id):
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion/<int:paciente_id>", methods=["PUT"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO)
+@requiere_permiso("vacunacion.registrar")
 def actualizar_vacunacion(paciente_id):
     """
     Actualizar el registro de vacunación de un paciente
@@ -179,7 +179,7 @@ def actualizar_vacunacion(paciente_id):
 
 @vacunacion_bp.route("/api/v1/salud/vacunacion/<int:paciente_id>", methods=["DELETE"])
 @validar_token
-@requiere_rol(ROL_ADMIN)
+@requiere_permiso("vacunacion.anular")
 def eliminar_vacunacion(paciente_id):
     """
     Eliminar el registro de vacunación de un paciente

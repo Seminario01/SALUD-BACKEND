@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import CitaMedica, Paciente
-from auth import validar_token, es_personal
+from auth import validar_token, puede
 
 citas_bp = Blueprint("citas", __name__)
 
@@ -15,7 +15,7 @@ def _paciente_propio():
 def _puede_gestionar(paciente_id):
     """OWASP API1 (BOLA): el personal de Salud gestiona citas de cualquier
     paciente; un ciudadano solo las de su propio registro."""
-    if es_personal():
+    if puede("citas.gestionar"):
         return True
     propio = _paciente_propio()
     return propio is not None and str(paciente_id) == str(propio.id)
@@ -117,7 +117,7 @@ def reprogramar_cita(id):
     """
     cita = CitaMedica.query.get(id)
     if cita is None:
-        if not es_personal():
+        if not puede("citas.gestionar"):
             return _sin_permiso()
         return jsonify(success=False, error="no_encontrado", message="Cita no existe"), 404
     if not _puede_gestionar(cita.paciente_id):
@@ -130,8 +130,8 @@ def reprogramar_cita(id):
             return jsonify(success=False, error="datos_invalidos", message="fecha_hora inválida (formato AAAA-MM-DD HH:MM)"), 400
         cita.fecha_hora = fecha_hora
     if "estado" in data:
-        # El estado (confirmada, atendida...) solo lo cambia el personal.
-        if not es_personal():
+        # El estado (confirmada, atendida...) solo lo cambia el personal que gestiona citas.
+        if not puede("citas.gestionar"):
             return jsonify(success=False, error="permiso_denegado", message="Solo el personal puede cambiar el estado"), 403
         cita.estado = data["estado"]
 
@@ -162,7 +162,7 @@ def cancelar_cita(id):
     """
     cita = CitaMedica.query.get(id)
     if cita is None:
-        if not es_personal():
+        if not puede("citas.gestionar"):
             return _sin_permiso()
         return jsonify(success=False, error="no_encontrado", message="Cita no existe"), 404
     if not _puede_gestionar(cita.paciente_id):
@@ -194,7 +194,7 @@ def listar_citas():
         description: Lista de citas
     """
     query = CitaMedica.query
-    if es_personal():
+    if puede("citas.ver"):
         paciente_id = request.args.get("paciente_id")
         if paciente_id:
             query = query.filter_by(paciente_id=paciente_id)

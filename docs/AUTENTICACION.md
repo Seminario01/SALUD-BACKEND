@@ -59,56 +59,68 @@ El frontend **no** tiene la API key: todo lo que llega al navegador es público.
 | `preferred_username`, `email`, `name` | backend y frontend | Solo informativos: se muestran en pantalla. **No** se usan como llave |
 | `azp` | backend | Módulo que originó el token (se guarda en `g.usuario["origen"]`) |
 
-## 4. Roles
+## 4. Puestos y matriz de permisos
 
-| Rol | Origen | Uso en Salud |
+La autorización sigue el documento **"Matriz de permisos — Módulo Salud"**. Está implementada en un solo lugar: el diccionario `PERMISOS` de `auth.py`, y el frontend tiene la misma tabla en `src/permisos.js`.
+- Las rutas preguntan por un **permiso**, no por un rol: `@requiere_permiso("citas.gestionar")` o `puede("expediente.ver")`.
+- Para cambiar quién puede hacer algo, se edita `PERMISOS` (y `permisos.js`), no las rutas.
+- `GET /mis-permisos` devuelve los permisos del usuario que llama.
+
+| Puesto | Rol | Usuario de prueba |
 |---|---|---|
-| `salud:medico` | Login Único | Atención clínica: expedientes, vacunación, turnos |
-| `salud:admin` | Login Único | Administración: pacientes, recursos, presupuesto, turnos |
-| `salud:recepcion` | **Pendiente de solicitar** | Registro de pacientes y generación de turnos. Mientras no exista, esas operaciones las hace `salud:admin` |
-| `ciudadano` | Login Único | Solo sus propios datos: su paciente, sus citas, su expediente y su vacunación |
-| `auditoria:analista`, `auditoria:admin` | Login Único | Auditoría Social: solo indicadores **agregados** (`/panel`, `/indicadores`, `/presupuesto/ejecucion`). Nunca datos personales |
+| Médico | `salud:medico` | `medico1` |
+| Enfermería | `salud:enfermeria` | `enfermera1` |
+| Recepción / Admisión | `salud:recepcion` | `recepcion1` |
+| Farmacia | `salud:farmacia` | `farmacia1` |
+| Caja | `salud:caja` | `caja1` |
+| Jefatura médica | `salud:jefatura` (y `salud:medico`) | `jefatura1` |
+| Administración | `salud:admin` | `admin.salud` |
+| Ciudadano | `ciudadano` | `ciudadano1`, `ciudadano2` |
+| Auditoría Social | `auditoria:analista`, `auditoria:admin` | `analista1` |
 
-En la tabla siguiente, **"Personal"** significa cualquiera de `salud:medico`, `salud:admin` o `salud:recepcion`.
+Los roles nuevos y sus usuarios se agregan a un Keycloak existente con `keycloak-local/agregar_puestos.py`, sin reimportar el realm: los `sub` de los usuarios no cambian. También están en `keycloak-local/import/rsd-realm.json` para instalaciones nuevas.
 
-## 5. Qué protege cada operación
+| Permiso | Puestos | Endpoints |
+|---|---|---|
+| `pacientes.ver` | Médico, Enfermería, Recepción, Farmacia, Caja, Jefatura, Admin | `GET /pacientes`, `GET /pacientes/<id>` |
+| `pacientes.registrar` | Recepción, Admin | `POST /pacientes`; `PUT /pacientes/<id>` con todos los campos y la vinculación (`usuario_sub`: 36 caracteres → si no, 400; ya usado → 409) |
+| `pacientes.antecedentes` | Médico, Enfermería, Recepción, Jefatura | `GET /pacientes/<id>/antecedentes` (Seguridad, WS-SALUD-08) |
+| `citas.ver` | Médico, Enfermería, Recepción, Caja, Jefatura, Admin | `GET /citas` (todas; filtro `?paciente_id`) |
+| `citas.gestionar` | Médico, Recepción | `POST`, `PUT` (incluye el **estado**) y `DELETE /citas/<id>` de cualquier paciente |
+| `turnos.generar` | Enfermería, Recepción | `POST /turnos` |
+| `turnos.atender` | Médico, Enfermería | `PUT /turnos/<id>/llamar`, `/atender`, `/finalizar` |
+| `turnos.ver_cola` | Médico, Enfermería, Recepción, Jefatura, Admin | Nombres de pacientes en `GET /turnos/activos` |
+| `expediente.ver` | Médico, Enfermería, Jefatura, Admin (solo lectura) | `GET /expedientes/<paciente_id>` |
+| `expediente.registrar` | Médico | `POST /expedientes/<paciente_id>/atenciones` (queda el `sub` del médico) |
+| `vacunacion.ver` | Médico, Enfermería, Jefatura, Admin (solo lectura) | `GET /vacunacion`, `GET /vacunacion/<paciente_id>` |
+| `vacunacion.registrar` | Médico, Enfermería | `POST /vacunacion`, `PUT /vacunacion/<paciente_id>`, `GET /educacion/estudiantes/<cui>` |
+| `vacunacion.anular` | Jefatura | `DELETE /vacunacion/<paciente_id>` (solo registros creados por error) |
+| `recursos.ver` | Médico, Enfermería, Recepción, Jefatura, Admin | `GET /recursos` |
+| `recursos.gestionar` | Admin | `POST /recursos`, `PUT /recursos/<id>` (todo) |
+| `recursos.camas` | Enfermería, Admin | `PUT /recursos/<id>`: Enfermería solo cambia `disponible` de las **camas** |
+| `pagos.verificar` | Caja, Recepción, Admin | `POST /citas/<id>/verificar-pago` (Tributario, WS-SALUD-09) |
+| `panel.ver` | Todo el personal y Auditoría | `GET /panel` |
+| `presupuesto.ver` | Jefatura, Admin, Auditoría | `GET /presupuesto/ejecucion` (también con API key) |
+| `presupuesto.editar` | Admin | `PUT /presupuesto` |
+| `integraciones.ver` | Jefatura, Admin | `GET /integraciones/estado`, `GET /integraciones/bitacora` |
+| `integraciones.demo` | Jefatura, Admin | `POST /integraciones/simular/<caso>` |
+
+## 5. Reglas por registro
 
 Todas las rutas empiezan con `/api/v1/salud`.
 
-### 5.1 Operaciones con token del Login Único (frontend y usuarios)
+### 5.1 El ciudadano: solo lo propio (OWASP API1, BOLA)
 
-| Método | Ruta | Quién puede | Regla por registro (OWASP API1, BOLA) |
-|---|---|---|---|
-| GET | `/pacientes` | Personal | — |
-| POST | `/pacientes` | `salud:admin`, `salud:recepcion` | — |
-| GET | `/pacientes/me` | Cualquier usuario autenticado | Devuelve solo el paciente vinculado a su `sub`. Si no hay: 404 `no_vinculado` con su `sub` (el "código de vinculación" que ve en *Mi resumen*) |
-| GET | `/pacientes/<id>` | Personal, o el ciudadano dueño | Ciudadano: solo si `usuario_sub == sub`. Un id ajeno o inexistente responde `403` (no revela si existe) |
-| PUT | `/pacientes/<id>` | `salud:admin`, `salud:recepcion`, o el ciudadano dueño | Admin/recepción: todos los campos, incluido `usuario_sub` (vincular; 36 caracteres → si no, 400; si ya lo usa otro paciente → 409). Ciudadano: solo su propio registro y solo `telefono`, `tipo_seguro`, `cuidador` |
-| GET | `/citas` | Cualquier usuario autenticado | Personal: todas (filtro `?paciente_id` opcional). Ciudadano: **solo sus citas**; el filtro se ignora |
-| POST | `/citas` | Personal, o ciudadano para sí mismo | Ciudadano: solo con su propio `paciente_id` |
-| PUT | `/citas/<id>` | Personal, o el ciudadano dueño | Ciudadano: solo puede reprogramar la fecha; el **estado** lo cambia el personal |
-| DELETE | `/citas/<id>` | Personal, o el ciudadano dueño | Ciudadano: solo cancela sus propias citas |
-| GET | `/expedientes/<paciente_id>` | `salud:medico`, `salud:admin`, o el ciudadano dueño | Datos clínicos: recepción **no** tiene acceso |
-| POST | `/expedientes/<paciente_id>/atenciones` | `salud:medico` | El médico queda registrado con su `sub` |
-| GET | `/vacunacion` | `salud:medico`, `salud:admin` | — |
-| POST | `/vacunacion` | `salud:medico`, `salud:admin` | — |
-| GET | `/vacunacion/<paciente_id>` | Personal, o el ciudadano dueño | Ciudadano: solo su propio registro |
-| PUT | `/vacunacion/<paciente_id>` | `salud:medico`, `salud:admin` | — |
-| DELETE | `/vacunacion/<paciente_id>` | `salud:admin` | — |
-| POST | `/turnos` | `salud:admin`, `salud:recepcion` | — |
-| GET | `/turnos/activos` | Cualquier usuario autenticado | Solo los de hoy. Número, estado, prioridad y consultorio; el nombre del paciente **solo** para el personal (la pantalla de sala de espera no lo muestra) |
-| PUT | `/turnos/<id>/llamar`, `/atender`, `/finalizar` | `salud:medico`, `salud:admin` | `llamar` acepta `{"modulo_asignado": "Consultorio 2"}` |
-| GET | `/recursos` | Cualquier usuario autenticado | Datos agregados (camas, ambulancias) |
-| POST | `/recursos` | `salud:admin` | — |
-| PUT | `/recursos/<id>` | `salud:admin` | — |
-| PUT | `/presupuesto` | `salud:admin` | — |
-| GET | `/panel` | Personal y Auditoría | Indicadores agregados del Dashboard (reemplaza el uso de la API key en el navegador) |
-| GET | `/integraciones/estado` | Personal | Estado de conexión con Educación, Seguridad y Tributario |
-| GET | `/integraciones/bitacora` | Personal | Bitácora de llamadas entre módulos (CUI enmascarados) |
-| POST | `/integraciones/simular/<caso>` | `salud:medico`, `salud:admin` | Demostración: un módulo simulado consume un servicio de Salud |
-| GET | `/pacientes/<id>/antecedentes` | Personal | Consulta a Seguridad (WS-SALUD-08). Ver `docs/INTEGRACIONES.md` |
-| GET | `/educacion/estudiantes/<cui>` | `salud:medico`, `salud:admin` | Consulta a Educación |
-| POST | `/citas/<id>/verificar-pago` | Personal | Consulta a Tributario (WS-SALUD-09); si está pagada, marca la cita |
+| Operación | Regla |
+|---|---|
+| `GET /pacientes/me` | Su paciente vinculado. Si no hay: 404 `no_vinculado` con su `sub` (el código de vinculación de *Mi resumen*) |
+| `GET`, `PUT /pacientes/<id>` | Solo si `usuario_sub == sub`. Un id ajeno o inexistente responde 403, para no revelar si existe. En `PUT` solo `telefono`, `tipo_seguro` y `cuidador` |
+| `GET /citas` | Solo sus citas; el filtro `?paciente_id` se ignora |
+| `POST /citas` | Solo con su propio `paciente_id` |
+| `PUT /citas/<id>` | Solo reprograma la fecha; el estado lo cambia el personal |
+| `DELETE /citas/<id>` | Solo cancela sus citas |
+| `GET /expedientes/<id>`, `GET /vacunacion/<id>` | Solo los suyos |
+| `GET /turnos/activos` | Sin nombres (igual que la pantalla de sala de espera) |
 
 ### 5.2 Operaciones entre módulos (`X-API-Key`, servidor a servidor)
 
@@ -161,14 +173,16 @@ Todas las rutas empiezan con `/api/v1/salud`.
 
 1. Levantar el Login Único local (ver `keycloak-local/README.md`) o usar la URL del día.
 2. Levantar el backend con `AUTH_ISSUER` apuntando a ese issuer.
-3. Correr el script de pruebas `pruebas/prueba_auth.py` (65 verificaciones: 401, 200, 403, BOLA, validaciones, `/panel`, Auditoría, integración y API key):
+3. Agregar los puestos, una sola vez por Keycloak: `python keycloak-local/agregar_puestos.py`.
+4. Correr las pruebas:
    ```bash
-   venv/Scripts/python.exe pruebas/prueba_auth.py
+   venv/Scripts/python.exe pruebas/prueba_auth.py       # 73 verificaciones: 401, 200, 403, BOLA, validaciones, Auditoría, integraciones, API key
+   venv/Scripts/python.exe pruebas/prueba_permisos.py   # la matriz completa: 9 usuarios × 22 permisos = 198 celdas
    ```
-4. Probar siempre también con `ciudadano1`: es el usuario que **no** debe poder entrar a las operaciones protegidas.
+5. Probar siempre también con `ciudadano1`: es el usuario que **no** debe poder entrar a las operaciones protegidas.
 
 ## 9. Pendientes
 
-- Solicitar el rol `salud:recepcion` y un usuario de prueba.
+- Solicitar a la ingeniera los roles de la matriz (`salud:enfermeria`, `salud:recepcion`, `salud:farmacia`, `salud:caja`, `salud:jefatura`) con esos mismos nombres.
 - Solicitar el registro de `https://saludumg.online/*` (redirect URI) y `https://saludumg.online` (Web origins) para `salud-web`.
 - Comprobar el SSO entre módulos, con otro módulo en la misma sesión del navegador.

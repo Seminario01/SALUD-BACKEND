@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import RecursoHospitalario
-from auth import validar_token, requiere_rol, ROL_ADMIN
+from auth import validar_token, requiere_permiso, puede
 
 recursos_bp = Blueprint("recursos", __name__)
 
@@ -24,6 +24,7 @@ def _validar_cantidades(disponible, total):
 
 @recursos_bp.route("/api/v1/salud/recursos", methods=["GET"])
 @validar_token
+@requiere_permiso("recursos.ver")
 def listar_recursos():
     recursos = RecursoHospitalario.query.all()
     return jsonify(success=True, data=[{
@@ -37,13 +38,19 @@ def listar_recursos():
 
 @recursos_bp.route("/api/v1/salud/recursos/<int:id>", methods=["PUT"])
 @validar_token
-@requiere_rol(ROL_ADMIN)
+@requiere_permiso("recursos.gestionar", "recursos.camas")
 def actualizar_recurso(id):
     recurso = RecursoHospitalario.query.get(id)
     if not recurso:
         return jsonify(success=False, error="no_encontrado", message="Recurso no existe"), 404
 
     data = request.get_json() or {}
+    # Enfermería solo actualiza la disponibilidad de camas; el resto es de Administración.
+    if not puede("recursos.gestionar"):
+        if recurso.tipo != "cama":
+            return jsonify(success=False, error="permiso_denegado",
+                           message="Enfermería solo actualiza la disponibilidad de camas"), 403
+        data = {k: v for k, v in data.items() if k == "disponible"}
     error = _validar_cantidades(data.get("disponible", recurso.disponible), data.get("total", recurso.total))
     if error:
         return jsonify(success=False, error="datos_invalidos", message=error), 400
@@ -60,7 +67,7 @@ def actualizar_recurso(id):
 
 @recursos_bp.route("/api/v1/salud/recursos", methods=["POST"])
 @validar_token
-@requiere_rol(ROL_ADMIN)
+@requiere_permiso("recursos.gestionar")
 def crear_recurso():
     data = request.get_json() or {}
     if data.get("tipo") not in TIPOS_RECURSO:

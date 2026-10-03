@@ -8,7 +8,7 @@ claro (503) y la operación propia de Salud no se ve afectada.
 """
 from flask import Blueprint, jsonify, request
 
-from auth import validar_token, requiere_rol, ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION
+from auth import validar_token, requiere_permiso
 from config import Config
 from extensions import db
 from models import BitacoraIntegracion, CitaMedica, Paciente
@@ -24,8 +24,6 @@ from services_externos import (
 )
 
 integraciones_bp = Blueprint("integraciones", __name__)
-
-PERSONAL = (ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION)
 
 MENSAJES = {
     "no_configurado": "El módulo {m} no está configurado (falta su URL en el .env del backend).",
@@ -43,7 +41,7 @@ def _error_modulo(resultado, modulo):
 
 @integraciones_bp.route("/api/v1/salud/integraciones/estado", methods=["GET"])
 @validar_token
-@requiere_rol(*PERSONAL)
+@requiere_permiso("integraciones.ver")
 def estado_integraciones():
     """
     Estado de conexión con los otros módulos
@@ -78,7 +76,7 @@ def estado_integraciones():
 
 @integraciones_bp.route("/api/v1/salud/pacientes/<int:id>/antecedentes", methods=["GET"])
 @validar_token
-@requiere_rol(*PERSONAL)
+@requiere_permiso("pacientes.antecedentes")
 def antecedentes_paciente(id):
     """
     WS-SALUD-08 - Consultar antecedentes del paciente en Seguridad
@@ -122,7 +120,7 @@ def antecedentes_paciente(id):
 
 @integraciones_bp.route("/api/v1/salud/educacion/estudiantes/<string:cui>", methods=["GET"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO)
+@requiere_permiso("vacunacion.registrar")
 def estudiante_educacion(cui):
     """
     Consultar en Educación si un CUI corresponde a un estudiante
@@ -153,7 +151,7 @@ def estudiante_educacion(cui):
 
 @integraciones_bp.route("/api/v1/salud/citas/<int:id>/verificar-pago", methods=["POST"])
 @validar_token
-@requiere_rol(*PERSONAL)
+@requiere_permiso("pagos.verificar")
 def verificar_pago_cita(id):
     """
     WS-SALUD-09 - Verificar en Tributario el pago de una cita
@@ -210,7 +208,7 @@ MODULOS_BITACORA = ("Educación", "Seguridad", "Tributario", "Auditoría", "Otro
 
 @integraciones_bp.route("/api/v1/salud/integraciones/bitacora", methods=["GET"])
 @validar_token
-@requiere_rol(*PERSONAL)
+@requiere_permiso("integraciones.ver")
 def bitacora_integraciones():
     """
     Bitácora de llamadas entre Salud y los otros módulos
@@ -275,7 +273,7 @@ CASOS_SIMULADOS = {
 
 @integraciones_bp.route("/api/v1/salud/integraciones/simular/<string:caso>", methods=["POST"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO)
+@requiere_permiso("integraciones.demo")
 def simular_consulta_entrante(caso):
     """
     Demostración - un módulo SIMULADO consume un servicio de Salud

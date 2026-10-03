@@ -37,6 +37,10 @@ def check(nombre, metodo, ruta, tok, esperado, **kw):
     return r
 
 T = {u: token(u) for u in ["medico1", "admin.salud", "ciudadano1", "ciudadano2", "analista1"]}
+try:
+    T["recepcion1"] = token("recepcion1")       # puestos de la matriz (agregar_puestos.py)
+except Exception:                              # noqa: BLE001
+    sys.exit("Falta el usuario recepcion1: corra keycloak-local/agregar_puestos.py")
 modo = sys.argv[1] if len(sys.argv) > 1 else "completo"
 
 if modo == "idp_apagado":
@@ -72,7 +76,7 @@ if requests.get(f"{API}/vacunacion/{p2}", headers={"Authorization": f"Bearer {T[
 else:
     check("medico1 registra vacunacion p2", "POST", "/vacunacion", T["medico1"], 201, json={"paciente_id": p2})
 check("medico1 registra atencion p2", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 201, json={"diagnostico": "Gripe"})
-c2 = check("admin agenda cita p2", "POST", "/citas", T["admin.salud"], 201,
+c2 = check("recepcion1 agenda cita p2", "POST", "/citas", T["recepcion1"], 201,
            json={"paciente_id": p2, "fecha_hora": "2026-10-01 10:00:00"}).json()["data"]["id"]
 
 print("--- OWASP API1 BOLA: ciudadano1 intentando datos de ciudadano2")
@@ -108,7 +112,7 @@ print("--- Validaciones de datos (formularios)")
 check("vacunacion duplicada -> 409", "POST", "/vacunacion", T["medico1"], 409, json={"paciente_id": p2})
 check("vacunacion de paciente inexistente -> 404", "POST", "/vacunacion", T["medico1"], 404, json={"paciente_id": 999999})
 check("atencion sin diagnostico -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400, json={"notas": "x"})
-cita_p1 = check("cita de p1 para probar", "POST", "/citas", T["admin.salud"], 201,
+cita_p1 = check("cita de p1 para probar", "POST", "/citas", T["recepcion1"], 201,
                 json={"paciente_id": p1, "fecha_hora": "2026-11-01 08:00:00"}).json()["data"]["id"]
 check("atencion con cita de OTRO paciente -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400,
       json={"diagnostico": "X", "cita_id": cita_p1})
@@ -129,7 +133,7 @@ check("analista1 NO ve expedientes", "GET", f"/expedientes/{p1}", T["analista1"]
 check("/indicadores sin credenciales", "GET", "/indicadores", None, 401)
 
 print("--- Integración con otros módulos (Salud consume sus servicios)")
-r = check("estado de integraciones (medico1)", "GET", "/integraciones/estado", T["medico1"], 200)
+r = check("estado de integraciones (admin)", "GET", "/integraciones/estado", T["admin.salud"], 200)
 estado = r.json()["data"]
 print("         " + ", ".join(f"{m}: {e['estado']}{' (simulador)' if e['simulado'] else ''}" for m, e in estado.items()))
 check("ciudadano1 NO consulta integraciones", "GET", "/integraciones/estado", T["ciudadano1"], 403)

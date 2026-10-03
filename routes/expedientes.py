@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import ExpedienteClinico, Paciente, CitaMedica
-from auth import validar_token, requiere_rol, tiene_rol, ROL_MEDICO, ROL_ADMIN
+from auth import validar_token, requiere_permiso, puede
 
 expedientes_bp = Blueprint("expedientes", __name__)
 
@@ -10,10 +10,11 @@ expedientes_bp = Blueprint("expedientes", __name__)
 def obtener_expediente(paciente_id):
     paciente = Paciente.query.get(paciente_id)
 
-    # OWASP API1 (BOLA): datos clínicos. Solo médico/admin de Salud, o el propio
-    # ciudadano dueño del registro. Recepción NO ve expedientes.
+    # OWASP API1 (BOLA): datos clínicos. Solo los puestos con "expediente.ver"
+    # (médico, enfermería, jefatura, administración en solo lectura) o el propio
+    # ciudadano dueño del registro. Recepción, Caja y Farmacia NO ven expedientes.
     es_dueno = paciente is not None and paciente.usuario_sub == g.usuario["sub"]
-    if not (tiene_rol(ROL_MEDICO, ROL_ADMIN) or es_dueno):
+    if not (puede("expediente.ver") or es_dueno):
         return jsonify(success=False, error="permiso_denegado", message="Solo puede ver su propio expediente"), 403
 
     if not paciente:
@@ -35,7 +36,7 @@ def obtener_expediente(paciente_id):
 
 @expedientes_bp.route("/api/v1/salud/expedientes/<int:paciente_id>/atenciones", methods=["POST"])
 @validar_token
-@requiere_rol(ROL_MEDICO)
+@requiere_permiso("expediente.registrar")
 def registrar_atencion(paciente_id):
     paciente = Paciente.query.get(paciente_id)
     if not paciente:

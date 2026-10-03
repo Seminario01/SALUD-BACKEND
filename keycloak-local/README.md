@@ -9,9 +9,9 @@ Sigue el contrato de "Cómo consumir el Login Único":
 | Client del frontend | `salud-web` (público, Authorization Code + PKCE) |
 | Client para curl | `rsd-test-cli` (solo terminal) |
 | Audiencia (`aud`) | `rsd-api` |
-| Usuarios | `medico1`, `admin.salud`, `ciudadano1`, `ciudadano2` |
+| Usuarios | `medico1`, `admin.salud`, `ciudadano1`, `ciudadano2`, `analista1`, y los puestos `enfermera1`, `recepcion1`, `farmacia1`, `caja1`, `jefatura1` |
 | Contraseña | `Demo2026*` |
-| Roles | `salud:medico`, `salud:admin`, `ciudadano`, `servidor_publico` |
+| Roles | `salud:medico`, `salud:admin`, `salud:enfermeria`, `salud:recepcion`, `salud:farmacia`, `salud:caja`, `salud:jefatura`, `ciudadano`, `servidor_publico`, `auditoria:*` |
 
 > Si la ingeniera comparte el export oficial del realm, reemplacen `import/rsd-realm.json` por ese archivo.
 > El `sub` de cada usuario aquí es distinto al del servidor oficial. Por eso no se guardan subs en los datos de prueba.
@@ -39,3 +39,13 @@ curl -i -H "Authorization: Bearer $TOKEN" http://localhost:5050/api/v1/salud/pac
 ```
 
 Para usar el Login Único oficial, solo cambien `AUTH_ISSUER` en el `.env` del backend por `<URL_DEL_DIA>/realms/rsd` y reinicien el backend.
+
+## Agregar los puestos a un Keycloak que ya está funcionando
+
+`import/rsd-realm.json` solo se importa la primera vez. Para agregar los roles y usuarios de la matriz de permisos a un Keycloak existente **sin perder los `sub`** de los usuarios actuales:
+
+```bash
+python keycloak-local/agregar_puestos.py                       # http://localhost:8081
+```
+
+Pide el usuario y la contraseña del **admin** de Keycloak. Se puede correr varias veces: lo que ya existe no se toca. En el servidor, la consola solo responde en `localhost:8081`, así que se corre desde el servidor o por un túnel SSH.

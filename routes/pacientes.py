@@ -2,8 +2,7 @@ from datetime import date
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import Paciente
-from auth import (validar_token, requiere_rol, es_personal, tiene_rol,
-                  ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION)
+from auth import validar_token, requiere_permiso, puede
 
 pacientes_bp = Blueprint("pacientes", __name__)
 
@@ -11,7 +10,7 @@ pacientes_bp = Blueprint("pacientes", __name__)
 def puede_ver_paciente(paciente):
     """OWASP API1 (BOLA): el personal de Salud ve a cualquier paciente; un
     ciudadano solo el registro vinculado a su propio `sub`."""
-    if es_personal():
+    if puede("pacientes.ver"):
         return True
     return paciente is not None and paciente.usuario_sub == g.usuario["sub"]
 
@@ -32,7 +31,7 @@ def serializar_paciente(p):
 
 @pacientes_bp.route("/api/v1/salud/pacientes", methods=["GET"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_MEDICO, ROL_RECEPCION)
+@requiere_permiso("pacientes.ver")
 def listar_pacientes():
     """
     Listar pacientes (solo personal de Salud)
@@ -90,7 +89,7 @@ def mi_registro():
 
 @pacientes_bp.route("/api/v1/salud/pacientes", methods=["POST"])
 @validar_token
-@requiere_rol(ROL_ADMIN, ROL_RECEPCION)
+@requiere_permiso("pacientes.registrar")
 def crear_paciente():
     """
     Registrar paciente
@@ -218,7 +217,7 @@ def actualizar_paciente(id):
     """
     paciente = Paciente.query.get(id)
     es_dueno = paciente is not None and paciente.usuario_sub == g.usuario["sub"]
-    if not (es_dueno or tiene_rol(ROL_ADMIN, ROL_RECEPCION)):
+    if not (es_dueno or puede("pacientes.registrar")):
         return jsonify(success=False, error="permiso_denegado", message="No puede modificar este registro"), 403
     if not paciente:
         return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
@@ -226,7 +225,7 @@ def actualizar_paciente(id):
     data = request.get_json() or {}
     # El propio ciudadano solo cambia sus datos de contacto; admin/recepción, todo.
     permitidos = ["telefono", "tipo_seguro", "cuidador"]
-    if tiene_rol(ROL_ADMIN, ROL_RECEPCION):
+    if puede("pacientes.registrar"):
         permitidos += ["nombre_completo", "cui", "fecha_nacimiento", "genero", "usuario_sub"]
 
     if "nombre_completo" in data and "nombre_completo" in permitidos and not (data["nombre_completo"] or "").strip():

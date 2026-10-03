@@ -27,16 +27,53 @@ log = logging.getLogger(__name__)
 # Roles del Login Único que usa este módulo
 # ---------------------------------------------------------------------------
 ROL_MEDICO = "salud:medico"
-ROL_ADMIN = "salud:admin"
-# Aún no existe en el realm: hay que pedirlo a la ingeniera. Mientras no exista,
-# las operaciones de recepción las hace salud:admin (nadie recibe este rol).
+ROL_ENFERMERIA = "salud:enfermeria"
 ROL_RECEPCION = "salud:recepcion"
+ROL_FARMACIA = "salud:farmacia"
+ROL_CAJA = "salud:caja"
+ROL_JEFATURA = "salud:jefatura"
+ROL_ADMIN = "salud:admin"
 ROL_CIUDADANO = "ciudadano"
 # Auditoría Social: solo lectura de datos AGREGADOS (indicadores), nunca datos personales.
 ROLES_AUDITORIA = ("auditoria:analista", "auditoria:admin")
 
-# Personal del hospital: puede ver datos de cualquier paciente.
-ROLES_PERSONAL = (ROL_MEDICO, ROL_ADMIN, ROL_RECEPCION)
+# Personal del hospital (cualquier puesto interno).
+ROLES_PERSONAL = (ROL_MEDICO, ROL_ENFERMERIA, ROL_RECEPCION, ROL_FARMACIA, ROL_CAJA, ROL_JEFATURA, ROL_ADMIN)
+
+# ---------------------------------------------------------------------------
+# MATRIZ DE PERMISOS (documento "Matriz de permisos — Módulo Salud").
+# Cada permiso lista los puestos que lo tienen. Las rutas preguntan por el
+# permiso, no por el rol: así la matriz se cambia en un solo lugar.
+# El ciudadano no aparece aquí: accede solo a lo PROPIO (regla del dueño del dato).
+# El frontend tiene la misma tabla en src/permisos.js.
+# ---------------------------------------------------------------------------
+MED, ENF, REC, FAR, CAJA, JEF, ADM = (ROL_MEDICO, ROL_ENFERMERIA, ROL_RECEPCION, ROL_FARMACIA,
+                                      ROL_CAJA, ROL_JEFATURA, ROL_ADMIN)
+PERMISOS = {
+    "pacientes.ver":          (MED, ENF, REC, FAR, CAJA, JEF, ADM),
+    "pacientes.registrar":    (REC, ADM),            # crear, editar todo y vincular al ciudadano
+    "pacientes.antecedentes": (MED, ENF, REC, JEF),  # consulta a Seguridad
+    "citas.ver":              (MED, ENF, REC, CAJA, JEF, ADM),
+    "citas.gestionar":        (MED, REC),            # agendar, reprogramar, confirmar, cancelar
+    "turnos.generar":         (ENF, REC),            # generar y clasificar (triaje)
+    "turnos.atender":         (MED, ENF),            # llamar, atender, finalizar
+    "turnos.ver_cola":        (MED, ENF, REC, JEF, ADM),
+    "expediente.ver":         (MED, ENF, JEF, ADM),  # Administración: solo lectura
+    "expediente.registrar":   (MED,),
+    "vacunacion.ver":         (MED, ENF, JEF, ADM),
+    "vacunacion.registrar":   (MED, ENF),
+    "vacunacion.anular":      (JEF,),                # borrar un registro creado por error
+    "recursos.ver":           (MED, ENF, REC, JEF, ADM),
+    "recursos.gestionar":     (ADM,),
+    "recursos.camas":         (ENF, ADM),            # actualizar disponibilidad de camas
+    "pagos.verificar":        (CAJA, REC, ADM),
+    "panel.ver":              (MED, ENF, REC, FAR, CAJA, JEF, ADM, *ROLES_AUDITORIA),
+    "presupuesto.ver":        (JEF, ADM, *ROLES_AUDITORIA),
+    "presupuesto.editar":     (ADM,),
+    "integraciones.ver":      (JEF, ADM),
+    "integraciones.demo":     (JEF, ADM),
+}
+
 
 # ---------------------------------------------------------------------------
 # JWKS en caché
@@ -134,9 +171,35 @@ def tiene_rol(*roles):
     return any(r in g.usuario["roles"] for r in roles)
 
 
+def puede(*permisos):
+    """True si el usuario tiene AL MENOS UNO de los permisos de la matriz."""
+    return any(tiene_rol(*PERMISOS[p]) for p in permisos)
+
+
+def permisos_de(roles):
+    """Lista de permisos que dan estos roles (para GET /mis-permisos)."""
+    return sorted(p for p, permitidos in PERMISOS.items() if any(r in roles for r in permitidos))
+
+
 def es_personal():
-    """True si el usuario es personal de Salud (médico, admin o recepción)."""
+    """True si el usuario es personal de Salud (cualquier puesto interno)."""
     return tiene_rol(*ROLES_PERSONAL)
+
+
+def requiere_permiso(*permisos):
+    """Se usa DESPUÉS de @validar_token. 403 si no tiene ninguno de los permisos."""
+    for p in permisos:
+        if p not in PERMISOS:
+            raise ValueError(f"Permiso desconocido: {p}")
+
+    def decorador(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            if not puede(*permisos):
+                return _error(403, "permiso_denegado", "Su puesto no tiene permiso para esta acción")
+            return f(*args, **kwargs)
+        return wrapper
+    return decorador
 
 
 def requiere_rol(*roles_permitidos):
