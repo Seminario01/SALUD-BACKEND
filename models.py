@@ -204,3 +204,66 @@ class MovimientoInventario(db.Model):
     observacion = db.Column(db.Text)
     receta_id = db.Column(db.Integer)                   # SALIDA por despacho de receta
     usuario = db.Column(db.String(100))
+
+
+# ============================ Hospitalización ============================
+class Cama(db.Model):
+    """Censo de camas: una fila por cama física.
+
+    El total y las disponibles de cada área en recursos_hospitalarios se
+    calculan desde aquí (ver routes/hospitalizacion.py: sincronizar_recursos).
+    """
+    __tablename__ = "camas"
+    id = db.Column("id_cama", db.Integer, primary_key=True)
+    codigo = db.Column(db.String(20), nullable=False, unique=True)     # GEN-01, PED-03, UCI-02
+    area = db.Column(db.String(80), nullable=False)                    # Medicina general, Pediatría...
+    recurso_id = db.Column(db.Integer, db.ForeignKey("recursos_hospitalarios.id"))
+    estado = db.Column(db.String(20), nullable=False, default="DISPONIBLE")  # DISPONIBLE, OCUPADA, LIMPIEZA, MANTENIMIENTO
+    observacion = db.Column(db.String(200))
+    actualizado = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class Hospitalizacion(db.Model):
+    """Ingreso de un paciente.
+
+    PENDIENTE (el médico ordenó el ingreso) -> ACTIVO (Enfermería asignó cama)
+    -> EGRESADO (el médico dio el egreso). Una orden pendiente puede ANULARSE.
+    """
+    __tablename__ = "hospitalizaciones"
+    id = db.Column("id_hospitalizacion", db.Integer, primary_key=True)
+    paciente_id = db.Column("id_paciente", db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    fecha_ingreso = db.Column(db.DateTime, nullable=False, default=datetime.now)   # fecha de la orden
+    fecha_egreso = db.Column(db.DateTime)
+    sala = db.Column(db.String(50))                 # área solicitada / actual
+    cama = db.Column(db.String(20))                 # código de la cama (texto, para reportes)
+    cama_id = db.Column(db.Integer, db.ForeignKey("camas.id_cama"))
+    diagnostico = db.Column(db.Text)                # diagnóstico de ingreso
+    indicaciones = db.Column(db.Text)
+    estado = db.Column(db.String(20), default="PENDIENTE")
+    expediente_id = db.Column(db.Integer)
+    medico_sub = db.Column(db.String(SUB_LEN))
+    medico_nombre = db.Column(db.String(150))
+    fecha_asignacion = db.Column(db.DateTime)       # cuando Enfermería asignó la cama
+    asignado_por = db.Column(db.String(100))
+    tipo_egreso = db.Column(db.String(30))          # ALTA, ALTA_VOLUNTARIA, TRASLADO, DEFUNCION
+    resumen_egreso = db.Column(db.Text)
+    egresado_por = db.Column(db.String(150))
+    motivo_anulacion = db.Column(db.String(255))
+    notas = db.relationship("NotaHospitalizacion", backref="hospitalizacion", lazy="select",
+                            order_by="NotaHospitalizacion.id.desc()")
+
+
+class NotaHospitalizacion(db.Model):
+    """Nota de evolución (médico) o de enfermería, con signos vitales opcionales."""
+    __tablename__ = "notas_hospitalizacion"
+    id = db.Column(db.Integer, primary_key=True)
+    hospitalizacion_id = db.Column(db.Integer, db.ForeignKey("hospitalizaciones.id_hospitalizacion"), nullable=False)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    autor_sub = db.Column(db.String(SUB_LEN))
+    autor_nombre = db.Column(db.String(150))
+    puesto = db.Column(db.String(30))               # Médico / Enfermería
+    nota = db.Column(db.Text, nullable=False)
+    presion = db.Column(db.String(10))              # 120/80
+    temperatura = db.Column(db.Numeric(4, 1))       # °C
+    frecuencia_cardiaca = db.Column(db.Integer)     # lpm
+    saturacion = db.Column(db.Integer)              # % SpO2

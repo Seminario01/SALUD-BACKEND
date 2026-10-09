@@ -73,6 +73,10 @@ PERMISOS = {
     "recetas.despachar":      (FAR,),                # quien receta no despacha
     "inventario.ver":         (MED, ENF, FAR, JEF, ADM),
     "inventario.gestionar":   (FAR,),                # medicamentos nuevos, entradas y ajustes
+    "hospitalizacion.ver":    (MED, ENF, REC, CAJA, JEF, ADM),   # Recepción y Caja: sin datos clínicos
+    "hospitalizacion.ordenar": (MED,),               # ordenar ingreso, dar egreso, anular orden pendiente
+    "hospitalizacion.camas":  (ENF,),                # asignar y trasladar cama, limpieza y mantenimiento
+    "hospitalizacion.notas":  (MED, ENF),            # notas de evolución y signos vitales
     "panel.ver":              (MED, ENF, REC, FAR, CAJA, JEF, ADM, *ROLES_AUDITORIA),
     "presupuesto.ver":        (JEF, ADM, *ROLES_AUDITORIA),
     "presupuesto.editar":     (ADM,),

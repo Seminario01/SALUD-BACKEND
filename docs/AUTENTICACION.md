@@ -97,8 +97,12 @@ Los roles nuevos y sus usuarios se agregan a un Keycloak existente con `keycloak
 | `vacunacion.anular` | Jefatura | `DELETE /vacunacion/<paciente_id>` (solo registros creados por error) |
 | `recursos.ver` | Médico, Enfermería, Recepción, Jefatura, Admin | `GET /recursos` |
 | `recursos.gestionar` | Admin | `POST /recursos`, `PUT /recursos/<id>` (todo) |
-| `recursos.camas` | Enfermería, Admin | `PUT /recursos/<id>`: Enfermería solo cambia `disponible` de las **camas** |
+| `recursos.camas` | Enfermería, Admin | `PUT /recursos/<id>`: Enfermería solo cambia `disponible` de las **camas**. Las áreas con censo de camas no se editan a mano (409): se calculan desde Hospitalización |
 | `pagos.verificar` | Caja, Recepción, Admin | `POST /citas/<id>/cobro` y `POST /citas/<id>/verificar-pago` (obligaciones de Tributario) |
+| `hospitalizacion.ver` | Médico, Enfermería, Recepción, Caja, Jefatura, Admin | `GET /camas`, `GET /hospitalizaciones`, `GET /hospitalizaciones/<id>`. Recepción y Caja ven área y cama, sin diagnóstico ni notas. El ciudadano ve solo las suyas |
+| `hospitalizacion.ordenar` | Médico | `POST /hospitalizaciones` (orden de ingreso), `POST /hospitalizaciones/<id>/egreso`, `POST /hospitalizaciones/<id>/anular` (solo sin cama) |
+| `hospitalizacion.camas` | Enfermería | `POST /hospitalizaciones/<id>/asignar-cama` (ingreso o traslado), `PUT /camas/<id>` (limpieza, mantenimiento, disponible). Admin también cambia el estado y agrega camas (`POST /camas`, con `recursos.gestionar`) |
+| `hospitalizacion.notas` | Médico, Enfermería | `POST /hospitalizaciones/<id>/notas` (nota y signos vitales; solo pacientes ingresados) |
 | `recetas.ver` | Médico, Enfermería, Farmacia, Caja, Jefatura, Admin | `GET /recetas` (todas; filtros `?estado`, `?paciente_id`). El ciudadano ve solo las suyas |
 | `recetas.crear` | Médico | `POST /recetas` (queda el `sub` y el nombre del médico) |
 | `recetas.anular` | Médico (solo las que él emitió), Jefatura | `POST /recetas/<id>/anular` (solo si está PENDIENTE) |
@@ -127,6 +131,7 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | `DELETE /citas/<id>` | Solo cancela sus citas |
 | `GET /expedientes/<id>`, `GET /vacunacion/<id>` | Solo los suyos |
 | `GET /recetas` | Solo sus recetas; el filtro `?paciente_id` se ignora |
+| `GET /hospitalizaciones`, `GET /hospitalizaciones/<id>` | Solo las suyas; una ajena responde 403 |
 | `GET /turnos/activos` | Sin nombres (igual que la pantalla de sala de espera) |
 
 ### 5.2 Operaciones entre módulos (`X-API-Key`, servidor a servidor)

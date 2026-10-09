@@ -129,7 +129,7 @@ URL base: `https://saludumg.online/api/v1/salud`. Todos requieren `X-API-Key`. L
 | **WS-SALUD-06** Horas de práctica | Educación | `GET /practicantes/{cui}/horas` | `horasAcumuladas`, `fechaInicio`, `fechaFin`, `supervisor`, `estado` |
 | Costo de una cita | Tributario | `GET /citas/{id}/costo` | `cita_id`, `monto`, `pago_confirmado` |
 | Aviso de pago | Tributario | `POST /pagos/notificacion` con `numero_referencia`, `estado` (`PAGADO` o `ANULADO`), `numero_autorizacion`, `fecha_pago`, `monto_pagado` | `200` registrado · `400` datos incompletos · `404` referencia desconocida |
-| Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación y presupuesto. **Sin datos personales** |
+| Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación, hospitalización (camas, ocupación, hospitalizados, egresos), farmacia (recetas e inventario bajo mínimo) y presupuesto. **Sin datos personales** |
 | Ejecución presupuestaria | Auditoría Social | `GET /presupuesto/ejecucion` | Periodo vigente: `monto_asignado`, `monto_ejecutado_servicio_social`, `porcentaje_ejecutado` |
 
 Ejemplo, desde el servidor de Seguridad:

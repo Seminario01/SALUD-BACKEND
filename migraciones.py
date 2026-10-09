@@ -32,6 +32,18 @@ COLUMNAS = [
     ("detalle_receta", "dosis", "VARCHAR(200) NULL"),
     ("movimientos_inventario", "receta_id", "INT NULL"),
     ("movimientos_inventario", "usuario", "VARCHAR(100) NULL"),
+    # Hospitalización (la tabla existe desde schema.sql con menos columnas)
+    ("hospitalizaciones", "cama_id", "INT NULL"),
+    ("hospitalizaciones", "indicaciones", "TEXT NULL"),
+    ("hospitalizaciones", "expediente_id", "INT NULL"),
+    ("hospitalizaciones", "medico_sub", "VARCHAR(36) NULL"),
+    ("hospitalizaciones", "medico_nombre", "VARCHAR(150) NULL"),
+    ("hospitalizaciones", "fecha_asignacion", "DATETIME NULL"),
+    ("hospitalizaciones", "asignado_por", "VARCHAR(100) NULL"),
+    ("hospitalizaciones", "tipo_egreso", "VARCHAR(30) NULL"),
+    ("hospitalizaciones", "resumen_egreso", "TEXT NULL"),
+    ("hospitalizaciones", "egresado_por", "VARCHAR(150) NULL"),
+    ("hospitalizaciones", "motivo_anulacion", "VARCHAR(255) NULL"),
 ]
 
 # Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se

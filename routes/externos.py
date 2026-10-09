@@ -1,14 +1,16 @@
 import time
+from datetime import datetime, timedelta
 
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import (
     Paciente, CitaMedica, RecursoHospitalario, Turno, PresupuestoHospitalario,
-    Vacunacion, Establecimiento, Practicante, HorasPractica,
+    Vacunacion, Establecimiento, Practicante, HorasPractica, Receta, Medicamento,
 )
 from auth import validar_api_key, validar_api_key_o_token, ROLES_AUDITORIA
 from bitacora import registrar, resumir
 from services_externos import coordinar_jornada
+from routes.hospitalizacion import resumen_hospitalizacion
 
 externos_bp = Blueprint("externos", __name__)
 
@@ -269,7 +271,7 @@ def calcular_indicadores():
 
     recursos = RecursoHospitalario.query.all()
     recursos_resumen = [{
-        "tipo": r.tipo, "disponible": r.disponible, "total": r.total
+        "tipo": r.tipo, "descripcion": r.descripcion, "disponible": r.disponible, "total": r.total
     } for r in recursos]
 
     presupuesto = PresupuestoHospitalario.query.order_by(
@@ -300,7 +302,20 @@ def calcular_indicadores():
             "estudiantes_vacunados": estudiantes_vacunados,
         },
         "recursos_hospitalarios": recursos_resumen,
+        "hospitalizacion": resumen_hospitalizacion(),
+        "farmacia": resumen_farmacia(),
         "presupuesto_servicio_social": presupuesto_resumen,
+    }
+
+
+def resumen_farmacia():
+    """Recetas e inventario, agregados (sin datos personales)."""
+    hace30 = datetime.now() - timedelta(days=30)
+    return {
+        "recetas_pendientes": Receta.query.filter_by(estado="PENDIENTE").count(),
+        "recetas_despachadas_30_dias": Receta.query.filter(Receta.estado == "DESPACHADA",
+                                                           Receta.fecha_despacho >= hace30).count(),
+        "medicamentos_bajo_minimo": Medicamento.query.filter(Medicamento.existencia <= Medicamento.stock_minimo).count(),
     }
 
 

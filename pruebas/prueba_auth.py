@@ -41,6 +41,8 @@ try:
     T["recepcion1"] = token("recepcion1")       # puestos de la matriz (agregar_puestos.py)
     T["farmacia1"] = token("farmacia1")
     T["jefatura1"] = token("jefatura1")
+    T["enfermera1"] = token("enfermera1")
+    T["caja1"] = token("caja1")
 except Exception:                              # noqa: BLE001
     sys.exit("Faltan los usuarios de los puestos: corra keycloak-local/agregar_puestos.py")
 modo = sys.argv[1] if len(sys.argv) > 1 else "completo"
@@ -252,6 +254,66 @@ check("jefatura1 anula (no la recetó, pero es Jefatura)", "POST", f"/recetas/{o
 check("anular dos veces", "POST", f"/recetas/{otra}/anular", T["medico1"], 409)
 check("ajuste para dejar la existencia en 0", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 201,
       json={"tipo": "AJUSTE", "cantidad": -2, "observacion": "Fin de la prueba"})
+
+print("--- Hospitalización y camas")
+camas = check("enfermera1 ve el censo de camas", "GET", "/camas?area=Medicina general&estado=DISPONIBLE", T["enfermera1"], 200).json()["data"]
+check("ciudadano1 NO ve el censo", "GET", "/camas", T["ciudadano1"], 403)
+check("cama con código repetido", "POST", "/camas", T["admin.salud"], 409, json={"codigo": camas[0]["codigo"], "area": "Medicina general"})
+check("cama de un área que no existe", "POST", "/camas", T["admin.salud"], 400, json={"codigo": "X-1", "area": "Quirófano"})
+check("medico1 NO agrega camas", "POST", "/camas", T["medico1"], 403, json={"codigo": "X-1", "area": "Medicina general"})
+abiertas = requests.get(API + f"/hospitalizaciones?paciente_id={p2}", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
+for h in abiertas:          # deja a p2 sin ingresos abiertos (repetible)
+    if h["estado"] == "PENDIENTE":
+        requests.post(API + f"/hospitalizaciones/{h['id']}/anular", headers={"Authorization": f"Bearer {T['medico1']}"}, json={})
+    if h["estado"] == "ACTIVO":
+        requests.post(API + f"/hospitalizaciones/{h['id']}/egreso", headers={"Authorization": f"Bearer {T['medico1']}"}, json={"tipo_egreso": "ALTA", "resumen": "Prueba"})
+check("ingreso sin diagnóstico", "POST", "/hospitalizaciones", T["medico1"], 400, json={"paciente_id": p2, "area": "Medicina general"})
+check("ingreso de paciente inexistente", "POST", "/hospitalizaciones", T["medico1"], 404, json={"paciente_id": 999999, "area": "Medicina general", "diagnostico": "X"})
+check("enfermera1 NO ordena ingresos", "POST", "/hospitalizaciones", T["enfermera1"], 403, json={"paciente_id": p2, "area": "Medicina general", "diagnostico": "X"})
+h = check("medico1 ordena el ingreso de p2", "POST", "/hospitalizaciones", T["medico1"], 201,
+          json={"paciente_id": p2, "area": "Medicina general", "diagnostico": "Neumonía", "indicaciones": "Antibiótico IV"}).json()["data"]
+dato("la orden queda PENDIENTE de cama", h["estado"] == "PENDIENTE")
+check("segundo ingreso abierto del mismo paciente", "POST", "/hospitalizaciones", T["medico1"], 409,
+      json={"paciente_id": p2, "area": "Medicina general", "diagnostico": "X"})
+uci = requests.get(API + "/camas?area=Cuidados intensivos&estado=DISPONIBLE", headers={"Authorization": f"Bearer {T['enfermera1']}"}).json()["data"]
+check("cama de otra área", "POST", f"/hospitalizaciones/{h['id']}/asignar-cama", T["enfermera1"], 400, json={"cama_id": uci[0]["id"]})
+check("medico1 NO asigna camas", "POST", f"/hospitalizaciones/{h['id']}/asignar-cama", T["medico1"], 403, json={"cama_id": camas[0]["id"]})
+check("egreso sin cama asignada", "POST", f"/hospitalizaciones/{h['id']}/egreso", T["medico1"], 409, json={"tipo_egreso": "ALTA", "resumen": "X"})
+check("enfermera1 asigna la cama", "POST", f"/hospitalizaciones/{h['id']}/asignar-cama", T["enfermera1"], 200, json={"cama_id": camas[0]["id"]})
+check("la misma cama ya está ocupada", "POST", f"/hospitalizaciones/{h['id']}/asignar-cama", T["enfermera1"], 409, json={"cama_id": camas[0]["id"]})
+check("cama ocupada no cambia de estado a mano", "PUT", f"/camas/{camas[0]['id']}", T["enfermera1"], 409, json={"estado": "LIMPIEZA"})
+check("enfermera1 registra nota con signos", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 201,
+      json={"nota": "Estable", "presion": "120/80", "temperatura": 37.1, "frecuencia_cardiaca": 82, "saturacion": 96})
+check("saturación fuera de rango", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 400, json={"nota": "X", "saturacion": 120})
+check("caja1 NO registra notas", "POST", f"/hospitalizaciones/{h['id']}/notas", T["caja1"], 403, json={"nota": "X"})
+lista = check("recepcion1 ve hospitalizados", "GET", "/hospitalizaciones?estado=ACTIVO", T["recepcion1"], 200).json()["data"]
+dato("Recepción ve la cama pero no el diagnóstico", any(x["id"] == h["id"] and x["cama"] for x in lista) and not any("diagnostico" in x for x in lista))
+check("ciudadano2 ve SU hospitalización", "GET", f"/hospitalizaciones/{h['id']}", T["ciudadano2"], 200)
+check("ciudadano1 ve hospitalización ajena", "GET", f"/hospitalizaciones/{h['id']}", T["ciudadano1"], 403)
+propias = check("ciudadano1 lista hospitalizaciones", "GET", f"/hospitalizaciones?paciente_id={p2}", T["ciudadano1"], 200).json()["data"]
+dato("ciudadano1 no ve las de ciudadano2", not any(x["paciente_id"] == p2 for x in propias))
+d = check("enfermera1 traslada a cuidados intensivos", "POST", f"/hospitalizaciones/{h['id']}/asignar-cama", T["enfermera1"], 200,
+          json={"cama_id": uci[0]["id"]}).json()["data"]
+det = check("detalle con notas", "GET", f"/hospitalizaciones/{h['id']}", T["medico1"], 200).json()["data"]
+dato("el traslado deja una nota y la cama anterior en limpieza",
+     d["cama"] == uci[0]["codigo"] and any("Traslado" in n["nota"] for n in det["notas"]))
+check("enfermera1 NO da egresos", "POST", f"/hospitalizaciones/{h['id']}/egreso", T["enfermera1"], 403, json={"tipo_egreso": "ALTA", "resumen": "X"})
+check("tipo de egreso inválido", "POST", f"/hospitalizaciones/{h['id']}/egreso", T["medico1"], 400, json={"tipo_egreso": "FUGA", "resumen": "X"})
+check("medico1 da el egreso", "POST", f"/hospitalizaciones/{h['id']}/egreso", T["medico1"], 200,
+      json={"tipo_egreso": "ALTA", "resumen": "Evolución favorable"})
+check("nota después del egreso", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 409, json={"nota": "X"})
+for c in (camas[0], uci[0]):          # Enfermería deja las camas listas otra vez
+    check(f"enfermera1 marca {c['codigo']} disponible", "PUT", f"/camas/{c['id']}", T["enfermera1"], 200, json={"estado": "DISPONIBLE"})
+recursos = requests.get(API + "/recursos", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
+censo = [r for r in recursos if r["por_censo"]]
+check("recurso de camas por censo no se edita a mano", "PUT", f"/recursos/{censo[0]['id']}", T["admin.salud"], 409, json={"disponible": 1})
+otra = check("medico1 ordena otro ingreso", "POST", "/hospitalizaciones", T["medico1"], 201,
+             json={"paciente_id": p2, "area": "Pediatría", "diagnostico": "X"}).json()["data"]["id"]
+check("medico1 anula la orden sin cama", "POST", f"/hospitalizaciones/{otra}/anular", T["medico1"], 200, json={"motivo": "Prueba"})
+ind = check("indicadores con hospitalización", "GET", "/indicadores", None, 200,
+            headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")}).json()["data"]
+dato("indicadores: camas y ocupación, sin datos personales",
+     {"camas_total", "camas_disponibles", "ocupacion_porcentaje", "hospitalizados"} <= set(ind["hospitalizacion"]) and "farmacia" in ind)
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

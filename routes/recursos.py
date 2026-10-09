@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
-from models import RecursoHospitalario
+from models import Cama, RecursoHospitalario
 from auth import validar_token, requiere_permiso, puede
 
 recursos_bp = Blueprint("recursos", __name__)
@@ -27,12 +27,15 @@ def _validar_cantidades(disponible, total):
 @requiere_permiso("recursos.ver")
 def listar_recursos():
     recursos = RecursoHospitalario.query.all()
+    con_camas = {c.recurso_id for c in Cama.query.with_entities(Cama.recurso_id).distinct()}
     return jsonify(success=True, data=[{
         "id": r.id,
         "tipo": r.tipo,
         "descripcion": r.descripcion,
         "disponible": r.disponible,
         "total": r.total,
+        # Si el área tiene censo de camas, total y disponibles se calculan desde Hospitalización
+        "por_censo": r.id in con_camas,
     } for r in recursos]), 200
 
 
@@ -45,6 +48,10 @@ def actualizar_recurso(id):
         return jsonify(success=False, error="no_encontrado", message="Recurso no existe"), 404
 
     data = request.get_json() or {}
+    if recurso.tipo == "cama" and ("disponible" in data or "total" in data) \
+            and Cama.query.filter_by(recurso_id=recurso.id).first():
+        return jsonify(success=False, error="por_censo",
+                       message="Esta área se actualiza desde el censo de camas de Hospitalización"), 409
     # Enfermería solo actualiza la disponibilidad de camas; el resto es de Administración.
     if not puede("recursos.gestionar"):
         if recurso.tipo != "cama":
