@@ -39,8 +39,10 @@ def check(nombre, metodo, ruta, tok, esperado, **kw):
 T = {u: token(u) for u in ["medico1", "admin.salud", "ciudadano1", "ciudadano2", "analista1"]}
 try:
     T["recepcion1"] = token("recepcion1")       # puestos de la matriz (agregar_puestos.py)
+    T["farmacia1"] = token("farmacia1")
+    T["jefatura1"] = token("jefatura1")
 except Exception:                              # noqa: BLE001
-    sys.exit("Falta el usuario recepcion1: corra keycloak-local/agregar_puestos.py")
+    sys.exit("Faltan los usuarios de los puestos: corra keycloak-local/agregar_puestos.py")
 modo = sys.argv[1] if len(sys.argv) > 1 else "completo"
 
 if modo == "idp_apagado":
@@ -195,6 +197,61 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
     check("analista1 (auditoria) NO ve la bitacora", "GET", "/integraciones/bitacora", T["analista1"], 403)
 else:
     print("         (se omiten las pruebas de datos: los simuladores no están corriendo)")
+
+def dato(nombre, ok):
+    resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      {nombre}")
+
+print("--- Recetas y Farmacia")
+import time
+codigo = f"PRB-{int(time.time()) % 1000000}"
+m = check("farmacia1 agrega un medicamento", "POST", "/medicamentos", T["farmacia1"], 201,
+          json={"codigo": codigo, "nombre": "Medicamento de prueba", "presentacion": "Tableta", "existencia": 20, "stock_minimo": 5}).json()["data"]
+check("código repetido", "POST", "/medicamentos", T["farmacia1"], 409, json={"codigo": codigo, "nombre": "Otro"})
+check("medico1 NO agrega medicamentos", "POST", "/medicamentos", T["medico1"], 403, json={"codigo": "X", "nombre": "X"})
+check("medicamento sin nombre", "POST", "/medicamentos", T["farmacia1"], 400, json={"codigo": codigo + "B"})
+r = check("medico1 receta 8 unidades a p2", "POST", "/recetas", T["medico1"], 201,
+          json={"paciente_id": p2, "indicaciones": "Prueba", "items": [{"medicamento_id": m["id"], "cantidad": 8, "dosis": "1 diaria"}]})
+receta = r.json()["data"]
+dato("la receta queda PENDIENTE y firmada por el médico", receta["estado"] == "PENDIENTE" and bool(receta["medico"]))
+check("receta sin medicamentos", "POST", "/recetas", T["medico1"], 400, json={"paciente_id": p2, "items": []})
+check("receta con medicamento inexistente", "POST", "/recetas", T["medico1"], 404,
+      json={"paciente_id": p2, "items": [{"medicamento_id": 999999, "cantidad": 1}]})
+check("receta para paciente inexistente", "POST", "/recetas", T["medico1"], 404,
+      json={"paciente_id": 999999, "items": [{"medicamento_id": m["id"], "cantidad": 1}]})
+check("farmacia1 NO receta", "POST", "/recetas", T["farmacia1"], 403, json={})
+check("medico1 NO despacha", "POST", f"/recetas/{receta['id']}/despachar", T["medico1"], 403)
+mias = check("ciudadano2 ve SUS recetas", "GET", "/recetas", T["ciudadano2"], 200).json()["data"]
+dato("la receta nueva aparece entre las del ciudadano2", any(x["id"] == receta["id"] for x in mias))
+ajenas = check("ciudadano1 lista recetas", "GET", f"/recetas?paciente_id={p2}", T["ciudadano1"], 200).json()["data"]
+dato("ciudadano1 no ve recetas de ciudadano2 (aunque pida su paciente_id)", not any(x["paciente_id"] == p2 for x in ajenas))
+check("ciudadano1 NO despacha", "POST", f"/recetas/{receta['id']}/despachar", T["ciudadano1"], 403)
+check("farmacia1 despacha", "POST", f"/recetas/{receta['id']}/despachar", T["farmacia1"], 200)
+check("despachar dos veces", "POST", f"/recetas/{receta['id']}/despachar", T["farmacia1"], 409)
+check("anular una receta despachada", "POST", f"/recetas/{receta['id']}/anular", T["medico1"], 409)
+inv = check("inventario después del despacho", "GET", f"/medicamentos?q={codigo}", T["farmacia1"], 200).json()["data"]
+dato("la existencia bajó de 20 a 12", inv and inv[0]["existencia"] == 12)
+r = check("receta de 50 (más de lo que hay)", "POST", "/recetas", T["medico1"], 201,
+          json={"paciente_id": p2, "items": [{"medicamento_id": m["id"], "cantidad": 50}]})
+grande = r.json()["data"]["id"]
+check("despachar sin existencia suficiente", "POST", f"/recetas/{grande}/despachar", T["farmacia1"], 409)
+check("ajuste que deja existencia negativa", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 400,
+      json={"tipo": "AJUSTE", "cantidad": -100})
+check("entrada con cantidad 0", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 400, json={"tipo": "ENTRADA", "cantidad": 0})
+check("entrada de 40", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 201, json={"tipo": "ENTRADA", "cantidad": 40})
+check("ahora sí se despacha", "POST", f"/recetas/{grande}/despachar", T["farmacia1"], 200)
+kardex = check("kardex", "GET", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 200).json()["data"]
+dato("kardex: entrada inicial, salida por receta, entrada y salida (existencia 2)",
+     [k["tipo"] for k in kardex] == ["SALIDA", "ENTRADA", "SALIDA", "ENTRADA"] and sum(k["cantidad"] for k in kardex) == 2)
+bajo = check("bajo mínimo", "GET", "/medicamentos?bajo_minimo=1", T["farmacia1"], 200).json()["data"]
+dato("el medicamento aparece bajo el mínimo (2 de 5)", any(x["id"] == m["id"] for x in bajo))
+otra = check("medico1 receta otra", "POST", "/recetas", T["medico1"], 201,
+             json={"paciente_id": p2, "items": [{"medicamento_id": m["id"], "cantidad": 1}]}).json()["data"]["id"]
+check("ciudadano1 NO anula", "POST", f"/recetas/{otra}/anular", T["ciudadano1"], 403)
+check("jefatura1 anula (no la recetó, pero es Jefatura)", "POST", f"/recetas/{otra}/anular", T["jefatura1"], 200, json={"motivo": "Prueba"})
+check("anular dos veces", "POST", f"/recetas/{otra}/anular", T["medico1"], 409)
+check("ajuste para dejar la existencia en 0", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 201,
+      json={"tipo": "AJUSTE", "cantidad": -2, "observacion": "Fin de la prueba"})
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

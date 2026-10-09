@@ -150,3 +150,57 @@ class BitacoraIntegracion(db.Model):
     simulado = db.Column(db.Boolean, default=False, nullable=False)
     usuario = db.Column(db.String(100))
     detalle = db.Column(db.String(255))
+
+
+# ---------------------------------------------------------------------------
+# Farmacia: medicamentos, recetas e inventario (tablas de salud_db)
+# ---------------------------------------------------------------------------
+class Medicamento(db.Model):
+    __tablename__ = "medicamentos"
+    id = db.Column("id_medicamento", db.Integer, primary_key=True)
+    codigo = db.Column(db.String(50), unique=True, nullable=False)
+    nombre = db.Column(db.String(100), nullable=False)
+    presentacion = db.Column(db.String(100))           # "Tableta 500 mg", "Jarabe 120 ml"...
+    descripcion = db.Column(db.Text)
+    existencia = db.Column(db.Integer, nullable=False, default=0)
+    stock_minimo = db.Column(db.Integer, default=10)
+    precio = db.Column(db.Numeric(10, 2))
+
+
+class Receta(db.Model):
+    __tablename__ = "recetas"
+    id = db.Column("id_receta", db.Integer, primary_key=True)
+    paciente_id = db.Column("id_paciente", db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    id_medico = db.Column(db.Integer)                   # tabla medicos (opcional)
+    medico_sub = db.Column(db.String(SUB_LEN))          # médico del Login Único que receta
+    medico_nombre = db.Column(db.String(150))           # nombre del médico, para imprimir la receta
+    expediente_id = db.Column(db.Integer)               # atención del expediente (opcional)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    indicaciones = db.Column(db.Text)
+    estado = db.Column(db.String(20), default="PENDIENTE")   # PENDIENTE, DESPACHADA, ANULADA
+    despachado_por = db.Column(db.String(SUB_LEN))      # sub de quien despachó (Farmacia)
+    fecha_despacho = db.Column(db.DateTime)
+    motivo_anulacion = db.Column(db.String(255))
+    detalles = db.relationship("DetalleReceta", backref="receta", lazy="joined", order_by="DetalleReceta.id")
+
+
+class DetalleReceta(db.Model):
+    __tablename__ = "detalle_receta"
+    id = db.Column("id_detalle", db.Integer, primary_key=True)
+    receta_id = db.Column("id_receta", db.Integer, db.ForeignKey("recetas.id_receta"), nullable=False)
+    medicamento_id = db.Column("id_medicamento", db.Integer, db.ForeignKey("medicamentos.id_medicamento"), nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False)
+    dosis = db.Column(db.String(200))                   # "1 tableta cada 8 horas por 5 días"
+    medicamento = db.relationship("Medicamento", lazy="joined")
+
+
+class MovimientoInventario(db.Model):
+    __tablename__ = "movimientos_inventario"
+    id = db.Column("id_movimiento", db.Integer, primary_key=True)
+    medicamento_id = db.Column("id_medicamento", db.Integer, db.ForeignKey("medicamentos.id_medicamento"), nullable=False)
+    tipo_movimiento = db.Column(db.String(20), nullable=False)   # ENTRADA, SALIDA, AJUSTE
+    cantidad = db.Column(db.Integer, nullable=False)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    observacion = db.Column(db.Text)
+    receta_id = db.Column(db.Integer)                   # SALIDA por despacho de receta
+    usuario = db.Column(db.String(100))

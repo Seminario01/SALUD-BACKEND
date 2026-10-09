@@ -67,6 +67,12 @@ PERMISOS = {
     "recursos.gestionar":     (ADM,),
     "recursos.camas":         (ENF, ADM),            # actualizar disponibilidad de camas
     "pagos.verificar":        (CAJA, REC, ADM),
+    "recetas.ver":            (MED, ENF, FAR, CAJA, JEF, ADM),   # Administración: solo lectura
+    "recetas.crear":          (MED,),                # recetar y anular sus propias recetas pendientes
+    "recetas.anular":         (MED, JEF),            # el médico, solo las suyas pendientes; Jefatura, cualquiera
+    "recetas.despachar":      (FAR,),                # quien receta no despacha
+    "inventario.ver":         (MED, ENF, FAR, JEF, ADM),
+    "inventario.gestionar":   (FAR,),                # medicamentos nuevos, entradas y ajustes
     "panel.ver":              (MED, ENF, REC, FAR, CAJA, JEF, ADM, *ROLES_AUDITORIA),
     "presupuesto.ver":        (JEF, ADM, *ROLES_AUDITORIA),
     "presupuesto.editar":     (ADM,),

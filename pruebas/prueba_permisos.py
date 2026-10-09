@@ -48,6 +48,12 @@ MATRIZ = {
     "recursos.gestionar":     {"ADM"},
     "recursos.camas":         {"ENF", "ADM"},
     "pagos.verificar":        {"CAJA", "REC", "ADM"},
+    "recetas.ver":            {"MED", "ENF", "FAR", "CAJA", "JEF", "ADM"},
+    "recetas.crear":          {"MED"},
+    "recetas.anular":         {"MED", "JEF"},
+    "recetas.despachar":      {"FAR"},
+    "inventario.ver":         {"MED", "ENF", "FAR", "JEF", "ADM"},
+    "inventario.gestionar":   {"FAR"},
     "panel.ver":              {"MED", "ENF", "REC", "FAR", "CAJA", "JEF", "ADM", "AUD"},
     "presupuesto.ver":        {"JEF", "ADM", "AUD"},
     "presupuesto.editar":     {"ADM"},
@@ -73,6 +79,7 @@ def pedir(usuario, metodo, ruta, **kw):
 
 # Datos de referencia (los lee admin, que puede ver todo lo necesario)
 paciente = pedir("admin.salud", "GET", "/pacientes").json()["data"][0]["id"]
+medicamento = pedir("admin.salud", "GET", "/medicamentos").json()["data"][0]["id"]
 cama = next(r["id"] for r in pedir("admin.salud", "GET", "/recursos").json()["data"] if r["tipo"] == "cama")
 
 
@@ -101,6 +108,13 @@ PRUEBAS = {
     "recursos.gestionar":     lambda u: not denegado(pedir(u, "POST", "/recursos", json={"tipo": "no-existe"})),
     "recursos.camas":         lambda u: not denegado(pedir(u, "PUT", f"/recursos/{cama}", json={"disponible": -1})),
     "pagos.verificar":        lambda u: not denegado(pedir(u, "POST", "/citas/999999/verificar-pago")),
+    # Sin el permiso, un ciudadano solo ve SUS recetas.
+    "recetas.ver":            lambda u: len({r["paciente_id"] for r in pedir(u, "GET", "/recetas").json().get("data") or []}) > 1,
+    "recetas.crear":          lambda u: not denegado(pedir(u, "POST", "/recetas", json={})),
+    "recetas.anular":         lambda u: not denegado(pedir(u, "POST", "/recetas/999999/anular")),
+    "recetas.despachar":      lambda u: not denegado(pedir(u, "POST", "/recetas/999999/despachar")),
+    "inventario.ver":         lambda u: not denegado(pedir(u, "GET", f"/medicamentos/{medicamento}/movimientos")),
+    "inventario.gestionar":   lambda u: not denegado(pedir(u, "POST", "/medicamentos", json={})),
     "panel.ver":              lambda u: not denegado(pedir(u, "GET", "/panel")),
     "presupuesto.ver":        lambda u: not denegado(pedir(u, "GET", "/presupuesto/ejecucion")),
     "presupuesto.editar":     lambda u: not denegado(pedir(u, "PUT", "/presupuesto", json={})),

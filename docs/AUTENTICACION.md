@@ -54,7 +54,7 @@ El frontend **no** tiene la API key: todo lo que llega al navegador es público.
 | `iss` | backend | Debe ser igual a `AUTH_ISSUER`. Si no coincide, responde `401` |
 | `aud` | backend | Debe incluir `rsd-api`. Si no, responde `401` |
 | `exp` | backend | Si el token está vencido, responde `401 token_expirado` |
-| `sub` | backend | Llave del usuario. `pacientes.usuario_sub` vincula a un ciudadano con su registro; `citas_medicas.medico_sub` y `expedientes_clinicos.medico_sub` guardan al médico |
+| `sub` | backend | Llave del usuario. `pacientes.usuario_sub` vincula a un ciudadano con su registro; `citas_medicas.medico_sub`, `expedientes_clinicos.medico_sub` y `recetas.medico_sub` guardan al médico; `recetas.despachado_por` guarda a Farmacia |
 | `realm_access.roles` | backend y frontend | Autorización (`requiere_rol`) y el rol que se muestra en la barra |
 | `preferred_username`, `email`, `name` | backend y frontend | Solo informativos: se muestran en pantalla. **No** se usan como llave |
 | `azp` | backend | Módulo que originó el token (se guarda en `g.usuario["origen"]`) |
@@ -99,6 +99,12 @@ Los roles nuevos y sus usuarios se agregan a un Keycloak existente con `keycloak
 | `recursos.gestionar` | Admin | `POST /recursos`, `PUT /recursos/<id>` (todo) |
 | `recursos.camas` | Enfermería, Admin | `PUT /recursos/<id>`: Enfermería solo cambia `disponible` de las **camas** |
 | `pagos.verificar` | Caja, Recepción, Admin | `POST /citas/<id>/cobro` y `POST /citas/<id>/verificar-pago` (obligaciones de Tributario) |
+| `recetas.ver` | Médico, Enfermería, Farmacia, Caja, Jefatura, Admin | `GET /recetas` (todas; filtros `?estado`, `?paciente_id`). El ciudadano ve solo las suyas |
+| `recetas.crear` | Médico | `POST /recetas` (queda el `sub` y el nombre del médico) |
+| `recetas.anular` | Médico (solo las que él emitió), Jefatura | `POST /recetas/<id>/anular` (solo si está PENDIENTE) |
+| `recetas.despachar` | Farmacia | `POST /recetas/<id>/despachar`: descuenta el inventario; quien recetó no puede despachar |
+| `inventario.ver` | Médico, Enfermería, Farmacia, Jefatura, Admin | `GET /medicamentos`, `GET /medicamentos/<id>/movimientos` (kardex). El médico también lista medicamentos para recetar |
+| `inventario.gestionar` | Farmacia | `POST /medicamentos`, `POST /medicamentos/<id>/movimientos` (entrada o ajuste; nunca existencia negativa) |
 | `panel.ver` | Todo el personal y Auditoría | `GET /panel` |
 | `presupuesto.ver` | Jefatura, Admin, Auditoría | `GET /presupuesto/ejecucion` (también con API key) |
 | `presupuesto.editar` | Admin | `PUT /presupuesto` |
@@ -120,6 +126,7 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | `PUT /citas/<id>` | Solo reprograma la fecha; el estado lo cambia el personal |
 | `DELETE /citas/<id>` | Solo cancela sus citas |
 | `GET /expedientes/<id>`, `GET /vacunacion/<id>` | Solo los suyos |
+| `GET /recetas` | Solo sus recetas; el filtro `?paciente_id` se ignora |
 | `GET /turnos/activos` | Sin nombres (igual que la pantalla de sala de espera) |
 
 ### 5.2 Operaciones entre módulos (`X-API-Key`, servidor a servidor)

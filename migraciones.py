@@ -19,6 +19,25 @@ COLUMNAS = [
     ("citas_medicas", "fecha_vencimiento", "DATE NULL"),
     ("citas_medicas", "numero_autorizacion", "VARCHAR(60) NULL"),
     ("citas_medicas", "fecha_pago", "DATETIME NULL"),
+    # Farmacia
+    ("medicamentos", "presentacion", "VARCHAR(100) NULL"),
+    ("recetas", "medico_sub", "VARCHAR(36) NULL"),
+    ("recetas", "medico_nombre", "VARCHAR(150) NULL"),
+    ("recetas", "expediente_id", "INT NULL"),
+    ("recetas", "indicaciones", "TEXT NULL"),
+    ("recetas", "estado", "VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE'"),
+    ("recetas", "despachado_por", "VARCHAR(36) NULL"),
+    ("recetas", "fecha_despacho", "DATETIME NULL"),
+    ("recetas", "motivo_anulacion", "VARCHAR(255) NULL"),
+    ("detalle_receta", "dosis", "VARCHAR(200) NULL"),
+    ("movimientos_inventario", "receta_id", "INT NULL"),
+    ("movimientos_inventario", "usuario", "VARCHAR(100) NULL"),
+]
+
+# Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se
+# identifica por su `sub` del Login Único, la tabla medicos es opcional).
+OPCIONALES = [
+    ("recetas", "id_medico", "INT NULL"),
 ]
 
 
@@ -34,3 +53,12 @@ def aplicar(db):
         with db.engine.begin() as conexion:
             conexion.execute(text(f"ALTER TABLE {tabla} ADD COLUMN {columna} {definicion}"))
         log.warning("Migración: columna %s.%s agregada", tabla, columna)
+
+    for tabla, columna, definicion in OPCIONALES:
+        if tabla not in tablas:
+            continue
+        col = next((c for c in inspect(db.engine).get_columns(tabla) if c["name"] == columna), None)
+        if col is not None and not col["nullable"]:
+            with db.engine.begin() as conexion:
+                conexion.execute(text(f"ALTER TABLE {tabla} MODIFY {columna} {definicion}"))
+            log.warning("Migración: columna %s.%s ahora admite NULL", tabla, columna)
