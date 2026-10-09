@@ -215,4 +215,9 @@ def listar_citas():
         "motivo": c.motivo,
         "costo": float(c.costo) if c.costo is not None else None,
         "pago_confirmado": bool(c.pago_confirmado),
+        # Cobro en Tributario
+        "numero_referencia": c.numero_referencia,
+        "estado_cobro": "PAGADO" if c.pago_confirmado else c.estado_cobro,
+        "fecha_vencimiento": c.fecha_vencimiento.isoformat() if c.fecha_vencimiento else None,
+        "numero_autorizacion": c.numero_autorizacion,
     } for c in citas]), 200

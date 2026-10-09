@@ -2,6 +2,7 @@ from flask import Flask
 from flasgger import Swagger
 from flask_cors import CORS
 from config import Config
+import migraciones
 from extensions import db
 from routes.init import registrar_rutas
 from auth import precargar_jwks
@@ -42,6 +43,7 @@ def crear_app():
 
     with app.app_context():
         db.create_all()
+        migraciones.aplicar(db)   # columnas nuevas en tablas que ya existían
 
     # Descarga las llaves del Login Único al arrancar: así el backend sigue
     # validando tokens aunque el servidor de identidad se apague después.

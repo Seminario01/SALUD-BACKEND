@@ -8,8 +8,6 @@ Las rutas exactas de cada módulo externo son un placeholder hasta que se confir
 si difieren.
 """
 import time
-import uuid
-from datetime import datetime
 
 import requests
 from flask import has_request_context, request
@@ -20,15 +18,19 @@ from config import Config
 TIMEOUT_SEGUNDOS = 3
 
 
-def _headers():
+def _headers(modulo=None):
     """Cabeceras para llamar a otro módulo.
 
-    - X-API-Key: el acuerdo entre equipos para comunicación servidor a servidor.
+    - X-API-Key: la clave que ese módulo nos dio (API_KEY_<MODULO>), o la
+      común MODULOS_API_KEY.
+    - X-Modulo-Origen: Salud.
     - Authorization: si la petición viene de un usuario, se REENVÍA su access
-      token (guía del Login Único, sección 7: todos comparten aud=rsd-api).
+      token (guía del Login Único, sección 7), salvo REENVIAR_TOKEN_USUARIO=false.
     """
-    headers = {"X-API-Key": Config.MODULOS_API_KEY}
-    if has_request_context():
+    clave = {"Educación": Config.API_KEY_EDUCACION, "Seguridad": Config.API_KEY_SEGURIDAD,
+             "Tributario": Config.API_KEY_TRIBUTARIO}.get(modulo) or Config.MODULOS_API_KEY
+    headers = {"X-API-Key": clave, "X-Modulo-Origen": "Salud"}
+    if Config.REENVIAR_TOKEN_USUARIO and has_request_context():
         token = request.headers.get("Authorization", "")
         if token.startswith("Bearer "):
             headers["Authorization"] = token
@@ -37,7 +39,8 @@ def _headers():
 
 def _modulo_de(path):
     for prefijo, nombre in (("/api/v1/educacion", "Educación"), ("/api/v1/seguridad", "Seguridad"),
-                            ("/api/v1/tributario", "Tributario")):
+                            ("/api/v1/tributario", "Tributario"),
+                            ("/api/v1/integraciones/salud/obligaciones", "Tributario")):
         if path.startswith(prefijo):
             return nombre
     return "Otro"
@@ -58,7 +61,7 @@ def _llamar(metodo, base_url, path, operacion=None, registrar=True, timeout=TIME
     inicio = time.perf_counter()
     estado_http, simulado, detalle = None, False, None
     try:
-        respuesta = requests.request(metodo, f"{base_url.rstrip('/')}{path}", headers=_headers(),
+        respuesta = requests.request(metodo, f"{base_url.rstrip('/')}{path}", headers=_headers(_modulo_de(path)),
                                      timeout=timeout, **kwargs)
         estado_http = respuesta.status_code
         resultado = _interpretar(respuesta)
@@ -77,6 +80,7 @@ def _llamar(metodo, base_url, path, operacion=None, registrar=True, timeout=TIME
         detalle = resumir(resultado["data"])
     else:
         detalle = resultado.get("message")
+    resultado["estado_http"] = estado_http
     if registrar:
         registrar_bitacora("saliente", _modulo_de(path), operacion or path, metodo, path, estado_http,
                            "ok" if resultado["success"] else resultado["error"],
@@ -91,8 +95,13 @@ def _interpretar(respuesta):
         return {"success": False, "error": "modulo_no_disponible",
                 "message": f"El módulo respondió con error {respuesta.status_code}"}
     if respuesta.status_code >= 400:
+        try:
+            cuerpo = respuesta.json()
+            detalle = cuerpo.get("message") or cuerpo.get("mensaje") or cuerpo.get("error") if isinstance(cuerpo, dict) else None
+        except ValueError:
+            detalle = None
         return {"success": False, "error": "respuesta_invalida",
-                "message": f"El módulo rechazó la petición ({respuesta.status_code})"}
+                "message": f"El módulo rechazó la petición ({respuesta.status_code})", "detalle": detalle}
     try:
         cuerpo = respuesta.json()
     except ValueError:
@@ -184,25 +193,31 @@ def obtener_indicadores_tributario(**kwargs):
     return _get(Config.URL_TRIBUTARIO, "/api/v1/tributario/indicadores", **kwargs)
 
 
-def generar_numero_referencia_pago():
-    """Genera el numero_referencia que Salud debe emitir (correlativo propio,
-    no lo genera Tributario) antes de solicitar la verificación de un pago."""
-    correlativo = uuid.uuid4().hex[:8].upper()
-    return f"SALUD-{datetime.utcnow().year}-{correlativo}"
+RUTA_OBLIGACIONES = "/api/v1/integraciones/salud/obligaciones"
 
 
-def verificar_pago_tributario(numero_referencia, dpi, concepto, monto, estado_pago):
-    """WS-SALUD-09: envía a Tributario la verificación de un pago (el
-    numero_referencia lo genera Salud, ver generar_numero_referencia_pago)."""
+def registrar_obligacion(numero_referencia, dpi, tipo_obligacion, concepto, monto,
+                         fecha_emision, fecha_vencimiento):
+    """Registra en Tributario el cobro de una cita (contrato de Tributario).
+    El numero_referencia lo genera Salud: SAL-AAAA-NNNNNN."""
     payload = {
         "numero_referencia": numero_referencia,
-        "dpi": dpi,
+        "dpi_persona": dpi,
+        "tipo_obligacion": tipo_obligacion,
         "concepto": concepto,
-        "monto": monto,
-        "estado_pago": estado_pago,
+        "monto": round(float(monto), 2),
+        "moneda": "GTQ",
+        "fecha_emision": fecha_emision,
+        "fecha_vencimiento": fecha_vencimiento,
     }
-    return _post(Config.URL_TRIBUTARIO, "/api/v1/tributario/pagos/verificar", payload,
-                 operacion="Verificar pago (WS-SALUD-09)")
+    return _post(Config.URL_TRIBUTARIO, RUTA_OBLIGACIONES, payload, operacion="Registrar obligación de pago")
+
+
+def consultar_obligacion(numero_referencia):
+    """Estado de una obligación en Tributario (PENDIENTE, PAGADO, ANULADO...).
+    Ruta por confirmar con Tributario (ver docs/CONTRATOS.md)."""
+    return _get(Config.URL_TRIBUTARIO, f"{RUTA_OBLIGACIONES}/{numero_referencia}",
+                operacion="Consultar obligación de pago")
 
 
 # ---------------------------------------------------------------------------

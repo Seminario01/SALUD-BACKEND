@@ -18,6 +18,7 @@ OPERACIONES = {
     "externos.horas_practicante": "Horas de práctica (WS-SALUD-06)",
     "externos.costo_cita": "Costo y pago de una cita",
     "externos.indicadores": "Indicadores agregados",
+    "externos.notificacion_pago": "Aviso de pago de una obligación",
 }
 MODULOS = {"seguridad": "Seguridad", "educacion": "Educación", "educación": "Educación",
            "tributario": "Tributario", "auditoria": "Auditoría", "auditoría": "Auditoría"}
@@ -322,3 +323,60 @@ def indicadores():
         description: Indicadores del módulo de salud
     """
     return jsonify(success=True, data=calcular_indicadores()), 200
+
+
+@externos_bp.route("/api/v1/salud/pagos/notificacion", methods=["POST"])
+@validar_api_key
+def notificacion_pago():
+    """
+    Aviso de Tributario: una obligación de pago de Salud fue pagada o anulada
+    ---
+    tags:
+      - Integración externa
+    security:
+      - ApiKeyAuth: []
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [numero_referencia, estado]
+          properties:
+            numero_referencia: {type: string, example: "SAL-2026-000120"}
+            estado: {type: string, enum: [PAGADO, ANULADO], example: PAGADO}
+            numero_autorizacion: {type: string, example: "AUT-7781234"}
+            fecha_pago: {type: string, example: "2026-10-08T10:15:00"}
+            monto_pagado: {type: number, example: 150.00}
+    responses:
+      200:
+        description: Salud registró el aviso; la cita queda pagada (o con el cobro anulado)
+      400:
+        description: Faltan datos o el estado no es válido
+      404:
+        description: Salud no tiene una obligación con ese número de referencia
+    """
+    from datetime import datetime
+    from routes.integraciones import marcar_pagada
+
+    data = request.get_json(silent=True) or {}
+    referencia = (data.get("numero_referencia") or "").strip()
+    estado = str(data.get("estado") or "").strip().upper()
+    if not referencia or estado not in ("PAGADO", "ANULADO"):
+        return jsonify(success=False, error="datos_incompletos",
+                       message="numero_referencia y estado (PAGADO o ANULADO) son requeridos"), 400
+    cita = CitaMedica.query.filter_by(numero_referencia=referencia).first()
+    if not cita:
+        return jsonify(success=False, error="no_encontrado", message="Salud no tiene esa referencia"), 404
+    if estado == "PAGADO":
+        try:
+            fecha = datetime.fromisoformat(str(data.get("fecha_pago")).replace("Z", "")) if data.get("fecha_pago") else None
+        except ValueError:
+            fecha = None
+        marcar_pagada(cita, data.get("numero_autorizacion"), fecha)
+    else:
+        cita.estado_cobro = "ANULADO"
+        cita.pago_confirmado = False
+    db.session.commit()
+    return jsonify(success=True, data={"numero_referencia": referencia, "estado": cita.estado_cobro,
+                                       "cita_id": cita.id}, message="Aviso registrado"), 200

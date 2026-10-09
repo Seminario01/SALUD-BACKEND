@@ -60,6 +60,12 @@ services:
       URL_EDUCACION: ${URL_EDUCACION:-http://simuladores:5055}
       URL_SEGURIDAD: ${URL_SEGURIDAD:-http://simuladores:5055}
       URL_TRIBUTARIO: ${URL_TRIBUTARIO:-http://simuladores:5055}
+      API_KEY_EDUCACION: ${API_KEY_EDUCACION:-}
+      API_KEY_SEGURIDAD: ${API_KEY_SEGURIDAD:-}
+      API_KEY_TRIBUTARIO: ${API_KEY_TRIBUTARIO:-}
+      REENVIAR_TOKEN_USUARIO: ${REENVIAR_TOKEN_USUARIO:-true}
+      DIAS_VENCIMIENTO_COBRO: ${DIAS_VENCIMIENTO_COBRO:-15}
+      COSTO_CONSULTA: ${COSTO_CONSULTA:-150}
       TZ: America/Guatemala
 
   # Simuladores de Educación, Seguridad y Tributario (datos ficticios; todas

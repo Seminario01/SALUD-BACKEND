@@ -21,7 +21,8 @@ Navegador ──token──> Backend de Salud ──X-API-Key + token del usuari
 | Seguridad | `GET /api/v1/seguridad/ciudadanos/antecedentes/{cui}?nombreCompleto=` (WS-SALUD-08) | `GET /api/v1/salud/pacientes/{id}/antecedentes` | Pacientes → **Consultar** | Personal |
 | Educación | `GET /api/v1/educacion/estudiantes/{cui}` | `GET /api/v1/salud/educacion/estudiantes/{cui}` | Vacunación → **Verificar en Educación** | Médico, admin |
 | Educación | `POST /api/v1/educacion/jornadas/coordinar` (WS-SALUD-01) | `POST /api/v1/salud/jornadas/coordinar` | (entre módulos) | API key |
-| Tributario | `POST /api/v1/tributario/pagos/verificar` (WS-SALUD-09) | `POST /api/v1/salud/citas/{id}/verificar-pago` | Citas → **Verificar pago** | Personal |
+| Tributario | `POST /api/v1/integraciones/salud/obligaciones` | `POST /api/v1/salud/citas/{id}/cobro` | Citas → **Enviar cobro** | Caja, Recepción, Admin |
+| Tributario | `GET /api/v1/integraciones/salud/obligaciones/{ref}` (por confirmar) | `POST /api/v1/salud/citas/{id}/verificar-pago` | Citas → **Verificar pago** | Caja, Recepción, Admin |
 | Los tres | `GET /api/v1/{modulo}/indicadores` (como verificación de conexión) | `GET /api/v1/salud/integraciones/estado` | Dashboard → **Integración con otros módulos** | Personal |
 
 ### Datos acordados
@@ -34,9 +35,12 @@ El paciente **siempre** se atiende; el resultado solo indica cuidados o custodia
 **Educación (estudiante).** Salud envía el CUI. Educación responde `establecimiento`, `grado`, `seccion`, `jornada`.
 Un 404 significa que no es estudiante.
 
-**Tributario (verificar pago).** Salud envía `numero_referencia` (lo genera Salud: `SALUD-AAAA-XXXXXXXX`), `dpi`, `concepto`, `monto` y `estado_pago`.
-Salud da el pago por confirmado si la respuesta trae `pagoConfirmado: true`, `confirmado: true` o `estado` igual a `CONFIRMADO`, `PAGADO` o `APROBADO`. En ese caso la cita queda con `pago_confirmado = true`.
-El monto es el `costo` de la cita o, si no tiene, `COSTO_CONSULTA` (por defecto Q150).
+**Tributario (cobro de citas).**
+1. *Enviar cobro* genera `SAL-AAAA-NNNNNN` y registra la obligación (`dpi_persona`, `tipo_obligacion`, `concepto`, `monto`, `moneda`, `fecha_emision`, `fecha_vencimiento`). La cita queda **Por pagar**.
+2. El ciudadano ve la referencia y el vencimiento en *Mi resumen* y paga en Tributario.
+3. Salud se entera del pago de una de dos formas: con *Verificar pago*, que consulta la obligación, o con el aviso de Tributario a `POST /api/v1/salud/pagos/notificacion` (API key). La cita queda **Pagada** con el número de autorización.
+
+Si la obligación ya existe (`409`), Salud no la duplica. El monto es el `costo` de la cita o, si no tiene, `COSTO_CONSULTA` (Q150).
 
 ## 3. Configuración (`.env` del backend)
 
@@ -68,8 +72,8 @@ El contrato completo para los otros equipos está en **`docs/CONTRATOS.md`**.
 | Seguridad: riesgo ALTO, requiere custodia | José Antonio Pérez García, Juan Carlos Ixcoy Batz |
 | Seguridad: riesgo BAJO | Carlos Enrique Ramírez Solís, Fernando José Barrios Ochoa |
 | Educación: estudiante | Ana Lucía Morales, Sofía Gómez, Gabriela Díaz, Diego Méndez, Karla Estrada, Lucía Tzul, Kevin Coyoy |
-| Tributario: pago no registrado | Pedro Pablo Juárez, Rosa Elena Velásquez, Marta Julia Orellana |
-| Tributario: pago confirmado | cualquier otro |
+| Tributario: la obligación sigue pendiente al consultarla | Pedro Pablo Juárez, Rosa Elena Velásquez, Marta Julia Orellana |
+| Tributario: la obligación aparece pagada al consultarla | cualquier otro |
 
 Para CUI que no están en el padrón (pacientes nuevos) hay reglas por último dígito:
 - Seguridad: si termina en 9, riesgo ALTO; si termina en 7, riesgo BAJO.
@@ -84,6 +88,7 @@ Para CUI que no están en el padrón (pacientes nuevos) hay reglas por último d
 | `educacion-jornada` | Educación | WS-SALUD-01; Salud a su vez le consulta a Educación |
 | `educacion-practicante` | Educación | WS-SALUD-06 |
 | `tributario-costo` | Tributario | Costo de una cita |
+| `tributario-pago` | Tributario | Aviso de pago del último cobro pendiente |
 | `auditoria-indicadores` | Auditoría | Indicadores agregados |
 
 **Bitácora** (`GET /api/v1/salud/integraciones/bitacora`, solo el personal; tabla `bitacora_integraciones`).

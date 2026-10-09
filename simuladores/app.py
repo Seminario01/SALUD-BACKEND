@@ -22,7 +22,8 @@ En Docker lo levanta deploy/docker-compose.yml (servicio "simuladores").
 Para un CUI que no está en el padrón (pacientes nuevos) se usan reglas:
   Seguridad  - termina en 9: riesgo ALTO (custodia); en 7: riesgo BAJO
   Educación  - termina en número par: estudiante
-  Tributario - monto > 0: pago CONFIRMADO; CUI que termina en 3: pago no registrado
+  Tributario - obligación registrada: PENDIENTE; al consultarla, PAGADO
+               (salvo CUI de "pago no registrado" o que terminan en 3)
 """
 import hashlib
 import os
@@ -170,30 +171,53 @@ def _autorizacion(texto):
     return "AUT-" + hashlib.sha1(texto.encode()).hexdigest()[:10].upper()
 
 
-@app.post("/api/v1/tributario/pagos/verificar")
-def verificar_pago():
-    """WS-SALUD-09: Salud envía numero_referencia, dpi, concepto, monto y estado_pago."""
+OBLIGACIONES = {}   # numero_referencia -> obligación registrada por Salud (en memoria)
+CAMPOS_OBLIGACION = ("numero_referencia", "dpi_persona", "tipo_obligacion", "concepto", "monto",
+                     "moneda", "fecha_emision", "fecha_vencimiento")
+
+
+def _pago_registrado(dpi):
+    """El ciudadano ya pagó, salvo los casos de 'pago no registrado' del padrón."""
+    return not (dpi in datos.PAGO_NO_REGISTRADO or (dpi not in datos.NOMBRES and dpi.endswith("3")))
+
+
+@app.post("/api/v1/integraciones/salud/obligaciones")
+def registrar_obligacion():
+    """Contrato de Tributario: Salud registra el cobro de una atención."""
     cuerpo = request.get_json(silent=True) or {}
-    referencia = cuerpo.get("numero_referencia")
-    dpi = str(cuerpo.get("dpi") or "")
-    try:
-        monto = float(cuerpo.get("monto") or 0)
-    except (TypeError, ValueError):
-        monto = 0
-    faltan = [c for c in ("numero_referencia", "dpi", "concepto", "monto") if not cuerpo.get(c)]
+    faltan = [c for c in CAMPOS_OBLIGACION if cuerpo.get(c) in (None, "")]
     if faltan:
         return jsonify(success=False, error="datos_incompletos", message=f"Faltan: {', '.join(faltan)}",
                        simulado=True), 400
+    referencia = cuerpo["numero_referencia"]
+    if referencia in OBLIGACIONES:
+        return jsonify(success=False, error="duplicado", message="La obligación ya fue registrada",
+                       simulado=True), 409
+    try:
+        monto = round(float(cuerpo["monto"]), 2)
+    except (TypeError, ValueError):
+        monto = 0
+    if monto <= 0:
+        return jsonify(success=False, error="datos_invalidos", message="El monto debe ser mayor a 0",
+                       simulado=True), 400
+    obligacion = {**{c: cuerpo[c] for c in CAMPOS_OBLIGACION}, "monto": monto,
+                  "id_obligacion": f"OBL-{len(OBLIGACIONES) + 1001}", "estado": "PENDIENTE",
+                  "fecha_registro": datetime.now().isoformat(timespec="seconds")}
+    OBLIGACIONES[referencia] = obligacion
+    return ok(obligacion, 201)
 
-    no_registrado = dpi in datos.PAGO_NO_REGISTRADO or (dpi not in datos.NOMBRES and dpi.endswith("3"))
-    if monto <= 0 or no_registrado:
-        return ok({"numero_referencia": referencia, "dpi": dpi, "estado": "PENDIENTE", "pagoConfirmado": False,
-                   "mensaje": "No se encontró un pago registrado con esos datos. El paciente puede pagar en agencia o en línea."})
-    return ok({"numero_referencia": referencia, "dpi": dpi, "nombreContribuyente": datos.NOMBRES.get(dpi),
-               "concepto": cuerpo.get("concepto"), "montoRegistrado": round(monto, 2), "moneda": "GTQ",
-               "estado": "CONFIRMADO", "pagoConfirmado": True, "numeroAutorizacion": _autorizacion(referencia or dpi),
-               "fechaPago": (datetime.now() - timedelta(hours=2)).isoformat(timespec="minutes"),
-               "canal": "Agencia bancaria"})
+
+@app.get("/api/v1/integraciones/salud/obligaciones/<referencia>")
+def consultar_obligacion(referencia):
+    """Estado de una obligación: PAGADO cuando el ciudadano ya pagó."""
+    obligacion = OBLIGACIONES.get(referencia)
+    if obligacion is None:
+        return no_encontrado("No existe una obligación con ese número de referencia")
+    if obligacion["estado"] == "PENDIENTE" and _pago_registrado(str(obligacion["dpi_persona"])):
+        obligacion.update(estado="PAGADO", numero_autorizacion=_autorizacion(referencia),
+                          fecha_pago=(datetime.now() - timedelta(minutes=40)).isoformat(timespec="minutes"),
+                          monto_pagado=obligacion["monto"], canal="Agencia bancaria")
+    return ok(obligacion)
 
 
 @app.get("/api/v1/tributario/contribuyentes/<cui>")
@@ -226,6 +250,11 @@ def _casos(cuerpo):
             "Educación consulta las horas de práctica de Daniela Sofía Paredes Lima."),
         "tributario-costo": ("Tributario", "GET", f"/api/v1/salud/citas/{int(cuerpo.get('cita_id') or 1)}/costo", None,
             "Tributario consulta el costo y el estado de pago de una cita."),
+        "tributario-pago": ("Tributario", "POST", "/api/v1/salud/pagos/notificacion",
+            {"numero_referencia": cuerpo.get("numero_referencia") or "SAL-0000-000000", "estado": "PAGADO",
+             "numero_autorizacion": _autorizacion(cuerpo.get("numero_referencia") or "x"),
+             "fecha_pago": datetime.now().isoformat(timespec="seconds"), "monto_pagado": cuerpo.get("monto")},
+            "Tributario avisa a Salud que el ciudadano pagó una obligación."),
         "auditoria-indicadores": ("Auditoría", "GET", "/api/v1/salud/indicadores", None,
             "Auditoría Social consulta los indicadores agregados de Salud (sin datos personales)."),
     }

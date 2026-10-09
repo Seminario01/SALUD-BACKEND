@@ -6,6 +6,8 @@ usuario, y el backend de Salud llama al módulo destino (servidor a servidor).
 Si el otro módulo no está configurado o no responde, se devuelve un error
 claro (503) y la operación propia de Salud no se ve afectada.
 """
+from datetime import date, datetime, timedelta
+
 from flask import Blueprint, jsonify, request
 
 from auth import validar_token, requiere_permiso
@@ -15,12 +17,12 @@ from models import BitacoraIntegracion, CitaMedica, Paciente
 from services_externos import (
     consultar_antecedentes_seguridad,
     disparar_caso_simulado,
-    generar_numero_referencia_pago,
     obtener_estudiante,
     obtener_indicadores_educacion,
     obtener_indicadores_seguridad,
     obtener_indicadores_tributario,
-    verificar_pago_tributario,
+    consultar_obligacion,
+    registrar_obligacion,
 )
 
 integraciones_bp = Blueprint("integraciones", __name__)
@@ -35,8 +37,10 @@ MENSAJES = {
 def _error_modulo(resultado, modulo):
     codigo = resultado.get("error", "modulo_no_disponible")
     status = 502 if codigo == "respuesta_invalida" else 503
-    return jsonify(success=False, error=codigo, modulo=modulo,
-                   message=MENSAJES.get(codigo, MENSAJES["modulo_no_disponible"]).format(m=modulo)), status
+    mensaje = MENSAJES.get(codigo, MENSAJES["modulo_no_disponible"]).format(m=modulo)
+    if resultado.get("detalle"):
+        mensaje = f"{modulo} rechazó la solicitud: {resultado['detalle']}"
+    return jsonify(success=False, error=codigo, modulo=modulo, message=mensaje), status
 
 
 @integraciones_bp.route("/api/v1/salud/integraciones/estado", methods=["GET"])
@@ -62,7 +66,8 @@ def estado_integraciones():
     estado = {}
     for nombre, (url, ping) in modulos.items():
         r = ping(registrar=False)
-        if r["success"] or r.get("error") == "no_encontrado":
+        # Cualquier respuesta HTTP (aunque sea 404 o un formato distinto) significa que el módulo responde
+        if r["success"] or r.get("error") in ("no_encontrado", "respuesta_invalida"):
             datos = r.get("data") if isinstance(r.get("data"), dict) else {}
             indicadores = {k: v for k, v in datos.items() if k not in ("simulado", "modulo")}
             estado[nombre] = {"estado": "conectado", "simulado": bool(r.get("simulado") or datos.get("simulado")),
@@ -149,17 +154,104 @@ def estudiante_educacion(cui):
     return jsonify(success=True, data={"esEstudiante": True, **datos}), 200
 
 
-@integraciones_bp.route("/api/v1/salud/citas/<int:id>/verificar-pago", methods=["POST"])
+# ---------------------------------------------------------------------------
+# Tributario: obligaciones de pago de las citas
+# ---------------------------------------------------------------------------
+ESTADOS_PAGADO = ("PAGADO", "PAGADA", "CONFIRMADO", "APROBADO", "CANCELADO_PAGO")
+TIPO_OBLIGACION = {"emergencia": "EMERGENCIA", "especialidad": "ESPECIALIDAD"}
+
+
+def _siguiente_referencia():
+    """SAL-AAAA-NNNNNN, correlativo por año."""
+    prefijo = f"SAL-{date.today().year}-"
+    ultima = db.session.query(db.func.max(CitaMedica.numero_referencia)) \
+        .filter(CitaMedica.numero_referencia.like(prefijo + "%")).scalar()
+    numero = int(ultima.rsplit("-", 1)[1]) + 1 if ultima else 1
+    return f"{prefijo}{numero:06d}"
+
+
+def _estado_cobro(cita):
+    return {
+        "citaId": cita.id,
+        "numeroReferencia": cita.numero_referencia,
+        "estadoCobro": "PAGADO" if cita.pago_confirmado else cita.estado_cobro,
+        "pagoConfirmado": bool(cita.pago_confirmado),
+        "monto": float(cita.costo) if cita.costo is not None else None,
+        "fechaVencimiento": cita.fecha_vencimiento.isoformat() if cita.fecha_vencimiento else None,
+        "numeroAutorizacion": cita.numero_autorizacion,
+        "fechaPago": cita.fecha_pago.isoformat(timespec="minutes") if cita.fecha_pago else None,
+    }
+
+
+def marcar_pagada(cita, autorizacion=None, fecha_pago=None):
+    cita.pago_confirmado = True
+    cita.estado_cobro = "PAGADO"
+    cita.numero_autorizacion = autorizacion or cita.numero_autorizacion
+    cita.fecha_pago = fecha_pago or cita.fecha_pago or datetime.now()
+
+
+def _fecha_hora(valor):
+    try:
+        return datetime.fromisoformat(str(valor).replace("Z", "")) if valor else None
+    except ValueError:
+        return None
+
+
+def _registrar_cobro(cita, paciente):
+    """Envía la obligación a Tributario. Devuelve (ok, respuesta_error)."""
+    if not cita.numero_referencia:
+        cita.numero_referencia = _siguiente_referencia()
+        db.session.commit()
+    if not cita.costo:
+        cita.costo = Config.COSTO_CONSULTA
+    hoy = date.today()
+    vence = hoy + timedelta(days=Config.DIAS_VENCIMIENTO_COBRO)
+    r = registrar_obligacion(cita.numero_referencia, paciente.cui, "CONSULTA_MEDICA",
+                             (cita.motivo or "Consulta médica general")[:200], cita.costo,
+                             hoy.isoformat(), vence.isoformat())
+    duplicada = not r["success"] and r.get("estado_http") == 409
+    if not r["success"] and not duplicada:
+        return False, _error_modulo(r, "Tributario")
+    datos = r.get("data") if isinstance(r.get("data"), dict) else {}
+    estado = str(datos.get("estado") or "PENDIENTE").upper()
+    cita.estado_cobro = estado if not duplicada else (cita.estado_cobro or "PENDIENTE")
+    cita.fecha_vencimiento = cita.fecha_vencimiento or vence
+    if estado in ESTADOS_PAGADO:
+        marcar_pagada(cita, datos.get("numero_autorizacion") or datos.get("numeroAutorizacion"))
+    db.session.commit()
+    return True, None
+
+
+def _cita_y_paciente(id):
+    cita = CitaMedica.query.get(id)
+    if not cita:
+        return None, None, (jsonify(success=False, error="no_encontrado", message="Cita no existe"), 404)
+    paciente = Paciente.query.get(cita.paciente_id)
+    if not paciente or not paciente.cui:
+        return cita, None, (jsonify(success=False, error="datos_incompletos",
+                                    message="El paciente no tiene CUI registrado; Tributario lo necesita"), 400)
+    if cita.estado == "cancelada":
+        return cita, None, (jsonify(success=False, error="cita_cancelada",
+                                    message="La cita está cancelada"), 409)
+    return cita, paciente, None
+
+
+@integraciones_bp.route("/api/v1/salud/citas/<int:id>/cobro", methods=["POST"])
 @validar_token
 @requiere_permiso("pagos.verificar")
-def verificar_pago_cita(id):
+def enviar_cobro(id):
     """
-    WS-SALUD-09 - Verificar en Tributario el pago de una cita
+    Enviar a Tributario el cobro de una cita (obligación de pago)
     ---
     tags:
       - Integraciones
     security:
       - BearerAuth: []
+    description: >
+      Genera el número de referencia SAL-AAAA-NNNNNN (si la cita no tiene) y
+      registra la obligación en Tributario: dpi_persona, tipo_obligacion,
+      concepto, monto, moneda GTQ, fecha_emision y fecha_vencimiento. Si ya
+      estaba registrada, no la duplica.
     parameters:
       - name: id
         in: path
@@ -167,37 +259,73 @@ def verificar_pago_cita(id):
         required: true
     responses:
       200:
-        description: "pagoConfirmado true/false; si es true, la cita queda marcada como pagada"
+        description: "numeroReferencia, estadoCobro, monto, fechaVencimiento"
+      409:
+        description: La cita está cancelada
       503:
         description: Tributario no configurado o no disponible
     """
-    cita = CitaMedica.query.get(id)
-    if not cita:
-        return jsonify(success=False, error="no_encontrado", message="Cita no existe"), 404
-    paciente = Paciente.query.get(cita.paciente_id)
-    if not paciente or not paciente.cui:
-        return jsonify(success=False, error="datos_incompletos",
-                       message="El paciente no tiene CUI registrado; Tributario lo necesita"), 400
+    cita, paciente, error = _cita_y_paciente(id)
+    if error:
+        return error
+    # Ya pagada, o ya registrada en Tributario (y no anulada): no se reenvía
+    if cita.pago_confirmado or (cita.estado_cobro and cita.estado_cobro != "ANULADO"):
+        return jsonify(success=True, data=_estado_cobro(cita)), 200
+    if cita.estado_cobro == "ANULADO":
+        cita.numero_referencia = None   # una obligación anulada no se reutiliza: referencia nueva
+    ok, error = _registrar_cobro(cita, paciente)
+    if not ok:
+        return error
+    return jsonify(success=True, data=_estado_cobro(cita)), 200
 
-    monto = float(cita.costo) if cita.costo else Config.COSTO_CONSULTA
-    referencia = generar_numero_referencia_pago()
-    r = verificar_pago_tributario(referencia, paciente.cui, "CONSULTA_MEDICA", monto, "PENDIENTE_VERIFICACION")
-    if not r["success"]:
-        return _error_modulo(r, "Tributario")
 
-    datos = r["data"] if isinstance(r["data"], dict) else {}
-    estado = str(datos.get("estado") or datos.get("estadoPago") or datos.get("estado_pago") or "").upper()
-    confirmado = bool(datos.get("pagoConfirmado") or datos.get("confirmado")) or estado in ("CONFIRMADO", "PAGADO", "APROBADO")
-    if confirmado:
-        cita.pago_confirmado = True
-        cita.costo = monto
-        db.session.commit()
-    return jsonify(success=True, data={
-        "pagoConfirmado": confirmado,
-        "numeroReferencia": referencia,
-        "monto": monto,
-        "respuestaTributario": datos,
-    }), 200
+@integraciones_bp.route("/api/v1/salud/citas/<int:id>/verificar-pago", methods=["POST"])
+@validar_token
+@requiere_permiso("pagos.verificar")
+def verificar_pago_cita(id):
+    """
+    Consultar en Tributario si el cobro de una cita ya se pagó
+    ---
+    tags:
+      - Integraciones
+    security:
+      - BearerAuth: []
+    description: >
+      Consulta el estado de la obligación por su número de referencia. Si la
+      cita aún no tenía cobro, primero lo registra. Si Tributario la reporta
+      pagada, la cita queda con pago confirmado y número de autorización.
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: "pagoConfirmado true/false, numeroReferencia, estadoCobro, numeroAutorizacion"
+      503:
+        description: Tributario no configurado o no disponible
+    """
+    cita, paciente, error = _cita_y_paciente(id)
+    if error:
+        return error
+    if not cita.pago_confirmado:
+        if not cita.estado_cobro:
+            ok, error = _registrar_cobro(cita, paciente)
+            if not ok:
+                return error
+        if not cita.pago_confirmado:
+            r = consultar_obligacion(cita.numero_referencia)
+            if not r["success"]:
+                return _error_modulo(r, "Tributario")
+            datos = r["data"] if isinstance(r["data"], dict) else {}
+            estado = str(datos.get("estado") or datos.get("estado_pago") or "PENDIENTE").upper()
+            if estado in ESTADOS_PAGADO or datos.get("pagoConfirmado") is True:
+                marcar_pagada(cita, datos.get("numero_autorizacion") or datos.get("numeroAutorizacion"),
+                              _fecha_hora(datos.get("fecha_pago") or datos.get("fechaPago")))
+            else:
+                cita.estado_cobro = estado
+            db.session.commit()
+    return jsonify(success=True, data=_estado_cobro(cita)), 200
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +395,7 @@ CASOS_SIMULADOS = {
     "educacion-jornada": "URL_EDUCACION",
     "educacion-practicante": "URL_EDUCACION",
     "tributario-costo": "URL_TRIBUTARIO",
+    "tributario-pago": "URL_TRIBUTARIO",
     "auditoria-indicadores": "URL_SEGURIDAD",   # Auditoría la maneja la ingeniera; se simula desde el mismo servidor
 }
 
@@ -291,7 +420,7 @@ def simular_consulta_entrante(caso):
         in: path
         type: string
         required: true
-        enum: [seguridad-establecimientos, educacion-jornada, educacion-practicante, tributario-costo, auditoria-indicadores]
+        enum: [seguridad-establecimientos, educacion-jornada, educacion-practicante, tributario-costo, tributario-pago, auditoria-indicadores]
     responses:
       200:
         description: Petición que hizo el módulo simulado y respuesta de Salud
@@ -307,6 +436,13 @@ def simular_consulta_entrante(caso):
     if caso == "tributario-costo":
         cita = CitaMedica.query.filter(CitaMedica.costo.isnot(None)).order_by(CitaMedica.id.desc()).first()
         cuerpo["cita_id"] = cita.id if cita else 1
+    if caso == "tributario-pago":
+        cita = CitaMedica.query.filter(CitaMedica.estado_cobro == "PENDIENTE", CitaMedica.pago_confirmado.is_(False)) \
+            .order_by(CitaMedica.id.desc()).first()
+        if not cita:
+            return jsonify(success=False, error="sin_cobros_pendientes",
+                           message="No hay cobros pendientes: primero envíe un cobro desde Citas"), 409
+        cuerpo.update(numero_referencia=cita.numero_referencia, monto=float(cita.costo or 0))
     r = disparar_caso_simulado(url, caso, cuerpo)
     if not r["success"]:
         if r.get("error") in ("no_encontrado", "respuesta_invalida"):

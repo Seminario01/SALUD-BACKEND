@@ -31,5 +31,16 @@ class Config:
     URL_SEGURIDAD = os.getenv("URL_SEGURIDAD", "http://localhost:5002")
     URL_TRIBUTARIO = os.getenv("URL_TRIBUTARIO", "http://localhost:5003")
 
+    # Clave para LLAMAR a cada módulo (la que cada grupo nos da). Si no se
+    # define, se usa MODULOS_API_KEY.
+    API_KEY_EDUCACION = os.getenv("API_KEY_EDUCACION") or None
+    API_KEY_SEGURIDAD = os.getenv("API_KEY_SEGURIDAD") or None
+    API_KEY_TRIBUTARIO = os.getenv("API_KEY_TRIBUTARIO") or None
+    # Reenviar el token del usuario a los otros módulos. Mientras cada módulo
+    # use su propio Keycloak, el token no es válido en los demás: poner "false".
+    REENVIAR_TOKEN_USUARIO = os.getenv("REENVIAR_TOKEN_USUARIO", "true").lower() == "true"
+    # Tributario: vencimiento de las obligaciones de pago (días)
+    DIAS_VENCIMIENTO_COBRO = int(os.getenv("DIAS_VENCIMIENTO_COBRO", "15"))
+
     # Monto por defecto de una consulta cuando la cita no tiene costo registrado
     COSTO_CONSULTA = float(os.getenv("COSTO_CONSULTA", "150"))

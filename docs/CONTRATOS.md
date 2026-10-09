@@ -87,21 +87,27 @@ Responde `esPracticante`, `universidad`, `carrera`, `nivel` y `estado`. Un `404`
 
 ### Tributario
 
-**WS-SALUD-09: Verificar el pago de una cita.** El número de referencia lo genera Salud con el formato `SALUD-AAAA-XXXXXXXX`.
+**Obligaciones de pago (contrato de Tributario).** Salud registra el cobro de cada consulta; el ciudadano paga en Tributario con el número de referencia. Reemplaza la verificación de pago anterior (WS-SALUD-09).
 
 ```
-POST /api/v1/tributario/pagos/verificar
-{ "numero_referencia": "SALUD-2026-D27521DB", "dpi": "2501123450102",
-  "concepto": "CONSULTA_MEDICA", "monto": 150.00, "estado_pago": "PENDIENTE_VERIFICACION" }
-```
-```json
-{ "success": true, "data": {
-    "numero_referencia": "SALUD-2026-D27521DB", "estado": "CONFIRMADO", "pagoConfirmado": true,
-    "numeroAutorizacion": "AUT-C578AB9FF9", "montoRegistrado": 150.00, "fechaPago": "2026-10-02T20:49" } }
+POST /api/v1/integraciones/salud/obligaciones
+{ "numero_referencia": "SAL-2026-000120", "dpi_persona": "1234567890101",
+  "tipo_obligacion": "CONSULTA_MEDICA", "concepto": "Consulta médica general",
+  "monto": 150.00, "moneda": "GTQ", "fecha_emision": "2026-10-08", "fecha_vencimiento": "2026-10-23" }
 ```
 
-- Salud da el pago por confirmado si llega `pagoConfirmado: true`, o `estado` igual a `CONFIRMADO`, `PAGADO` o `APROBADO`.
-- Cualquier otro valor (por ejemplo `PENDIENTE`) se trata como **no pagado**.
+- `numero_referencia` lo genera Salud: `SAL-AAAA-NNNNNN`, correlativo por año.
+- El vencimiento es la emisión más `DIAS_VENCIMIENTO_COBRO` (15 días por defecto).
+- Un `409` (ya registrada) no es error para Salud: la obligación ya existe.
+
+**Estado de la obligación** (ruta propuesta, *por confirmar con Tributario*):
+
+```
+GET /api/v1/integraciones/salud/obligaciones/{numero_referencia}
+→ { "success": true, "data": { "estado": "PAGADO", "numero_autorizacion": "AUT-…", "fecha_pago": "2026-10-08T10:15" } }
+```
+
+Salud da la cita por pagada si `estado` es `PAGADO`, `PAGADA`, `CONFIRMADO` o `APROBADO`, o si llega `pagoConfirmado: true`.
 
 ### Verificación de conexión (los tres módulos)
 
@@ -122,6 +128,7 @@ URL base: `https://saludumg.online/api/v1/salud`. Todos requieren `X-API-Key`. L
 | **WS-SALUD-02** Establecimientos disponibles | Seguridad | `GET /establecimientos/disponibilidad?departamento=&municipio=&tipoAtencion=&nivelUrgencia=` | `disponible`, `mensaje` y `establecimientos[]` con `nombreEstablecimiento`, `tipoEstablecimiento`, `direccion`, `telefono`, `estadoServicio` y `tipoAtencionDisponible` |
 | **WS-SALUD-06** Horas de práctica | Educación | `GET /practicantes/{cui}/horas` | `horasAcumuladas`, `fechaInicio`, `fechaFin`, `supervisor`, `estado` |
 | Costo de una cita | Tributario | `GET /citas/{id}/costo` | `cita_id`, `monto`, `pago_confirmado` |
+| Aviso de pago | Tributario | `POST /pagos/notificacion` con `numero_referencia`, `estado` (`PAGADO` o `ANULADO`), `numero_autorizacion`, `fecha_pago`, `monto_pagado` | `200` registrado · `400` datos incompletos · `404` referencia desconocida |
 | Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación y presupuesto. **Sin datos personales** |
 | Ejecución presupuestaria | Auditoría Social | `GET /presupuesto/ejecucion` | Periodo vigente: `monto_asignado`, `monto_ejecutado_servicio_social`, `porcentaje_ejecutado` |
 

@@ -98,7 +98,7 @@ Los roles nuevos y sus usuarios se agregan a un Keycloak existente con `keycloak
 | `recursos.ver` | Médico, Enfermería, Recepción, Jefatura, Admin | `GET /recursos` |
 | `recursos.gestionar` | Admin | `POST /recursos`, `PUT /recursos/<id>` (todo) |
 | `recursos.camas` | Enfermería, Admin | `PUT /recursos/<id>`: Enfermería solo cambia `disponible` de las **camas** |
-| `pagos.verificar` | Caja, Recepción, Admin | `POST /citas/<id>/verificar-pago` (Tributario, WS-SALUD-09) |
+| `pagos.verificar` | Caja, Recepción, Admin | `POST /citas/<id>/cobro` y `POST /citas/<id>/verificar-pago` (obligaciones de Tributario) |
 | `panel.ver` | Todo el personal y Auditoría | `GET /panel` |
 | `presupuesto.ver` | Jefatura, Admin, Auditoría | `GET /presupuesto/ejecucion` (también con API key) |
 | `presupuesto.editar` | Admin | `PUT /presupuesto` |
@@ -132,6 +132,7 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | GET | `/establecimientos/disponibilidad` | Seguridad (WS-SALUD-02) |
 | GET | `/practicantes/<cui>/horas` | Educación |
 | GET | `/citas/<id>/costo` | Tributario |
+| POST | `/pagos/notificacion` | Tributario (aviso de pago) |
 | GET | `/presupuesto/ejecucion` | Auditoría Social |
 | GET | `/indicadores` | Auditoría Social y otros módulos |
 

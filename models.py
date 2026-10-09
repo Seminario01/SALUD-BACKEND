@@ -33,6 +33,12 @@ class CitaMedica(db.Model):
     costo = db.Column(db.Numeric(10, 2))
     pago_confirmado = db.Column(db.Boolean, default=False)
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    # Cobro en Tributario (obligación de pago). Ver docs/INTEGRACIONES.md
+    numero_referencia = db.Column(db.String(20), unique=True)      # SAL-AAAA-NNNNNN
+    estado_cobro = db.Column(db.String(20))                         # PENDIENTE, PAGADO, ANULADO
+    fecha_vencimiento = db.Column(db.Date)
+    numero_autorizacion = db.Column(db.String(60))
+    fecha_pago = db.Column(db.DateTime)
 
 
 class ExpedienteClinico(db.Model):

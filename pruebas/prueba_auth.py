@@ -156,6 +156,29 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
     citas = requests.get(API + "/citas", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
     ok = any(c["id"] == cita_p1 and c["pago_confirmado"] for c in citas); resultados.append(ok)
     print(f"{'OK ' if ok else 'FALLA'}      la cita queda marcada como pagada")
+    ok = bool(re.fullmatch(r"SAL-\d{4}-\d{6}", d.get("numeroReferencia") or "")); resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      obligación registrada con referencia {d.get('numeroReferencia')}")
+
+    print("--- Tributario: obligaciones de pago")
+    cita_cobro = check("cita nueva para cobrar", "POST", "/citas", T["recepcion1"], 201,
+                       json={"paciente_id": p1, "fecha_hora": "2026-11-02 08:00:00"}).json()["data"]["id"]
+    d = check("recepcion1 envía el cobro a Tributario", "POST", f"/citas/{cita_cobro}/cobro", T["recepcion1"], 200).json()["data"]
+    ok = d.get("estadoCobro") == "PENDIENTE" and bool(d.get("fechaVencimiento")); resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      estado PENDIENTE, vence {d.get('fechaVencimiento')}, referencia {d.get('numeroReferencia')}")
+    d2 = check("reenviar el cobro no lo duplica", "POST", f"/citas/{cita_cobro}/cobro", T["recepcion1"], 200).json()["data"]
+    ok = d2.get("numeroReferencia") == d.get("numeroReferencia"); resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      misma referencia")
+    check("medico1 NO envía cobros", "POST", f"/citas/{cita_cobro}/cobro", T["medico1"], 403)
+    clave = {"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")}
+    check("aviso de pago sin API key", "POST", "/pagos/notificacion", None, 401, json={})
+    check("aviso de pago con datos incompletos", "POST", "/pagos/notificacion", None, 400, headers=clave, json={"estado": "PAGADO"})
+    check("aviso de pago de referencia desconocida", "POST", "/pagos/notificacion", None, 404, headers=clave,
+          json={"numero_referencia": "SAL-1999-000001", "estado": "PAGADO"})
+    check("Tributario avisa el pago", "POST", "/pagos/notificacion", None, 200, headers=clave,
+          json={"numero_referencia": d["numeroReferencia"], "estado": "PAGADO", "numero_autorizacion": "AUT-PRUEBA"})
+    citas = requests.get(API + "/citas", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
+    ok = any(c["id"] == cita_cobro and c["pago_confirmado"] and c["numero_autorizacion"] == "AUT-PRUEBA" for c in citas)
+    resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      la cita queda pagada con la autorización de Tributario")
 
     print("--- Demostracion: un modulo simulado consume a Salud, y bitacora")
     d = check("Seguridad (simulada) consulta establecimientos", "POST", "/integraciones/simular/seguridad-establecimientos",
