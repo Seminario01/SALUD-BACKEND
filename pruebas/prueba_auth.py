@@ -205,10 +205,14 @@ def dato(nombre, ok):
     print(f"{'OK ' if ok else 'FALLA'}      {nombre}")
 
 print("--- Recetas y Farmacia")
-import time
-codigo = f"PRB-{int(time.time()) % 1000000}"
-m = check("farmacia1 agrega un medicamento", "POST", "/medicamentos", T["farmacia1"], 201,
-          json={"codigo": codigo, "nombre": "Medicamento de prueba", "presentacion": "Tableta", "existencia": 20, "stock_minimo": 5}).json()["data"]
+codigo = "PRB-001"      # siempre el mismo: no se acumulan medicamentos de prueba en el catálogo
+r = requests.post(API + "/medicamentos", headers={"Authorization": f"Bearer {T['farmacia1']}"},
+                  json={"codigo": codigo, "nombre": "Medicamento de prueba", "presentacion": "Tableta", "existencia": 20, "stock_minimo": 5})
+dato("farmacia1 agrega el medicamento de prueba (o ya existía)", r.status_code in (201, 409))
+m = requests.get(API + f"/medicamentos?q={codigo}", headers={"Authorization": f"Bearer {T['farmacia1']}"}).json()["data"][0]
+if m["existencia"] != 20:   # deja la existencia en 20 para que la prueba sea repetible
+    requests.post(API + f"/medicamentos/{m['id']}/movimientos", headers={"Authorization": f"Bearer {T['farmacia1']}"},
+                  json={"tipo": "AJUSTE", "cantidad": 20 - m["existencia"], "observacion": "Inicio de la prueba"})
 check("código repetido", "POST", "/medicamentos", T["farmacia1"], 409, json={"codigo": codigo, "nombre": "Otro"})
 check("medico1 NO agrega medicamentos", "POST", "/medicamentos", T["medico1"], 403, json={"codigo": "X", "nombre": "X"})
 check("medicamento sin nombre", "POST", "/medicamentos", T["farmacia1"], 400, json={"codigo": codigo + "B"})
@@ -243,8 +247,9 @@ check("entrada con cantidad 0", "POST", f"/medicamentos/{m['id']}/movimientos", 
 check("entrada de 40", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 201, json={"tipo": "ENTRADA", "cantidad": 40})
 check("ahora sí se despacha", "POST", f"/recetas/{grande}/despachar", T["farmacia1"], 200)
 kardex = check("kardex", "GET", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 200).json()["data"]
-dato("kardex: entrada inicial, salida por receta, entrada y salida (existencia 2)",
-     [k["tipo"] for k in kardex] == ["SALIDA", "ENTRADA", "SALIDA", "ENTRADA"] and sum(k["cantidad"] for k in kardex) == 2)
+final = requests.get(API + f"/medicamentos?q={codigo}", headers={"Authorization": f"Bearer {T['farmacia1']}"}).json()["data"][0]
+dato("kardex: salida por receta, entrada y salida (existencia 2)",
+     [k["tipo"] for k in kardex[:3]] == ["SALIDA", "ENTRADA", "SALIDA"] and final["existencia"] == 2)
 bajo = check("bajo mínimo", "GET", "/medicamentos?bajo_minimo=1", T["farmacia1"], 200).json()["data"]
 dato("el medicamento aparece bajo el mínimo (2 de 5)", any(x["id"] == m["id"] for x in bajo))
 otra = check("medico1 receta otra", "POST", "/recetas", T["medico1"], 201,
@@ -314,6 +319,71 @@ ind = check("indicadores con hospitalización", "GET", "/indicadores", None, 200
             headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")}).json()["data"]
 dato("indicadores: camas y ocupación, sin datos personales",
      {"camas_total", "camas_disponibles", "ocupacion_porcentaje", "hospitalizados"} <= set(ind["hospitalizacion"]) and "farmacia" in ind)
+
+print("--- Caja y cuentas")
+H = lambda u: {"Authorization": f"Bearer {T[u]}"}
+for h in requests.get(API + f"/hospitalizaciones?paciente_id={p2}", headers=H("medico1")).json()["data"]:
+    if h["estado"] == "PENDIENTE":
+        requests.post(API + f"/hospitalizaciones/{h['id']}/anular", headers=H("medico1"), json={})
+    if h["estado"] == "ACTIVO":
+        requests.post(API + f"/hospitalizaciones/{h['id']}/egreso", headers=H("medico1"), json={"tipo_egreso": "ALTA", "resumen": "Prueba"})
+for c in requests.get(API + f"/cuentas?paciente_id={p2}&estado=ABIERTA", headers=H("caja1")).json()["data"]:
+    if c["tipo"] == "AMBULATORIA":          # repetible: cierra la ambulatoria que haya quedado abierta
+        requests.post(API + f"/cuentas/{c['id']}/cerrar", headers=H("caja1"))
+servicios = check("caja1 ve el catálogo de servicios", "GET", "/servicios", T["caja1"], 200).json()["data"]
+check("medico1 NO ve el catálogo de Caja", "GET", "/servicios", T["medico1"], 403)
+lab = next(x for x in servicios if x["categoria"] == "LABORATORIO")
+dia_cama = next(x for x in servicios if x["categoria"] == "DIA_CAMA")
+h = requests.post(API + "/hospitalizaciones", headers=H("medico1"), json={"paciente_id": p2, "area": "Medicina general", "diagnostico": "Prueba de caja"}).json()["data"]
+cama = requests.get(API + "/camas?area=Medicina general&estado=DISPONIBLE", headers=H("enfermera1")).json()["data"][0]
+requests.post(API + f"/hospitalizaciones/{h['id']}/asignar-cama", headers=H("enfermera1"), json={"cama_id": cama["id"]})
+cuentas_p2 = check("al ingresar a cama se abre la cuenta", "GET", f"/cuentas?paciente_id={p2}&estado=ABIERTA", T["caja1"], 200).json()["data"]
+cuenta = next((c for c in cuentas_p2 if c["hospitalizacion_id"] == h["id"]), None)
+dato("cuenta de hospitalización ABIERTA con día cama en curso", cuenta is not None and cuenta["estancia_en_curso"] is not None)
+check("no se cierra con el paciente ingresado", "POST", f"/cuentas/{cuenta['id']}/cerrar", T["caja1"], 409)
+check("caja1 carga un laboratorio", "POST", f"/cuentas/{cuenta['id']}/cargos", T["caja1"], 201, json={"servicio_id": lab["id"], "cantidad": 2})
+check("el día cama no se carga a mano", "POST", f"/cuentas/{cuenta['id']}/cargos", T["caja1"], 400, json={"servicio_id": dia_cama["id"]})
+check("recepcion1 NO carga", "POST", f"/cuentas/{cuenta['id']}/cargos", T["recepcion1"], 403, json={"servicio_id": lab["id"]})
+check("admin.salud NO carga (solo lectura)", "POST", f"/cuentas/{cuenta['id']}/cargos", T["admin.salud"], 403, json={"servicio_id": lab["id"]})
+check("recepcion1 ve la cuenta", "GET", f"/cuentas/{cuenta['id']}", T["recepcion1"], 200)
+med = requests.get(API + "/medicamentos", headers=H("farmacia1")).json()["data"]
+med = next(m for m in med if m["existencia"] > 10 and m["precio"])
+receta = requests.post(API + "/recetas", headers=H("medico1"), json={"paciente_id": p2, "items": [{"medicamento_id": med["id"], "cantidad": 2}]}).json()["data"]
+check("farmacia1 despacha la receta del paciente ingresado", "POST", f"/recetas/{receta['id']}/despachar", T["farmacia1"], 200)
+det = requests.get(API + f"/cuentas/{cuenta['id']}", headers=H("caja1")).json()["data"]
+dato("el medicamento despachado se cargó a la cuenta", any(m["categoria"] == "MEDICAMENTO" and f"receta No. {receta['id']}" in m["descripcion"] for m in det["movimientos"]))
+mov = next(m for m in det["movimientos"] if m["categoria"] == "LABORATORIO")
+check("anular sin motivo", "POST", f"/cuentas/{cuenta['id']}/movimientos/{mov['id']}/anular", T["caja1"], 400, json={})
+check("caja1 anula un cargo con motivo", "POST", f"/cuentas/{cuenta['id']}/movimientos/{mov['id']}/anular", T["caja1"], 200, json={"motivo": "Prueba"})
+check("descuento mayor al saldo", "POST", f"/cuentas/{cuenta['id']}/descuentos", T["caja1"], 400, json={"monto": 999999, "motivo": "X"})
+requests.post(API + f"/hospitalizaciones/{h['id']}/egreso", headers=H("medico1"), json={"tipo_egreso": "ALTA", "resumen": "Prueba"})
+requests.put(API + f"/camas/{cama['id']}", headers=H("enfermera1"), json={"estado": "DISPONIBLE"})
+det = requests.get(API + f"/cuentas/{cuenta['id']}", headers=H("caja1")).json()["data"]
+dato("al egreso se cargó al menos un día cama", any(m["categoria"] == "DIA_CAMA" and m["cantidad"] >= 1 for m in det["movimientos"]))
+cerrada = check("caja1 cierra y envía el cobro a Tributario", "POST", f"/cuentas/{cuenta['id']}/cerrar", T["caja1"], 200).json()["data"]
+dato("queda POR_COBRAR con referencia SAL-AAAA-NNNNNN", cerrada["estado"] == "POR_COBRAR" and bool(re.match(r"^SAL-\d{4}-\d{6}$", cerrada["numero_referencia"] or "")))
+check("ya no se le pueden cargar servicios", "POST", f"/cuentas/{cuenta['id']}/cargos", T["caja1"], 409, json={"servicio_id": lab["id"]})
+mias = check("ciudadano2 ve SUS cuentas", "GET", "/cuentas", T["ciudadano2"], 200).json()["data"]
+dato("ciudadano2 ve la referencia de pago", any(c["numero_referencia"] == cerrada["numero_referencia"] for c in mias))
+check("ciudadano1 ve cuenta ajena", "GET", f"/cuentas/{cuenta['id']}", T["ciudadano1"], 403)
+clave = {"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")}
+check("Tributario avisa el pago de la cuenta", "POST", "/pagos/notificacion", None, 200, headers=clave,
+      json={"numero_referencia": cerrada["numero_referencia"], "estado": "PAGADO", "numero_autorizacion": "AUT-CUENTA"})
+pagada = requests.get(API + f"/cuentas/{cuenta['id']}", headers=H("caja1")).json()["data"]
+dato("la cuenta queda PAGADA, saldo 0 y con autorización", pagada["estado"] == "PAGADA" and pagada["saldo"] == 0 and pagada["numero_autorizacion"] == "AUT-CUENTA")
+amb = check("caja1 abre una cuenta ambulatoria", "POST", "/cuentas", T["caja1"], 201, json={"paciente_id": p2}).json()["data"]
+check("segunda ambulatoria abierta", "POST", "/cuentas", T["caja1"], 409, json={"paciente_id": p2})
+check("cerrar sin cargos", "POST", f"/cuentas/{amb['id']}/cerrar", T["caja1"], 400)
+r = check("cargo ambulatorio (2 unidades)", "POST", f"/cuentas/{amb['id']}/cargos", T["caja1"], 201, json={"servicio_id": lab["id"], "cantidad": 2}).json()["data"]
+dato("saldo = 2 × tarifa", r["saldo"] == round(2 * lab["costo"], 2))
+r = check("descuento parcial", "POST", f"/cuentas/{amb['id']}/descuentos", T["caja1"], 201, json={"monto": lab["costo"], "motivo": "Parcial"}).json()["data"]
+dato("saldo = 2 × tarifa − descuento", r["saldo"] == round(lab["costo"], 2) and r["cargos"] == round(2 * lab["costo"], 2))
+check("exoneración total", "POST", f"/cuentas/{amb['id']}/descuentos", T["caja1"], 201, json={"monto": lab["costo"], "motivo": "Estudio socioeconómico"})
+ex = check("cerrar con saldo 0", "POST", f"/cuentas/{amb['id']}/cerrar", T["caja1"], 200).json()["data"]
+dato("queda EXONERADA sin enviar cobro", ex["estado"] == "EXONERADA" and not ex["numero_referencia"])
+check("verificar pago sin cobro", "POST", f"/cuentas/{amb['id']}/verificar-pago", T["caja1"], 409)
+check("admin.salud cambia una tarifa", "PUT", f"/servicios/{lab['id']}", T["admin.salud"], 200, json={"costo": lab["costo"]})
+check("caja1 NO cambia tarifas", "PUT", f"/servicios/{lab['id']}", T["caja1"], 403, json={"costo": 1})
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

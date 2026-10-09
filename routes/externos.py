@@ -11,6 +11,7 @@ from auth import validar_api_key, validar_api_key_o_token, ROLES_AUDITORIA
 from bitacora import registrar, resumir
 from services_externos import coordinar_jornada
 from routes.hospitalizacion import resumen_hospitalizacion
+from routes.caja import resumen_cuentas
 
 externos_bp = Blueprint("externos", __name__)
 
@@ -304,6 +305,7 @@ def calcular_indicadores():
         "recursos_hospitalarios": recursos_resumen,
         "hospitalizacion": resumen_hospitalizacion(),
         "farmacia": resumen_farmacia(),
+        "cuentas": resumen_cuentas(),
         "presupuesto_servicio_social": presupuesto_resumen,
     }
 
@@ -373,6 +375,7 @@ def notificacion_pago():
     """
     from datetime import datetime
     from routes.integraciones import marcar_pagada
+    from routes.caja import aviso_de_pago
 
     data = request.get_json(silent=True) or {}
     referencia = (data.get("numero_referencia") or "").strip()
@@ -380,14 +383,19 @@ def notificacion_pago():
     if not referencia or estado not in ("PAGADO", "ANULADO"):
         return jsonify(success=False, error="datos_incompletos",
                        message="numero_referencia y estado (PAGADO o ANULADO) son requeridos"), 400
+    try:
+        fecha = datetime.fromisoformat(str(data.get("fecha_pago")).replace("Z", "")) if data.get("fecha_pago") else None
+    except ValueError:
+        fecha = None
     cita = CitaMedica.query.filter_by(numero_referencia=referencia).first()
     if not cita:
-        return jsonify(success=False, error="no_encontrado", message="Salud no tiene esa referencia"), 404
+        # ¿Es la referencia de una cuenta del paciente (hospitalización o ambulatoria)?
+        cuenta = aviso_de_pago(referencia, estado, data.get("numero_autorizacion"), fecha)
+        if cuenta is None:
+            return jsonify(success=False, error="no_encontrado", message="Salud no tiene esa referencia"), 404
+        return jsonify(success=True, data={"numero_referencia": referencia, "estado": cuenta.estado_cobro or "ANULADO",
+                                           "cuenta_id": cuenta.id}, message="Aviso registrado"), 200
     if estado == "PAGADO":
-        try:
-            fecha = datetime.fromisoformat(str(data.get("fecha_pago")).replace("Z", "")) if data.get("fecha_pago") else None
-        except ValueError:
-            fecha = None
         marcar_pagada(cita, data.get("numero_autorizacion"), fecha)
     else:
         cita.estado_cobro = "ANULADO"

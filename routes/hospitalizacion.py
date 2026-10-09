@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
+import cuentas
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_MEDICO
 from extensions import db
 from models import Cama, ExpedienteClinico, Hospitalizacion, NotaHospitalizacion, Paciente, RecursoHospitalario
@@ -462,6 +463,7 @@ def asignar_cama(id):
         db.session.add(NotaHospitalizacion(
             hospitalizacion_id=h.id, autor_sub=g.usuario["sub"], autor_nombre=_usuario(), puesto="Enfermería",
             nota=f"Traslado de la cama {h.cama} ({h.sala}) a la cama {cama.codigo} ({cama.area})."))
+        cuentas.traslado(h, cama.area, _usuario())
         mensaje = f"Paciente trasladado a la cama {cama.codigo}"
     else:
         h.fecha_asignacion = datetime.now()
@@ -470,6 +472,7 @@ def asignar_cama(id):
         mensaje = f"Paciente ingresado en la cama {cama.codigo}"
     cama.estado = "OCUPADA"
     h.cama_id, h.cama, h.sala = cama.id, cama.codigo, cama.area
+    cuentas.abrir_por_ingreso(h, h.asignado_por)          # solo la primera vez: abre la cuenta
     sincronizar_recursos(*areas)
     db.session.commit()
     return jsonify(success=True, data=_hospitalizacion(h, _nombres([h.paciente_id])), message=mensaje), 200
@@ -525,6 +528,7 @@ def dar_egreso(id):
         sincronizar_recursos(cama.area)
     h.estado, h.tipo_egreso, h.resumen_egreso = "EGRESADO", tipo, resumen
     h.fecha_egreso, h.egresado_por = datetime.now(), _usuario()
+    cuentas.egreso(h, _usuario())                          # último tramo de día cama
     db.session.commit()
     return jsonify(success=True, data=_hospitalizacion(h, _nombres([h.paciente_id])),
                    message=f"{TIPOS_EGRESO[tipo]} registrada"), 200

@@ -52,6 +52,8 @@ MATRIZ = {
     "hospitalizacion.ordenar": {"MED"},
     "hospitalizacion.camas":  {"ENF"},
     "hospitalizacion.notas":  {"MED", "ENF"},
+    "cuentas.ver":            {"REC", "CAJA", "ADM"},
+    "cuentas.gestionar":      {"CAJA"},
     "recetas.ver":            {"MED", "ENF", "FAR", "CAJA", "JEF", "ADM"},
     "recetas.crear":          {"MED"},
     "recetas.anular":         {"MED", "JEF"},
@@ -116,6 +118,8 @@ PRUEBAS = {
     "hospitalizacion.ordenar": lambda u: not denegado(pedir(u, "POST", "/hospitalizaciones", json={})),
     "hospitalizacion.camas":  lambda u: not denegado(pedir(u, "POST", "/hospitalizaciones/999999/asignar-cama", json={})),
     "hospitalizacion.notas":  lambda u: not denegado(pedir(u, "POST", "/hospitalizaciones/999999/notas", json={})),
+    "cuentas.ver":            lambda u: not denegado(pedir(u, "GET", "/servicios")),
+    "cuentas.gestionar":      lambda u: not denegado(pedir(u, "POST", "/cuentas/999999/cargos", json={})),
     # Sin el permiso, un ciudadano solo ve SUS recetas.
     "recetas.ver":            lambda u: len({r["paciente_id"] for r in pedir(u, "GET", "/recetas").json().get("data") or []}) > 1,
     "recetas.crear":          lambda u: not denegado(pedir(u, "POST", "/recetas", json={})),

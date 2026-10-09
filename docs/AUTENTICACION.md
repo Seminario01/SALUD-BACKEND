@@ -103,6 +103,8 @@ Los roles nuevos y sus usuarios se agregan a un Keycloak existente con `keycloak
 | `hospitalizacion.ordenar` | Médico | `POST /hospitalizaciones` (orden de ingreso), `POST /hospitalizaciones/<id>/egreso`, `POST /hospitalizaciones/<id>/anular` (solo sin cama) |
 | `hospitalizacion.camas` | Enfermería | `POST /hospitalizaciones/<id>/asignar-cama` (ingreso o traslado), `PUT /camas/<id>` (limpieza, mantenimiento, disponible). Admin también cambia el estado y agrega camas (`POST /camas`, con `recursos.gestionar`) |
 | `hospitalizacion.notas` | Médico, Enfermería | `POST /hospitalizaciones/<id>/notas` (nota y signos vitales; solo pacientes ingresados) |
+| `cuentas.ver` | Recepción, Caja, Admin (solo lectura) | `GET /cuentas`, `GET /cuentas/<id>`, `GET /servicios`. El ciudadano ve solo sus cuentas |
+| `cuentas.gestionar` | Caja | `POST /cuentas` (ambulatoria), `POST /cuentas/<id>/cargos`, `/descuentos`, `/movimientos/<mid>/anular`, `/cerrar` (cobro a Tributario), `/verificar-pago`. El catálogo de servicios (`POST`/`PUT /servicios`) es de Administración (`recursos.gestionar`) |
 | `recetas.ver` | Médico, Enfermería, Farmacia, Caja, Jefatura, Admin | `GET /recetas` (todas; filtros `?estado`, `?paciente_id`). El ciudadano ve solo las suyas |
 | `recetas.crear` | Médico | `POST /recetas` (queda el `sub` y el nombre del médico) |
 | `recetas.anular` | Médico (solo las que él emitió), Jefatura | `POST /recetas/<id>/anular` (solo si está PENDIENTE) |
@@ -132,6 +134,7 @@ Todas las rutas empiezan con `/api/v1/salud`.
 | `GET /expedientes/<id>`, `GET /vacunacion/<id>` | Solo los suyos |
 | `GET /recetas` | Solo sus recetas; el filtro `?paciente_id` se ignora |
 | `GET /hospitalizaciones`, `GET /hospitalizaciones/<id>` | Solo las suyas; una ajena responde 403 |
+| `GET /cuentas`, `GET /cuentas/<id>` | Solo sus cuentas (con la referencia de pago); una ajena responde 403 |
 | `GET /turnos/activos` | Sin nombres (igual que la pantalla de sala de espera) |
 
 ### 5.2 Operaciones entre módulos (`X-API-Key`, servidor a servidor)

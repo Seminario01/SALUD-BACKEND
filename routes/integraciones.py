@@ -13,7 +13,7 @@ from flask import Blueprint, jsonify, request
 from auth import validar_token, requiere_permiso
 from config import Config
 from extensions import db
-from models import BitacoraIntegracion, CitaMedica, Paciente
+from models import BitacoraIntegracion, CitaMedica, CuentaPaciente, Paciente
 from services_externos import (
     consultar_antecedentes_seguridad,
     disparar_caso_simulado,
@@ -162,12 +162,14 @@ TIPO_OBLIGACION = {"emergencia": "EMERGENCIA", "especialidad": "ESPECIALIDAD"}
 
 
 def _siguiente_referencia():
-    """SAL-AAAA-NNNNNN, correlativo por año."""
+    """SAL-AAAA-NNNNNN, correlativo por año, compartido por citas y cuentas del paciente."""
     prefijo = f"SAL-{date.today().year}-"
-    ultima = db.session.query(db.func.max(CitaMedica.numero_referencia)) \
-        .filter(CitaMedica.numero_referencia.like(prefijo + "%")).scalar()
-    numero = int(ultima.rsplit("-", 1)[1]) + 1 if ultima else 1
-    return f"{prefijo}{numero:06d}"
+    ultimas = [
+        db.session.query(db.func.max(modelo.numero_referencia)).filter(modelo.numero_referencia.like(prefijo + "%")).scalar()
+        for modelo in (CitaMedica, CuentaPaciente)
+    ]
+    numeros = [int(u.rsplit("-", 1)[1]) for u in ultimas if u]
+    return f"{prefijo}{(max(numeros) if numeros else 0) + 1:06d}"
 
 
 def _estado_cobro(cita):

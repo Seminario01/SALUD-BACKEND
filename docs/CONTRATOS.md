@@ -99,6 +99,15 @@ POST /api/v1/integraciones/salud/obligaciones
 - `numero_referencia` lo genera Salud: `SAL-AAAA-NNNNNN`, correlativo por año.
 - El vencimiento es la emisión más `DIAS_VENCIMIENTO_COBRO` (15 días por defecto).
 - Un `409` (ya registrada) no es error para Salud: la obligación ya existe.
+- `tipo_obligacion` que envía Salud (*por confirmar con Tributario*):
+
+| tipo_obligacion | Cuándo | concepto (ejemplo) |
+|---|---|---|
+| `CONSULTA_MEDICA` | Cobro de una cita | "Consulta médica general" |
+| `HOSPITALIZACION` | Caja cierra la cuenta de un paciente egresado | "Hospitalización — Medicina general, 3 días" |
+| `SERVICIOS_MEDICOS` | Caja cierra una cuenta ambulatoria (laboratorio, imágenes) | "Servicios médicos ambulatorios" |
+
+  El `monto` de una cuenta es su saldo: cargos (día cama, medicamentos, servicios) menos descuentos. Las citas y las cuentas comparten el correlativo `SAL-AAAA-NNNNNN`.
 
 **Estado de la obligación** (ruta propuesta, *por confirmar con Tributario*):
 
@@ -128,8 +137,8 @@ URL base: `https://saludumg.online/api/v1/salud`. Todos requieren `X-API-Key`. L
 | **WS-SALUD-02** Establecimientos disponibles | Seguridad | `GET /establecimientos/disponibilidad?departamento=&municipio=&tipoAtencion=&nivelUrgencia=` | `disponible`, `mensaje` y `establecimientos[]` con `nombreEstablecimiento`, `tipoEstablecimiento`, `direccion`, `telefono`, `estadoServicio` y `tipoAtencionDisponible` |
 | **WS-SALUD-06** Horas de práctica | Educación | `GET /practicantes/{cui}/horas` | `horasAcumuladas`, `fechaInicio`, `fechaFin`, `supervisor`, `estado` |
 | Costo de una cita | Tributario | `GET /citas/{id}/costo` | `cita_id`, `monto`, `pago_confirmado` |
-| Aviso de pago | Tributario | `POST /pagos/notificacion` con `numero_referencia`, `estado` (`PAGADO` o `ANULADO`), `numero_autorizacion`, `fecha_pago`, `monto_pagado` | `200` registrado · `400` datos incompletos · `404` referencia desconocida |
-| Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación, hospitalización (camas, ocupación, hospitalizados, egresos), farmacia (recetas e inventario bajo mínimo) y presupuesto. **Sin datos personales** |
+| Aviso de pago | Tributario | `POST /pagos/notificacion` con `numero_referencia`, `estado` (`PAGADO` o `ANULADO`), `numero_autorizacion`, `fecha_pago`, `monto_pagado` | `200` registrado (la cita o la cuenta queda pagada) · `400` datos incompletos · `404` referencia desconocida |
+| Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación, hospitalización (camas, ocupación, hospitalizados, egresos), farmacia (recetas e inventario bajo mínimo), cuentas (abiertas, por cobrar, cobrado en 30 días) y presupuesto. **Sin datos personales** |
 | Ejecución presupuestaria | Auditoría Social | `GET /presupuesto/ejecucion` | Periodo vigente: `monto_asignado`, `monto_ejecutado_servicio_social`, `porcentaje_ejecutado` |
 
 Ejemplo, desde el servidor de Seguridad:

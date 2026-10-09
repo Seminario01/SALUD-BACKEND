@@ -267,3 +267,63 @@ class NotaHospitalizacion(db.Model):
     temperatura = db.Column(db.Numeric(4, 1))       # °C
     frecuencia_cardiaca = db.Column(db.Integer)     # lpm
     saturacion = db.Column(db.Integer)              # % SpO2
+
+
+# ============================ Caja y cuentas ============================
+class Servicio(db.Model):
+    """Catálogo de servicios y tarifas (día cama, laboratorio, imágenes, procedimientos)."""
+    __tablename__ = "servicios"
+    id = db.Column("id_servicio", db.Integer, primary_key=True)
+    codigo = db.Column(db.String(20), unique=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    categoria = db.Column(db.String(30))            # DIA_CAMA, LABORATORIO, IMAGEN, PROCEDIMIENTO
+    costo = db.Column(db.Numeric(10, 2), nullable=False)
+    estado = db.Column(db.String(20), default="ACTIVO")
+
+
+class CuentaPaciente(db.Model):
+    """Cuenta de un paciente: una por hospitalización, o ambulatoria (servicios sueltos).
+
+    ABIERTA -> POR_COBRAR (Caja la cerró y el cobro se envió a Tributario) -> PAGADA.
+    Si el saldo al cerrar es 0 (exonerada por trabajo social), queda EXONERADA.
+    """
+    __tablename__ = "cuentas_paciente"
+    id = db.Column("id_cuenta", db.Integer, primary_key=True)
+    paciente_id = db.Column("id_paciente", db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    saldo = db.Column(db.Numeric(10, 2), default=0)
+    estado = db.Column(db.String(20), default="ABIERTA")
+    tipo = db.Column(db.String(20), default="HOSPITALIZACION")       # HOSPITALIZACION, AMBULATORIA
+    hospitalizacion_id = db.Column(db.Integer)
+    fecha_apertura = db.Column(db.DateTime, default=datetime.now)
+    fecha_cierre = db.Column(db.DateTime)
+    abierta_por = db.Column(db.String(150))
+    cerrada_por = db.Column(db.String(150))
+    tramo_inicio = db.Column(db.DateTime)           # desde cuándo corre el día cama del área actual
+    tramo_area = db.Column(db.String(80))
+    numero_referencia = db.Column(db.String(20), unique=True)
+    estado_cobro = db.Column(db.String(20))
+    fecha_vencimiento = db.Column(db.Date)
+    numero_autorizacion = db.Column(db.String(60))
+    fecha_pago = db.Column(db.DateTime)
+    movimientos = db.relationship("MovimientoCuenta", backref="cuenta", lazy="select",
+                                  order_by="MovimientoCuenta.id")
+
+
+class MovimientoCuenta(db.Model):
+    """CARGO (día cama, medicamento, servicio), DESCUENTO o PAGO."""
+    __tablename__ = "movimientos_cuenta"
+    id = db.Column("id_movimiento", db.Integer, primary_key=True)
+    cuenta_id = db.Column("id_cuenta", db.Integer, db.ForeignKey("cuentas_paciente.id_cuenta"), nullable=False)
+    tipo = db.Column("tipo_movimiento", db.String(20), nullable=False)
+    monto = db.Column(db.Numeric(10, 2), nullable=False)
+    descripcion = db.Column(db.Text)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    categoria = db.Column(db.String(30))            # DIA_CAMA, MEDICAMENTO, LABORATORIO, ... DESCUENTO, PAGO
+    servicio_id = db.Column(db.Integer)
+    cantidad = db.Column(db.Integer)
+    precio_unitario = db.Column(db.Numeric(10, 2))
+    receta_id = db.Column(db.Integer)
+    usuario = db.Column(db.String(150))
+    anulado = db.Column(db.Boolean, default=False)
+    motivo_anulacion = db.Column(db.String(255))

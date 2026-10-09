@@ -12,6 +12,7 @@ from datetime import datetime
 
 from flask import Blueprint, g, jsonify, request
 
+import cuentas
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_JEFATURA
 from extensions import db
 from models import DetalleReceta, ExpedienteClinico, Medicamento, MovimientoInventario, Paciente, Receta
@@ -404,8 +405,10 @@ def despachar_receta(id):
     receta.estado = "DESPACHADA"
     receta.despachado_por = g.usuario["sub"]
     receta.fecha_despacho = datetime.now()
+    cuenta = cuentas.cargar_receta(receta, g.usuario.get("nombre") or g.usuario.get("usuario"))
     db.session.commit()
-    return jsonify(success=True, data=_receta(receta), message="Receta despachada"), 200
+    mensaje = "Receta despachada" + (f"; cargada a la cuenta No. {cuenta.id}" if cuenta else "")
+    return jsonify(success=True, data=_receta(receta), message=mensaje), 200
 
 
 @farmacia_bp.route("/api/v1/salud/recetas/<int:id>/anular", methods=["POST"])

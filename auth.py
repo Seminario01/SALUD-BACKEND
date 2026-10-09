@@ -77,6 +77,8 @@ PERMISOS = {
     "hospitalizacion.ordenar": (MED,),               # ordenar ingreso, dar egreso, anular orden pendiente
     "hospitalizacion.camas":  (ENF,),                # asignar y trasladar cama, limpieza y mantenimiento
     "hospitalizacion.notas":  (MED, ENF),            # notas de evolución y signos vitales
+    "cuentas.ver":            (REC, CAJA, ADM),      # Administración: solo lectura
+    "cuentas.gestionar":      (CAJA,),               # cargos, descuentos, cierre, cobro y verificación de pago
     "panel.ver":              (MED, ENF, REC, FAR, CAJA, JEF, ADM, *ROLES_AUDITORIA),
     "presupuesto.ver":        (JEF, ADM, *ROLES_AUDITORIA),
     "presupuesto.editar":     (ADM,),
