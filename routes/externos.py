@@ -142,6 +142,11 @@ def establecimientos_disponibilidad():
         type: string
         required: false
       - in: query
+        name: especialidad
+        type: string
+        required: false
+        description: "Tipo de atención (EMERGENCIA, CONSULTA_GENERAL, ESPECIALIDAD, VACUNACION) o una especialidad médica (devuelve los que atienden ESPECIALIDAD)"
+      - in: query
         name: nivelUrgencia
         type: string
         required: false
@@ -155,6 +160,11 @@ def establecimientos_disponibilidad():
     if tipo_atencion and tipo_atencion not in TIPOS_ATENCION:
         return jsonify(success=False, error="parametro_invalido",
                        message=f"tipoAtencion debe ser uno de: {', '.join(TIPOS_ATENCION)}"), 400
+    # especialidad (acordado con Seguridad): si es un tipo de atención (EMERGENCIA...) filtra por él;
+    # si es una especialidad médica (Traumatología, Pediatría...) devuelve los que atienden ESPECIALIDAD.
+    especialidad = (request.args.get("especialidad") or "").strip()
+    if especialidad and not tipo_atencion:
+        tipo_atencion = especialidad.upper() if especialidad.upper() in TIPOS_ATENCION else "ESPECIALIDAD"
     # nivelUrgencia se recibe por contrato con Seguridad; hoy no filtra en BD
     # porque el catálogo de establecimientos aún no clasifica por urgencia.
     request.args.get("nivelUrgencia")

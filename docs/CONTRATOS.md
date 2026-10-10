@@ -30,7 +30,7 @@ Mientras tanto, Salud usa **simuladores** construidos a partir de este mismo con
 
 ### Seguridad
 
-URL base de producción de Seguridad: `https://securitytubac.com`. Salud envía en todas las solicitudes:
+URL base de producción de Seguridad: `https://securitytubac.com/api/v1/seguridad` (en el `.env` de Salud va solo el dominio, `URL_SEGURIDAD=https://securitytubac.com`). Documentación: `https://securitytubac.com/api/docs/`. Salud envía en todas las solicitudes:
 
 ```
 X-API-Key: <clave que Seguridad entrega a Salud, por mensaje privado>
@@ -165,9 +165,10 @@ Headers: `X-API-Key: <clave que Salud entrega a Seguridad>` y `X-Modulo-Origen: 
 | `departamento` | No | Nombre del departamento. Sin importar mayúsculas ni tildes | `Sacatepéquez` o `SACATEPEQUEZ` |
 | `municipio` | No | Nombre del municipio | `Antigua Guatemala` |
 | `tipoAtencion` | No | `EMERGENCIA`, `CONSULTA_GENERAL`, `ESPECIALIDAD`, `VACUNACION` | `EMERGENCIA` |
+| `especialidad` | No | Un tipo de atención (`EMERGENCIA`, …) filtra por ese tipo; una especialidad médica (`Traumatología`, `Pediatría`, …) devuelve los establecimientos que atienden `ESPECIALIDAD` | `Traumatología` |
 | `nivelUrgencia` | No | Se recibe y registra; todavía no filtra | `ALTO` |
 
-Sin parámetros devuelve todos los establecimientos activos. No hay filtro por especialidad médica (cardiología, pediatría…): se usa `tipoAtencion=ESPECIALIDAD`.
+Sin parámetros devuelve todos los establecimientos activos. Si se envían `tipoAtencion` y `especialidad`, manda `tipoAtencion`.
 
 Respuesta `200` con resultados:
 

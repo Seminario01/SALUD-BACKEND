@@ -124,8 +124,28 @@ def antecedentes_paciente(id):
         return jsonify(success=True, data={"encontrado": False, "tieneAntecedentes": False}), 200
     if not r["success"]:
         return _error_modulo(r, "Seguridad")
-    datos = r["data"] if isinstance(r["data"], dict) else {}
+    datos = _normalizar_antecedentes(r["data"] if isinstance(r["data"], dict) else {})
     return jsonify(success=True, data={"encontrado": True, **datos}), 200
+
+
+def _normalizar_antecedentes(datos):
+    """Acepta los nombres de campo del contrato (camelCase) y variantes snake_case de Seguridad."""
+    equivalentes = {
+        "tieneAntecedentes": ("tiene_antecedentes", "antecedentes"),
+        "tipoAntecedente": ("tipo_antecedente", "tipo"),
+        "nivelRiesgo": ("nivel_riesgo", "riesgo"),
+        "requiereCustodia": ("requiere_custodia", "custodia"),
+    }
+    salida = dict(datos)
+    for campo, variantes in equivalentes.items():
+        if campo not in salida:
+            for v in variantes:
+                if v in datos and not isinstance(datos[v], (list, dict)):
+                    salida[campo] = datos[v]
+                    break
+    if isinstance(salida.get("nivelRiesgo"), str):
+        salida["nivelRiesgo"] = salida["nivelRiesgo"].upper()
+    return salida
 
 
 @integraciones_bp.route("/api/v1/salud/seguridad/alertas", methods=["GET"])
@@ -152,8 +172,11 @@ def alertas_seguridad():
     r = obtener_alertas_seguridad(Config.ZONA_ALERTAS, Config.DEPARTAMENTO_ALERTAS)
     if not r["success"]:
         return _error_modulo(r, "Seguridad")
-    lista = r["data"] if isinstance(r["data"], list) else (r["data"] or {}).get("alertas", [])
-    activas = [a for a in lista if str(a.get("estado", "ACTIVA")).upper() == "ACTIVA"]
+    datos = r["data"]
+    if isinstance(datos, dict):   # {"alertas": [...]}, {"items": [...]} o similar
+        datos = next((v for k in ("alertas", "items", "resultados", "data") if isinstance(v := datos.get(k), list)), [])
+    lista = [a for a in (datos or []) if isinstance(a, dict)]
+    activas = [a for a in lista if str(a.get("estado", "ACTIVA")).upper() in ("ACTIVA", "ACTIVO", "ABIERTA")]
     return jsonify(success=True, data={"departamento": Config.DEPARTAMENTO_ALERTAS, "alertas": activas}), 200
 
 
