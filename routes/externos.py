@@ -1,7 +1,7 @@
 import time
 from datetime import datetime, timedelta
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, request, jsonify
 from extensions import db
 from models import (
     Paciente, CitaMedica, RecursoHospitalario, Turno, PresupuestoHospitalario,
@@ -37,13 +37,15 @@ def _registrar_entrante(respuesta):
     """Bitácora: otro módulo consumió un servicio de Salud con su API key."""
     if request.headers.get("X-API-Key"):
         origen = (request.headers.get("X-Modulo-Origen") or "").strip().lower()
+        # La clave identifica al módulo; el header X-Modulo-Origen solo se usa con la clave común
+        por_clave = getattr(g, "modulo_api_key", None)
         try:
             cuerpo = respuesta.get_json(silent=True) or {}
         except Exception:  # noqa: BLE001
             cuerpo = {}
         datos = cuerpo.get("data") if isinstance(cuerpo, dict) else None
         registrar(
-            "entrante", MODULOS.get(origen, "Otro"), OPERACIONES.get(request.endpoint, request.path),
+            "entrante", por_clave if por_clave not in (None, "Común") else MODULOS.get(origen, "Otro"), OPERACIONES.get(request.endpoint, request.path),
             request.method, request.full_path.rstrip("?"), respuesta.status_code,
             "ok" if respuesta.status_code < 400 else (cuerpo.get("error") or f"error_{respuesta.status_code}"),
             round((time.perf_counter() - getattr(request, "_inicio_bitacora", time.perf_counter())) * 1000),
@@ -113,6 +115,9 @@ def coordinar_jornada_vacunacion():
     return jsonify(success=True, data=estudiantes), 200
 
 
+TIPOS_ATENCION = ("EMERGENCIA", "CONSULTA_GENERAL", "ESPECIALIDAD", "VACUNACION")
+
+
 @externos_bp.route("/api/v1/salud/establecimientos/disponibilidad", methods=["GET"])
 @validar_api_key
 def establecimientos_disponibilidad():
@@ -146,7 +151,10 @@ def establecimientos_disponibilidad():
     """
     departamento = request.args.get("departamento")
     municipio = request.args.get("municipio")
-    tipo_atencion = request.args.get("tipoAtencion")
+    tipo_atencion = (request.args.get("tipoAtencion") or "").strip().upper() or None
+    if tipo_atencion and tipo_atencion not in TIPOS_ATENCION:
+        return jsonify(success=False, error="parametro_invalido",
+                       message=f"tipoAtencion debe ser uno de: {', '.join(TIPOS_ATENCION)}"), 400
     # nivelUrgencia se recibe por contrato con Seguridad; hoy no filtra en BD
     # porque el catálogo de establecimientos aún no clasifica por urgencia.
     request.args.get("nivelUrgencia")

@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flasgger import Swagger
 from flask_cors import CORS
 from config import Config
@@ -48,6 +48,21 @@ def crear_app():
     # Descarga las llaves del Login Único al arrancar: así el backend sigue
     # validando tokens aunque el servidor de identidad se apague después.
     precargar_jwks()
+
+    # Errores de la API siempre en JSON (los otros módulos esperan {"success": false, ...})
+    @app.errorhandler(404)
+    def no_encontrado(_e):
+        return jsonify(success=False, error="no_encontrado", message="La ruta solicitada no existe"), 404
+
+    @app.errorhandler(405)
+    def metodo_no_permitido(_e):
+        return jsonify(success=False, error="metodo_no_permitido", message="Método HTTP no permitido en esta ruta"), 405
+
+    @app.errorhandler(500)
+    def error_interno(_e):
+        db.session.rollback()
+        return jsonify(success=False, error="error_interno",
+                       message="Error interno del Módulo de Salud. Intente de nuevo más tarde."), 500
 
     return app
 

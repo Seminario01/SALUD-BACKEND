@@ -6,6 +6,7 @@ usuario, y el backend de Salud llama al módulo destino (servidor a servidor).
 Si el otro módulo no está configurado o no responde, se devuelve un error
 claro (503) y la operación propia de Salud no se ve afectada.
 """
+import re
 from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify, request
@@ -16,6 +17,7 @@ from extensions import db
 from models import BitacoraIntegracion, CitaMedica, CuentaPaciente, Paciente
 from services_externos import (
     consultar_antecedentes_seguridad,
+    obtener_alertas_seguridad,
     disparar_caso_simulado,
     obtener_estudiante,
     obtener_indicadores_educacion,
@@ -112,8 +114,11 @@ def antecedentes_paciente(id):
     if not paciente.cui:
         return jsonify(success=False, error="datos_incompletos",
                        message="El paciente no tiene CUI registrado; no se puede consultar a Seguridad"), 400
+    if not re.fullmatch(r"\d{13}", paciente.cui.strip()):
+        return jsonify(success=False, error="cui_invalido",
+                       message="El CUI del paciente debe tener exactamente 13 dígitos para consultar a Seguridad"), 400
 
-    r = consultar_antecedentes_seguridad(paciente.cui, paciente.nombre_completo)
+    r = consultar_antecedentes_seguridad(paciente.cui.strip(), paciente.nombre_completo)
     if r.get("error") == "no_encontrado":
         # Seguridad no tiene registro de la persona: sin antecedentes conocidos
         return jsonify(success=True, data={"encontrado": False, "tieneAntecedentes": False}), 200
@@ -121,6 +126,35 @@ def antecedentes_paciente(id):
         return _error_modulo(r, "Seguridad")
     datos = r["data"] if isinstance(r["data"], dict) else {}
     return jsonify(success=True, data={"encontrado": True, **datos}), 200
+
+
+@integraciones_bp.route("/api/v1/salud/seguridad/alertas", methods=["GET"])
+@validar_token
+@requiere_permiso("turnos.ver_cola")
+def alertas_seguridad():
+    """
+    Alertas activas de Seguridad en la zona del hospital
+    ---
+    tags:
+      - Integraciones
+    security:
+      - BearerAuth: []
+    description: >
+      Salud consulta a Seguridad (GET /api/v1/seguridad/alertas?zona=&departamento=)
+      con el departamento configurado (DEPARTAMENTO_ALERTAS). Sirve para que
+      Emergencias se prepare ante accidentes o eventos con posibles heridos.
+    responses:
+      200:
+        description: Lista de alertas (id, tipo, zona, departamento, nivel, descripcion, estado)
+      503:
+        description: Seguridad no configurado o no disponible
+    """
+    r = obtener_alertas_seguridad(Config.ZONA_ALERTAS, Config.DEPARTAMENTO_ALERTAS)
+    if not r["success"]:
+        return _error_modulo(r, "Seguridad")
+    lista = r["data"] if isinstance(r["data"], list) else (r["data"] or {}).get("alertas", [])
+    activas = [a for a in lista if str(a.get("estado", "ACTIVA")).upper() == "ACTIVA"]
+    return jsonify(success=True, data={"departamento": Config.DEPARTAMENTO_ALERTAS, "alertas": activas}), 200
 
 
 @integraciones_bp.route("/api/v1/salud/educacion/estudiantes/<string:cui>", methods=["GET"])

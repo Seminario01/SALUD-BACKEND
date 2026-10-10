@@ -158,9 +158,9 @@ def validar_practicante(cui):
 # Seguridad
 # ---------------------------------------------------------------------------
 
-def obtener_alertas_seguridad(zona=None):
-    """Consulta alertas de seguridad activas, opcionalmente filtradas por zona."""
-    params = {"zona": zona} if zona else None
+def obtener_alertas_seguridad(zona=None, departamento=None):
+    """Alertas de seguridad activas, filtradas por zona y/o departamento."""
+    params = {k: v for k, v in {"zona": zona, "departamento": departamento}.items() if v} or None
     return _get(Config.URL_SEGURIDAD, "/api/v1/seguridad/alertas", params=params, operacion="Consultar alertas")
 
 
@@ -172,7 +172,8 @@ def obtener_indicadores_seguridad(**kwargs):
 def consultar_antecedentes_seguridad(cui, nombre_completo=None):
     """WS-SALUD-08: consulta a Seguridad si una persona (CUI/DPI) tiene
     antecedentes, tipo, nivel de riesgo y si requiere custodia.
-    Acordado: Salud envía CUI y nombre completo; Seguridad responde
+    Acordado: Salud envía el CUI (13 dígitos) en la ruta y el nombre completo
+    como parámetro opcional (nombreCompleto); Seguridad responde
     tieneAntecedentes, tipoAntecedente, nivelRiesgo, requiereCustodia."""
     params = {"nombreCompleto": nombre_completo} if nombre_completo else None
     return _get(Config.URL_SEGURIDAD, f"/api/v1/seguridad/ciudadanos/antecedentes/{cui}", params=params,

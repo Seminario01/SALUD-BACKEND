@@ -39,6 +39,22 @@ class Config:
     # Reenviar el token del usuario a los otros módulos. Mientras cada módulo
     # use su propio Keycloak, el token no es válido en los demás: poner "false".
     REENVIAR_TOKEN_USUARIO = os.getenv("REENVIAR_TOKEN_USUARIO", "true").lower() == "true"
+
+    # Alertas de Seguridad que se muestran en el panel (zona del hospital)
+    DEPARTAMENTO_ALERTAS = os.getenv("DEPARTAMENTO_ALERTAS", "Sacatepéquez")
+    ZONA_ALERTAS = os.getenv("ZONA_ALERTAS") or None
+
+    # Clave que Salud ENTREGA a cada módulo para que nos consuma (una por grupo).
+    # Así Salud sabe quién llamó y puede cambiar la clave de uno sin afectar a los
+    # demás. MODULOS_API_KEY se sigue aceptando (simuladores y pruebas internas).
+    CLAVES_ENTRADA = {
+        modulo: clave for modulo, clave in {
+            "Seguridad": os.getenv("CLAVE_ENTRADA_SEGURIDAD"),
+            "Educación": os.getenv("CLAVE_ENTRADA_EDUCACION"),
+            "Tributario": os.getenv("CLAVE_ENTRADA_TRIBUTARIO"),
+            "Auditoría": os.getenv("CLAVE_ENTRADA_AUDITORIA"),
+        }.items() if clave
+    }
     # Tributario: vencimiento de las obligaciones de pago (días)
     DIAS_VENCIMIENTO_COBRO = int(os.getenv("DIAS_VENCIMIENTO_COBRO", "15"))
 

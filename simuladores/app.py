@@ -29,6 +29,7 @@ import hashlib
 import os
 import sys
 import time
+import unicodedata
 from collections import deque
 from datetime import date, datetime, timedelta
 
@@ -113,8 +114,12 @@ def antecedentes(cui):
 
 @app.get("/api/v1/seguridad/alertas")
 def alertas():
-    zona = (request.args.get("zona") or "").lower()
-    lista = [a for a in datos.ALERTAS if not zona or zona in a["zona"].lower() or zona in a["departamento"].lower()]
+    def plano(texto):  # sin tildes ni mayúsculas: "SACATEPEQUEZ" = "Sacatepéquez"
+        return "".join(c for c in unicodedata.normalize("NFD", texto or "") if unicodedata.category(c) != "Mn").lower()
+    zona, departamento = plano(request.args.get("zona")), plano(request.args.get("departamento"))
+    lista = [a for a in datos.ALERTAS
+             if (not departamento or departamento == plano(a["departamento"]))
+             and (not zona or zona in plano(a["zona"]) or zona == plano(a["departamento"]))]
     return ok(lista)
 
 

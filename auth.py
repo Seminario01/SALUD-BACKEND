@@ -12,6 +12,7 @@ Reglas del servicio transversal AUTH (ver "Cómo consumir el Login Único"):
   - 401 = no sé quién sos (sin token, vencido, firma inválida).
     403 = sé quién sos, pero no tenés el rol o el registro no es tuyo.
 """
+import hmac
 import logging
 from functools import wraps
 
@@ -247,13 +248,25 @@ def validar_api_key_o_token(*roles_token):
     return decorador
 
 
+def modulo_de_la_clave(api_key):
+    """Módulo dueño de la clave (comparación en tiempo constante), o None si no es válida."""
+    for modulo, clave in Config.CLAVES_ENTRADA.items():
+        if hmac.compare_digest(api_key.encode(), clave.encode()):
+            return modulo
+    if Config.MODULOS_API_KEY and hmac.compare_digest(api_key.encode(), Config.MODULOS_API_KEY.encode()):
+        return "Común"
+    return None
+
+
 def validar_api_key(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         api_key = request.headers.get("X-API-Key")
         if not api_key:
             return jsonify(success=False, error="sin_api_key", message="No se envió la API Key en la petición"), 401
-        if api_key != Config.MODULOS_API_KEY:
+        modulo = modulo_de_la_clave(api_key)
+        if modulo is None:
             return jsonify(success=False, error="api_key_invalida", message="La API Key enviada es inválida o no corresponde a un módulo autorizado"), 403
+        g.modulo_api_key = modulo
         return f(*args, **kwargs)
     return wrapper

@@ -148,7 +148,10 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
     d = check("Seguridad: antecedentes de riesgo ALTO", "GET", f"/pacientes/{riesgo}/antecedentes", T["medico1"], 200).json()["data"]
     ok = d.get("tieneAntecedentes") is True and d.get("nivelRiesgo") == "ALTO" and d.get("requiereCustodia") is True
     resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      requiereCustodia=True, nivelRiesgo=ALTO")
-    d = check("Seguridad: paciente sin antecedentes", "GET", f"/pacientes/{p1}/antecedentes", T["medico1"], 200).json()["data"]
+    check("Seguridad: CUI que no tiene 13 dígitos no se consulta", "GET", f"/pacientes/{p1}/antecedentes", T["medico1"], 400)
+    pacientes = requests.get(API + "/pacientes", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
+    sin_antecedentes = next(x["id"] for x in pacientes if x.get("cui") == "2501123450102")   # demo, termina en 2
+    d = check("Seguridad: paciente sin antecedentes", "GET", f"/pacientes/{sin_antecedentes}/antecedentes", T["medico1"], 200).json()["data"]
     ok = d.get("tieneAntecedentes") is False; resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      tieneAntecedentes=False")
     d = check("Educación: CUI par es estudiante", "GET", "/educacion/estudiantes/2222", T["medico1"], 200).json()["data"]
     ok = d.get("esEstudiante") is True and bool(d.get("establecimiento")); resultados.append(ok)
@@ -388,6 +391,12 @@ check("caja1 NO cambia tarifas", "PUT", f"/servicios/{lab['id']}", T["caja1"], 4
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)
 check("indicadores con api key", "GET", "/indicadores", None, 200, headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")})
+check("WS-SALUD-02 con tipoAtencion inválido", "GET", "/establecimientos/disponibilidad?tipoAtencion=CARDIOLOGIA", None, 400,
+      headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")})
+if os.getenv("CLAVE_ENTRADA_SEGURIDAD"):     # clave propia de Seguridad (la misma que tiene el backend)
+    r = check("WS-SALUD-02 con la clave de Seguridad", "GET", "/establecimientos/disponibilidad?departamento=SACATEPEQUEZ&tipoAtencion=emergencia",
+              None, 200, headers={"X-API-Key": os.getenv("CLAVE_ENTRADA_SEGURIDAD")})
+    dato("acepta mayúsculas sin tilde y encuentra establecimientos", r.json().get("disponible") is True)
 
 print(f"\n{sum(resultados)}/{len(resultados)} pruebas OK")
 sys.exit(0 if all(resultados) else 1)
