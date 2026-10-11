@@ -28,7 +28,7 @@ Internet ──HTTPS──> Cloudflare ──túnel──> cloudflared (servidor
 ## 2. Clonar los tres repos, uno al lado del otro
 
 ```bash
-mkdir -p ~/salud && cd ~/salud
+mkdir -p ~/proyecto-salud && cd ~/proyecto-salud
 git clone -b denilson-dev https://github.com/Seminario01/SALUD-BACKEND.git
 git clone -b denilson-dev https://github.com/Seminario01/SALUD-FRONTEND.git
 git clone -b denilson-dev https://github.com/Seminario01/SALUD-DATABASE.git
@@ -39,7 +39,7 @@ Cuando los PR se fusionen, usen `main` en lugar de `denilson-dev`.
 ## 3. Configurar
 
 ```bash
-cd ~/salud/SALUD-BACKEND/deploy
+cd ~/proyecto-salud/SALUD-BACKEND/deploy
 cp .env.example .env
 nano .env
 ```
@@ -110,7 +110,7 @@ Sin eso, el Login Único responde `Invalid parameter: redirect_uri`.
 **Cambió la URL del día del Login Único:**
 
 ```bash
-cd ~/salud/SALUD-BACKEND/deploy
+cd ~/proyecto-salud/SALUD-BACKEND/deploy
 nano .env                  # actualizar AUTH_ISSUER
 docker compose up -d       # recrea backend y frontend con la nueva URL (sin recompilar)
 ```
@@ -118,9 +118,9 @@ docker compose up -d       # recrea backend y frontend con la nueva URL (sin rec
 **Actualizar a la última versión del código:**
 
 ```bash
-cd ~/salud/SALUD-BACKEND && git pull
-cd ~/salud/SALUD-FRONTEND && git pull
-cd ~/salud/SALUD-BACKEND/deploy && docker compose up -d --build
+cd ~/proyecto-salud/SALUD-BACKEND && git pull origin denilson-dev
+cd ~/proyecto-salud/SALUD-FRONTEND && git pull origin denilson-dev
+cd ~/proyecto-salud/SALUD-BACKEND/deploy && docker compose up -d --build
 ```
 
 **Respaldo de las bases de datos** (Salud y el Keycloak local), con `deploy/respaldo.sh`:

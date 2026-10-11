@@ -9,7 +9,14 @@ presupuesto_bp = Blueprint("presupuesto", __name__)
 @validar_token
 @requiere_permiso("presupuesto.editar")
 def actualizar_presupuesto():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    try:
+        montos = [float(data["monto_asignado"]), float(data.get("monto_ejecutado_servicio_social") or 0)]
+    except (KeyError, TypeError, ValueError):
+        montos = None
+    if not data.get("periodo") or not montos or min(montos) < 0:
+        return jsonify(success=False, error="datos_invalidos",
+                       message="periodo y monto_asignado son obligatorios; los montos deben ser números no negativos"), 400
     presupuesto = PresupuestoHospitalario.query.filter_by(periodo=data["periodo"]).first()
     if not presupuesto:
         presupuesto = PresupuestoHospitalario(periodo=data["periodo"])

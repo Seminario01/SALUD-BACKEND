@@ -19,6 +19,8 @@ Nunca se edita código directamente en el servidor; todo pasa por git.
 ## Reglas
 
 - Trabajar siempre en la rama `denilson-dev`. Nunca en `main`.
+- No unir (merge) nada de las ramas de los compañeros (`jeffry-dev`, `amilcar-dev`, `sandy-dev`) ni de
+  `main` hasta nuevo aviso de Antonio: se trabaja solo en `denilson-dev`.
 - Explicar en español, paso a paso y simple.
 - Al dar comandos, decir siempre dónde van: en la PC o en el servidor (por SSH).
   Cada comando debe empezar con `cd` a su carpeta, por ejemplo:
@@ -40,7 +42,6 @@ cd ~/proyecto-salud/SALUD-BACKEND/deploy && docker compose ps
 ```
 
 Más detalle (respaldos, cambio de `AUTH_ISSUER`, problemas comunes) en `deploy/README.md`.
-Ese README usa `~/salud` como carpeta de ejemplo; en el servidor real es `~/proyecto-salud`.
 
 ## Pruebas
 
@@ -53,7 +54,10 @@ llaman al backend ya corriendo. Necesitan tres cosas levantadas en la PC:
 - Backend en el puerto 5050, con el `.env` local (MySQL local, base `salud_db`).
 
 Las dos pruebas dependen de los datos de la base local: sin camas, sin turnos activos o
-con recetas de un solo paciente, fallan aunque el código esté bien.
+con recetas de un solo paciente, fallan aunque el código esté bien. Para tenerlos se cargan
+`datos_demo.sql` y luego `demo_turnos_hoy.sql` del repo SALUD-DATABASE (no borran nada y se
+pueden correr varias veces; los turnos solo valen para el día en que se cargan).
+En `cmd` de Windows las rutas son `C:\Denis\...`, no `/c/Denis/...`.
 
 ## Integraciones con otros módulos
 

@@ -6,11 +6,21 @@ from auth import validar_token, requiere_permiso, puede
 
 turnos_bp = Blueprint("turnos", __name__)
 
+TIPOS_ATENCION = ("consulta_general", "emergencia", "especialidad")
+
 @turnos_bp.route("/api/v1/salud/turnos", methods=["POST"])
 @validar_token
 @requiere_permiso("turnos.generar")
 def generar_turno():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not data.get("paciente_id") or not data.get("tipo_atencion"):
+        return jsonify(success=False, error="datos_invalidos",
+                       message="paciente_id y tipo_atencion son obligatorios"), 400
+    if data["tipo_atencion"] not in TIPOS_ATENCION:
+        return jsonify(success=False, error="datos_invalidos",
+                       message="tipo_atencion debe ser: " + ", ".join(TIPOS_ATENCION)), 400
+    if not Paciente.query.get(data["paciente_id"]):
+        return jsonify(success=False, error="no_encontrado", message="El paciente no existe"), 404
 
     # Los turnos usan la hora LOCAL del servidor (TZ=America/Guatemala en Docker).
     # Antes se guardaba en UTC pero se comparaba con la fecha local: después de
