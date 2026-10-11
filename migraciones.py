@@ -68,6 +68,9 @@ COLUMNAS = [
     ("movimientos_cuenta", "usuario", "VARCHAR(150) NULL"),
     ("movimientos_cuenta", "anulado", "TINYINT(1) NOT NULL DEFAULT 0"),
     ("movimientos_cuenta", "motivo_anulacion", "VARCHAR(255) NULL"),
+    # Tributario: referencia que genera su sistema
+    ("citas_medicas", "referencia_tributario", "VARCHAR(40) NULL"),
+    ("cuentas_paciente", "referencia_tributario", "VARCHAR(40) NULL"),
 ]
 
 # Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se

@@ -36,6 +36,11 @@ def check(nombre, metodo, ruta, tok, esperado, **kw):
     print(f"{'OK ' if ok else 'FALLA'} {r.status_code} (esperado {esperado})  {nombre}")
     return r
 
+def dato(nombre, ok):
+    resultados.append(ok)
+    print(f"{'OK ' if ok else 'FALLA'}      {nombre}")
+
+
 T = {u: token(u) for u in ["medico1", "admin.salud", "ciudadano1", "ciudadano2", "analista1"]}
 try:
     T["recepcion1"] = token("recepcion1")       # puestos de la matriz (agregar_puestos.py)
@@ -181,8 +186,27 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
     check("aviso de pago con datos incompletos", "POST", "/pagos/notificacion", None, 400, headers=clave, json={"estado": "PAGADO"})
     check("aviso de pago de referencia desconocida", "POST", "/pagos/notificacion", None, 404, headers=clave,
           json={"numero_referencia": "SAL-1999-000001", "estado": "PAGADO"})
-    check("Tributario avisa el pago", "POST", "/pagos/notificacion", None, 200, headers=clave,
-          json={"numero_referencia": d["numeroReferencia"], "estado": "PAGADO", "numero_autorizacion": "AUT-PRUEBA"})
+    dato("el registro guarda la referencia de Tributario (REF-TRIB-…)", bool(d.get("referenciaTributario")))
+    # Confirmación de pago con el formato del documento de Tributario
+    import time as _t
+    clave_trib = {"X-API-Key": os.getenv("CLAVE_ENTRADA_TRIBUTARIO") or clave["X-API-Key"], "X-Modulo-Origen": "tributario"}
+    evento = f"pago-aprobado-prueba-{int(_t.time() * 1000)}"
+    pago = {"numero_referencia": d["numeroReferencia"], "referencia_tributario": d.get("referenciaTributario"),
+            "estado": "APROBADO", "estado_pago": "PAGADO", "numero_autorizacion": "AUT-PRUEBA",
+            "monto_pagado": d["monto"], "fecha_pago": "2026-10-10T11:30:00"}
+    check("confirmación sin API key", "POST", "/pagos/confirmacion", None, 401, json={})
+    if os.getenv("CLAVE_ENTRADA_SEGURIDAD") and os.getenv("CLAVE_ENTRADA_TRIBUTARIO"):
+        check("confirmación con la clave de OTRO módulo", "POST", "/pagos/confirmacion", None, 403,
+              headers={"X-API-Key": os.getenv("CLAVE_ENTRADA_SEGURIDAD")}, json={"evento_id": evento, "data": pago})
+    check("confirmación con monto distinto", "POST", "/pagos/confirmacion", None, 409,
+          headers={**clave_trib, "Idempotency-Key": evento + "-m"}, json={"evento_id": evento + "-m", "data": {**pago, "monto_pagado": d["monto"] + 1}})
+    check("Idempotency-Key distinto de evento_id", "POST", "/pagos/confirmacion", None, 400,
+          headers={**clave_trib, "Idempotency-Key": "otro"}, json={"evento_id": evento, "data": pago})
+    check("Tributario confirma el pago", "POST", "/pagos/confirmacion", None, 200,
+          headers={**clave_trib, "Idempotency-Key": evento}, json={"evento_id": evento, "data": pago})
+    r = check("el mismo evento otra vez (idempotente)", "POST", "/pagos/confirmacion", None, 200,
+              headers={**clave_trib, "Idempotency-Key": evento}, json={"evento_id": evento, "data": pago}).json()
+    dato("el reenvío responde lo mismo, marcado como duplicado", r.get("duplicado") is True and r["data"]["estado"] == "PAGADO")
     citas = requests.get(API + "/citas", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
     ok = any(c["id"] == cita_cobro and c["pago_confirmado"] and c["numero_autorizacion"] == "AUT-PRUEBA" for c in citas)
     resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      la cita queda pagada con la autorización de Tributario")
@@ -202,10 +226,6 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
     check("analista1 (auditoria) NO ve la bitacora", "GET", "/integraciones/bitacora", T["analista1"], 403)
 else:
     print("         (se omiten las pruebas de datos: los simuladores no están corriendo)")
-
-def dato(nombre, ok):
-    resultados.append(ok)
-    print(f"{'OK ' if ok else 'FALLA'}      {nombre}")
 
 print("--- Recetas y Farmacia")
 codigo = "PRB-001"      # siempre el mismo: no se acumulan medicamentos de prueba en el catálogo

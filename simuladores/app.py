@@ -196,8 +196,15 @@ def registrar_obligacion():
                        simulado=True), 400
     referencia = cuerpo["numero_referencia"]
     if referencia in OBLIGACIONES:
-        return jsonify(success=False, error="duplicado", message="La obligación ya fue registrada",
-                       simulado=True), 409
+        # Contrato de Tributario: reenvío idéntico = 200 con la obligación existente;
+        # misma referencia con datos distintos = 409.
+        existente = OBLIGACIONES[referencia]
+        iguales = all(str(existente[c]) == str(cuerpo[c]) for c in CAMPOS_OBLIGACION if c != "monto") \
+            and round(float(existente["monto"]), 2) == round(float(cuerpo["monto"]), 2)
+        if iguales:
+            return ok(_respuesta_obligacion(existente), 200)
+        return jsonify(success=False, error="conflicto",
+                       message="El numero_referencia ya existe con datos diferentes", simulado=True), 409
     try:
         monto = round(float(cuerpo["monto"]), 2)
     except (TypeError, ValueError):
@@ -206,10 +213,16 @@ def registrar_obligacion():
         return jsonify(success=False, error="datos_invalidos", message="El monto debe ser mayor a 0",
                        simulado=True), 400
     obligacion = {**{c: cuerpo[c] for c in CAMPOS_OBLIGACION}, "monto": monto,
-                  "id_obligacion": f"OBL-{len(OBLIGACIONES) + 1001}", "estado": "PENDIENTE",
+                  "referencia_tributario": f"REF-TRIB-{len(OBLIGACIONES) + 1:06d}", "estado": "PENDIENTE",
                   "fecha_registro": datetime.now().isoformat(timespec="seconds")}
     OBLIGACIONES[referencia] = obligacion
-    return ok(obligacion, 201)
+    return ok(_respuesta_obligacion(obligacion), 201)
+
+
+def _respuesta_obligacion(o):
+    """Respuesta del registro según el documento de Tributario."""
+    return {"numero_referencia": o["numero_referencia"], "referencia_tributario": o["referencia_tributario"],
+            "estado": o["estado"]}
 
 
 @app.get("/api/v1/integraciones/salud/obligaciones/<referencia>")
@@ -255,11 +268,16 @@ def _casos(cuerpo):
             "Educación consulta las horas de práctica de Daniela Sofía Paredes Lima."),
         "tributario-costo": ("Tributario", "GET", f"/api/v1/salud/citas/{int(cuerpo.get('cita_id') or 1)}/costo", None,
             "Tributario consulta el costo y el estado de pago de una cita."),
-        "tributario-pago": ("Tributario", "POST", "/api/v1/salud/pagos/notificacion",
-            {"numero_referencia": cuerpo.get("numero_referencia") or "SAL-0000-000000", "estado": "PAGADO",
-             "numero_autorizacion": _autorizacion(cuerpo.get("numero_referencia") or "x"),
-             "fecha_pago": datetime.now().isoformat(timespec="seconds"), "monto_pagado": cuerpo.get("monto")},
-            "Tributario avisa a Salud que el ciudadano pagó una obligación."),
+        "tributario-pago": ("Tributario", "POST", "/api/v1/salud/pagos/confirmacion",
+            {"evento_id": f"pago-aprobado-{int(time.time() * 1000)}",
+             "data": {"numero_referencia": cuerpo.get("numero_referencia") or "SAL-0000-000000",
+                      "referencia_tributario": (OBLIGACIONES.get(cuerpo.get("numero_referencia") or "") or {}).get(
+                          "referencia_tributario", "REF-TRIB-000000"),
+                      "estado": "APROBADO", "estado_pago": "PAGADO",
+                      "numero_autorizacion": _autorizacion(cuerpo.get("numero_referencia") or "x"),
+                      "monto_pagado": cuerpo.get("monto"),
+                      "fecha_pago": datetime.now().isoformat(timespec="seconds")}},
+            "Tributario confirma a Salud que el ciudadano pagó una obligación."),
         "auditoria-indicadores": ("Auditoría", "GET", "/api/v1/salud/indicadores", None,
             "Auditoría Social consulta los indicadores agregados de Salud (sin datos personales)."),
     }
@@ -276,7 +294,8 @@ def disparar(caso):
     try:
         r = requests.request(metodo, f"{SALUD_URL}{ruta}", json=cuerpo, timeout=8, headers={
             "X-API-Key": API_KEY or request.headers.get("X-API-Key", ""),
-            "X-Modulo-Origen": origen, "X-Simulado": "true"})
+            "X-Modulo-Origen": origen, "X-Simulado": "true",
+            **({"Idempotency-Key": cuerpo["evento_id"]} if isinstance(cuerpo, dict) and cuerpo.get("evento_id") else {})})
         try:
             respuesta = r.json()
         except ValueError:

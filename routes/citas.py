@@ -220,4 +220,5 @@ def listar_citas():
         "estado_cobro": "PAGADO" if c.pago_confirmado else c.estado_cobro,
         "fecha_vencimiento": c.fecha_vencimiento.isoformat() if c.fecha_vencimiento else None,
         "numero_autorizacion": c.numero_autorizacion,
+        "referencia_tributario": c.referencia_tributario,
     } for c in citas]), 200

@@ -55,6 +55,13 @@ class Config:
             "Auditoría": os.getenv("CLAVE_ENTRADA_AUDITORIA"),
         }.items() if clave
     }
+    # Tributario: tipo_obligacion que Salud envía en cada cobro. Si Tributario no
+    # acepta alguno, se cambia aquí (en el .env) sin tocar código.
+    TIPO_OBLIGACION_CONSULTA = os.getenv("TIPO_OBLIGACION_CONSULTA", "CONSULTA_MEDICA")
+    TIPO_OBLIGACION_HOSPITALIZACION = os.getenv("TIPO_OBLIGACION_HOSPITALIZACION", "HOSPITALIZACION")
+    TIPO_OBLIGACION_SERVICIOS = os.getenv("TIPO_OBLIGACION_SERVICIOS", "SERVICIOS_MEDICOS")
+    # Valor de X-Modulo-Origen hacia Tributario (su documento usa "salud")
+    ORIGEN_HACIA_TRIBUTARIO = os.getenv("ORIGEN_HACIA_TRIBUTARIO", "salud")
     # Tributario: vencimiento de las obligaciones de pago (días)
     DIAS_VENCIMIENTO_COBRO = int(os.getenv("DIAS_VENCIMIENTO_COBRO", "15"))
 

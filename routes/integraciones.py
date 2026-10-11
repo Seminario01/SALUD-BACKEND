@@ -215,6 +215,7 @@ def estudiante_educacion(cui):
 # Tributario: obligaciones de pago de las citas
 # ---------------------------------------------------------------------------
 ESTADOS_PAGADO = ("PAGADO", "PAGADA", "CONFIRMADO", "APROBADO", "CANCELADO_PAGO")
+ESTADOS_ANULADO = ("ANULADO", "ANULADA", "CANCELADO", "CANCELADA")
 TIPO_OBLIGACION = {"emergencia": "EMERGENCIA", "especialidad": "ESPECIALIDAD"}
 
 
@@ -238,6 +239,7 @@ def _estado_cobro(cita):
         "monto": float(cita.costo) if cita.costo is not None else None,
         "fechaVencimiento": cita.fecha_vencimiento.isoformat() if cita.fecha_vencimiento else None,
         "numeroAutorizacion": cita.numero_autorizacion,
+        "referenciaTributario": cita.referencia_tributario,
         "fechaPago": cita.fecha_pago.isoformat(timespec="minutes") if cita.fecha_pago else None,
     }
 
@@ -256,6 +258,30 @@ def _fecha_hora(valor):
         return None
 
 
+def resultado_registro(r, modulo="Tributario"):
+    """Interpreta la respuesta de Tributario al registrar una obligación.
+
+    201 = nueva, 200 = reenvío idéntico (ya existía): las dos están bien.
+    409 = la referencia ya existe con datos DISTINTOS: es un conflicto.
+    Devuelve (datos, respuesta_error)."""
+    if r["success"]:
+        return (r.get("data") if isinstance(r.get("data"), dict) else {}), None
+    if r.get("estado_http") == 409:
+        return None, (jsonify(success=False, error="conflicto_tributario", modulo=modulo,
+                              message="Tributario ya tiene esa referencia con datos distintos. "
+                                      f"Detalle: {r.get('detalle') or r.get('message')}"), 409)
+    return None, _error_modulo(r, modulo)
+
+
+def emision_y_vencimiento(fecha_vencimiento):
+    """Fechas del cobro. Si ya se registró, se reutilizan (un reenvío debe ser idéntico)."""
+    dias = timedelta(days=Config.DIAS_VENCIMIENTO_COBRO)
+    if fecha_vencimiento:
+        return fecha_vencimiento - dias, fecha_vencimiento
+    hoy = date.today()
+    return hoy, hoy + dias
+
+
 def _registrar_cobro(cita, paciente):
     """Envía la obligación a Tributario. Devuelve (ok, respuesta_error)."""
     if not cita.numero_referencia:
@@ -263,18 +289,17 @@ def _registrar_cobro(cita, paciente):
         db.session.commit()
     if not cita.costo:
         cita.costo = Config.COSTO_CONSULTA
-    hoy = date.today()
-    vence = hoy + timedelta(days=Config.DIAS_VENCIMIENTO_COBRO)
-    r = registrar_obligacion(cita.numero_referencia, paciente.cui, "CONSULTA_MEDICA",
+    emision, vence = emision_y_vencimiento(cita.fecha_vencimiento)
+    r = registrar_obligacion(cita.numero_referencia, paciente.cui, Config.TIPO_OBLIGACION_CONSULTA,
                              (cita.motivo or "Consulta médica general")[:200], cita.costo,
-                             hoy.isoformat(), vence.isoformat())
-    duplicada = not r["success"] and r.get("estado_http") == 409
-    if not r["success"] and not duplicada:
-        return False, _error_modulo(r, "Tributario")
-    datos = r.get("data") if isinstance(r.get("data"), dict) else {}
+                             emision.isoformat(), vence.isoformat())
+    datos, error = resultado_registro(r)
+    if error:
+        return False, error
     estado = str(datos.get("estado") or "PENDIENTE").upper()
-    cita.estado_cobro = estado if not duplicada else (cita.estado_cobro or "PENDIENTE")
-    cita.fecha_vencimiento = cita.fecha_vencimiento or vence
+    cita.estado_cobro = estado
+    cita.fecha_vencimiento = vence
+    cita.referencia_tributario = datos.get("referencia_tributario") or cita.referencia_tributario
     if estado in ESTADOS_PAGADO:
         marcar_pagada(cita, datos.get("numero_autorizacion") or datos.get("numeroAutorizacion"))
     db.session.commit()
@@ -374,6 +399,11 @@ def verificar_pago_cita(id):
                 return error
         if not cita.pago_confirmado:
             r = consultar_obligacion(cita.numero_referencia)
+            if not r["success"] and r.get("estado_http") in (404, 405):
+                # Tributario no tiene consulta de estado (o aún no la publica): el pago se
+                # confirma cuando Tributario envía su aviso a POST /pagos/confirmacion.
+                return jsonify(success=True, data=_estado_cobro(cita),
+                               message="Tributario aún no ha confirmado el pago"), 200
             if not r["success"]:
                 return _error_modulo(r, "Tributario")
             datos = r["data"] if isinstance(r["data"], dict) else {}

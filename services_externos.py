@@ -29,7 +29,8 @@ def _headers(modulo=None):
     """
     clave = {"Educación": Config.API_KEY_EDUCACION, "Seguridad": Config.API_KEY_SEGURIDAD,
              "Tributario": Config.API_KEY_TRIBUTARIO}.get(modulo) or Config.MODULOS_API_KEY
-    headers = {"X-API-Key": clave, "X-Modulo-Origen": "Salud"}
+    origen = Config.ORIGEN_HACIA_TRIBUTARIO if modulo == "Tributario" else "Salud"
+    headers = {"X-API-Key": clave, "X-Modulo-Origen": origen}
     if Config.REENVIAR_TOKEN_USUARIO and has_request_context():
         token = request.headers.get("Authorization", "")
         if token.startswith("Bearer "):
@@ -199,8 +200,10 @@ RUTA_OBLIGACIONES = "/api/v1/integraciones/salud/obligaciones"
 
 def registrar_obligacion(numero_referencia, dpi, tipo_obligacion, concepto, monto,
                          fecha_emision, fecha_vencimiento):
-    """Registra en Tributario el cobro de una cita (contrato de Tributario).
-    El numero_referencia lo genera Salud: SAL-AAAA-NNNNNN."""
+    """Registra en Tributario una obligación de pago (contrato de Tributario).
+    El numero_referencia lo genera Salud: SAL-AAAA-NNNNNN.
+    Tributario responde 201 (nueva), 200 (reenvío idéntico) o 409 (misma
+    referencia con datos distintos)."""
     payload = {
         "numero_referencia": numero_referencia,
         "dpi_persona": dpi,

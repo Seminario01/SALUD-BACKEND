@@ -25,7 +25,8 @@ from auth import puede, requiere_permiso, validar_token
 from config import Config
 from extensions import db
 from models import CuentaPaciente, Hospitalizacion, MovimientoCuenta, Paciente, Servicio
-from routes.integraciones import ESTADOS_PAGADO, _error_modulo, _fecha_hora, _siguiente_referencia
+from routes.integraciones import (ESTADOS_PAGADO, _error_modulo, _fecha_hora, _siguiente_referencia,
+                                  emision_y_vencimiento, resultado_registro)
 from services_externos import consultar_obligacion, registrar_obligacion
 
 caja_bp = Blueprint("caja", __name__)
@@ -84,6 +85,7 @@ def _cuenta(c, nombres=None, hosp=None, detalle=False):
         "estado_hospitalizacion": hosp.estado if hosp else None,
         "fecha_apertura": _fecha(c.fecha_apertura), "fecha_cierre": _fecha(c.fecha_cierre),
         "numero_referencia": c.numero_referencia, "estado_cobro": c.estado_cobro,
+        "referencia_tributario": c.referencia_tributario,
         "fecha_vencimiento": _fecha(c.fecha_vencimiento), "numero_autorizacion": c.numero_autorizacion,
         "fecha_pago": _fecha(c.fecha_pago), "cerrada_por": c.cerrada_por,
         **_totales(c),
@@ -510,19 +512,21 @@ def anular_movimiento(id, mid):
 
 
 def _registrar_en_tributario(c, paciente, hosp):
-    hoy = date.today()
-    vence = c.fecha_vencimiento or hoy + timedelta(days=Config.DIAS_VENCIMIENTO_COBRO)
+    emision, vence = emision_y_vencimiento(c.fecha_vencimiento)
     if c.tipo == "HOSPITALIZACION" and hosp:
         dias = sum(m.cantidad or 0 for m in c.movimientos if m.categoria == "DIA_CAMA" and not m.anulado)
-        concepto, tipo = f"Hospitalización — {hosp.sala}, {dias} {'día' if dias == 1 else 'días'}", "HOSPITALIZACION"
+        concepto = f"Hospitalización — {hosp.sala}, {dias} {'día' if dias == 1 else 'días'}"
+        tipo = Config.TIPO_OBLIGACION_HOSPITALIZACION
     else:
-        concepto, tipo = "Servicios médicos ambulatorios", "SERVICIOS_MEDICOS"
-    r = registrar_obligacion(c.numero_referencia, paciente.cui, tipo, concepto, c.saldo, hoy.isoformat(), vence.isoformat())
-    duplicada = not r["success"] and r.get("estado_http") == 409
-    if not r["success"] and not duplicada:
-        return _error_modulo(r, "Tributario")
+        concepto, tipo = "Servicios médicos ambulatorios", Config.TIPO_OBLIGACION_SERVICIOS
+    r = registrar_obligacion(c.numero_referencia, paciente.cui, tipo, concepto, c.saldo,
+                             emision.isoformat(), vence.isoformat())
+    datos, error = resultado_registro(r)
+    if error:
+        return error
     c.fecha_vencimiento = vence
     c.estado_cobro = c.estado_cobro or "PENDIENTE"
+    c.referencia_tributario = datos.get("referencia_tributario") or c.referencia_tributario
     return None
 
 
@@ -637,6 +641,10 @@ def verificar_pago_cuenta(id):
         if error:
             return error
         r = consultar_obligacion(c.numero_referencia)
+    if not r["success"] and r.get("estado_http") in (404, 405):
+        # Tributario no ofrece consulta de estado: el pago llega por su aviso (POST /pagos/confirmacion)
+        db.session.commit()
+        return _respuesta(c, 200, f"{c.numero_referencia}: Tributario aún no ha confirmado el pago")
     if not r["success"]:
         return _error_modulo(r, "Tributario")
     datos = r["data"] if isinstance(r["data"], dict) else {}
@@ -662,6 +670,7 @@ def aviso_de_pago(referencia, estado, autorizacion, fecha_pago):
     elif c.estado != "PAGADA":
         # Obligación anulada en Tributario: la cuenta vuelve a ABIERTA y se reenvía con referencia nueva
         c.estado, c.estado_cobro, c.numero_referencia, c.fecha_vencimiento = "ABIERTA", None, None, None
+        c.referencia_tributario = None
     db.session.commit()
     return c
 

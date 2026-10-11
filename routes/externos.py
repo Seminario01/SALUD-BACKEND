@@ -22,6 +22,7 @@ OPERACIONES = {
     "externos.costo_cita": "Costo y pago de una cita",
     "externos.indicadores": "Indicadores agregados",
     "externos.notificacion_pago": "Aviso de pago de una obligación",
+    "externos.confirmacion_pago": "Confirmación de pago (Tributario)",
 }
 MODULOS = {"seguridad": "Seguridad", "educacion": "Educación", "educación": "Educación",
            "tributario": "Tributario", "auditoria": "Auditoría", "auditoría": "Auditoría"}
@@ -360,64 +361,88 @@ def indicadores():
     return jsonify(success=True, data=calcular_indicadores()), 200
 
 
-@externos_bp.route("/api/v1/salud/pagos/notificacion", methods=["POST"])
+@externos_bp.route("/api/v1/salud/pagos/confirmacion", methods=["POST"])
 @validar_api_key
-def notificacion_pago():
+def confirmacion_pago():
     """
-    Aviso de Tributario: una obligación de pago de Salud fue pagada o anulada
+    Confirmación de pago de Tributario (pago aprobado, rechazado, parcial o anulado)
     ---
     tags:
       - Integración externa
     security:
       - ApiKeyAuth: []
+    description: >
+      Formato acordado con Tributario. El header Idempotency-Key debe ser igual a
+      evento_id: si el mismo evento llega dos veces, Salud responde 200 sin volver a
+      procesarlo. La referencia puede ser de una cita o de una cuenta del paciente.
     parameters:
+      - in: header
+        name: Idempotency-Key
+        type: string
+        required: false
       - in: body
         name: body
         required: true
         schema:
           type: object
-          required: [numero_referencia, estado]
           properties:
-            numero_referencia: {type: string, example: "SAL-2026-000120"}
-            estado: {type: string, enum: [PAGADO, ANULADO], example: PAGADO}
-            numero_autorizacion: {type: string, example: "AUT-7781234"}
-            fecha_pago: {type: string, example: "2026-10-08T10:15:00"}
-            monto_pagado: {type: number, example: 150.00}
+            evento_id: {type: string, example: "pago-aprobado-123"}
+            data:
+              type: object
+              properties:
+                numero_referencia: {type: string, example: "SAL-2026-000120"}
+                referencia_tributario: {type: string, example: "REF-TRIB-000123"}
+                estado: {type: string, example: "APROBADO"}
+                estado_pago: {type: string, example: "PAGADO"}
+                numero_autorizacion: {type: string, example: "123456"}
+                monto_pagado: {type: number, example: 150.00}
+                fecha_pago: {type: string, example: "2026-10-10T11:30:00"}
     responses:
       200:
-        description: Salud registró el aviso; la cita queda pagada (o con el cobro anulado)
+        description: Procesado (también si el evento ya se había procesado)
       400:
-        description: Faltan datos o el estado no es válido
+        description: Datos incompletos
+      401:
+        description: Sin API key
+      403:
+        description: API key inválida o de otro módulo
       404:
-        description: Salud no tiene una obligación con ese número de referencia
+        description: numero_referencia inexistente en Salud
+      409:
+        description: El monto pagado no coincide con lo cobrado
     """
-    from datetime import datetime
-    from routes.integraciones import marcar_pagada
-    from routes.caja import aviso_de_pago
+    return _procesar_pago()
 
-    data = request.get_json(silent=True) or {}
-    referencia = (data.get("numero_referencia") or "").strip()
-    estado = str(data.get("estado") or "").strip().upper()
-    if not referencia or estado not in ("PAGADO", "ANULADO"):
-        return jsonify(success=False, error="datos_incompletos",
-                       message="numero_referencia y estado (PAGADO o ANULADO) son requeridos"), 400
-    try:
-        fecha = datetime.fromisoformat(str(data.get("fecha_pago")).replace("Z", "")) if data.get("fecha_pago") else None
-    except ValueError:
-        fecha = None
-    cita = CitaMedica.query.filter_by(numero_referencia=referencia).first()
-    if not cita:
-        # ¿Es la referencia de una cuenta del paciente (hospitalización o ambulatoria)?
-        cuenta = aviso_de_pago(referencia, estado, data.get("numero_autorizacion"), fecha)
-        if cuenta is None:
-            return jsonify(success=False, error="no_encontrado", message="Salud no tiene esa referencia"), 404
-        return jsonify(success=True, data={"numero_referencia": referencia, "estado": cuenta.estado_cobro or "ANULADO",
-                                           "cuenta_id": cuenta.id}, message="Aviso registrado"), 200
-    if estado == "PAGADO":
-        marcar_pagada(cita, data.get("numero_autorizacion"), fecha)
-    else:
-        cita.estado_cobro = "ANULADO"
-        cita.pago_confirmado = False
-    db.session.commit()
-    return jsonify(success=True, data={"numero_referencia": referencia, "estado": cita.estado_cobro,
-                                       "cita_id": cita.id}, message="Aviso registrado"), 200
+
+@externos_bp.route("/api/v1/salud/pagos/notificacion", methods=["POST"])
+@validar_api_key
+def notificacion_pago():
+    """
+    Aviso de pago (formato anterior, se mantiene por compatibilidad)
+    ---
+    tags:
+      - Integración externa
+    security:
+      - ApiKeyAuth: []
+    description: >
+      Igual que POST /pagos/confirmacion. Acepta también el cuerpo plano:
+      numero_referencia, estado (PAGADO o ANULADO), numero_autorizacion, fecha_pago, monto_pagado.
+    responses:
+      200:
+        description: Procesado
+      400:
+        description: Datos incompletos
+      404:
+        description: Referencia desconocida
+    """
+    return _procesar_pago()
+
+
+def _procesar_pago():
+    import pagos
+    # Si Tributario ya tiene su propia clave, solo esa (o la común) puede confirmar pagos
+    if getattr(g, "modulo_api_key", None) not in ("Tributario", "Común"):
+        return jsonify(success=False, error="api_key_invalida",
+                       message="Esta clave no corresponde al módulo Tributario"), 403
+    status, cuerpo = pagos.procesar(request.get_json(silent=True), request.headers.get("Idempotency-Key"))
+    return jsonify(cuerpo), status

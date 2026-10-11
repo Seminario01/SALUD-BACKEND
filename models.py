@@ -39,6 +39,7 @@ class CitaMedica(db.Model):
     fecha_vencimiento = db.Column(db.Date)
     numero_autorizacion = db.Column(db.String(60))
     fecha_pago = db.Column(db.DateTime)
+    referencia_tributario = db.Column(db.String(40))                # REF-TRIB-… (la genera Tributario)
 
 
 class ExpedienteClinico(db.Model):
@@ -306,6 +307,7 @@ class CuentaPaciente(db.Model):
     fecha_vencimiento = db.Column(db.Date)
     numero_autorizacion = db.Column(db.String(60))
     fecha_pago = db.Column(db.DateTime)
+    referencia_tributario = db.Column(db.String(40))
     movimientos = db.relationship("MovimientoCuenta", backref="cuenta", lazy="select",
                                   order_by="MovimientoCuenta.id")
 
@@ -327,3 +329,16 @@ class MovimientoCuenta(db.Model):
     usuario = db.Column(db.String(150))
     anulado = db.Column(db.Boolean, default=False)
     motivo_anulacion = db.Column(db.String(255))
+
+
+class EventoPago(db.Model):
+    """Confirmaciones de pago recibidas de Tributario (idempotencia por evento_id).
+
+    Si Tributario reenvía el mismo evento, Salud responde lo mismo sin volver a procesarlo.
+    """
+    __tablename__ = "eventos_pago"
+    id = db.Column(db.Integer, primary_key=True)
+    evento_id = db.Column(db.String(100), nullable=False, unique=True)
+    numero_referencia = db.Column(db.String(20))
+    recibido = db.Column(db.DateTime, default=datetime.now)
+    respuesta = db.Column(db.Text)                  # JSON que Salud respondió

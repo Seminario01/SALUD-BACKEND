@@ -100,7 +100,11 @@ Responde `esPracticante`, `universidad`, `carrera`, `nivel` y `estado`. Un `404`
 
 ### Tributario
 
-**Obligaciones de pago (contrato de Tributario).** Salud registra el cobro de cada consulta; el ciudadano paga en Tributario con el número de referencia. Reemplaza la verificación de pago anterior (WS-SALUD-09).
+Según el documento "Flujo de pagos entre Salud y Tributario". URL base: `https://tributario.150-136-174-108.nip.io`.
+Salud envía `X-API-Key: <clave que Tributario entrega a Salud>` y `X-Modulo-Origen: salud`.
+En el `.env` de Salud: `URL_TRIBUTARIO`, `API_KEY_TRIBUTARIO` y `REENVIAR_TOKEN_USUARIO=false`.
+
+**1. Salud registra la obligación de pago.**
 
 ```
 POST /api/v1/integraciones/salud/obligaciones
@@ -109,27 +113,25 @@ POST /api/v1/integraciones/salud/obligaciones
   "monto": 150.00, "moneda": "GTQ", "fecha_emision": "2026-10-08", "fecha_vencimiento": "2026-10-23" }
 ```
 
-- `numero_referencia` lo genera Salud: `SAL-AAAA-NNNNNN`, correlativo por año.
-- El vencimiento es la emisión más `DIAS_VENCIMIENTO_COBRO` (15 días por defecto).
-- Un `409` (ya registrada) no es error para Salud: la obligación ya existe.
-- `tipo_obligacion` que envía Salud (*por confirmar con Tributario*):
+| Respuesta de Tributario | Qué hace Salud |
+|---|---|
+| `201` `{"success": true, "data": {"numero_referencia", "referencia_tributario": "REF-TRIB-000123", "estado": "PENDIENTE"}}` | Guarda `referencia_tributario` y deja el cobro PENDIENTE |
+| `200` (reenvío idéntico, devuelve la obligación existente) | Igual que 201 |
+| `409` (misma referencia con datos distintos) | Lo muestra como conflicto; no marca nada |
 
-| tipo_obligacion | Cuándo | concepto (ejemplo) |
+- `numero_referencia`: `SAL-AAAA-NNNNNN`, correlativo por año, compartido por citas y cuentas.
+- `fecha_vencimiento`: emisión + 15 días (`DIAS_VENCIMIENTO_COBRO`). Un reenvío usa las mismas fechas, para que sea idéntico.
+- `tipo_obligacion` (configurable en el `.env`, *por confirmar con Tributario*):
+
+| Cobro | Variable | Valor por defecto |
 |---|---|---|
-| `CONSULTA_MEDICA` | Cobro de una cita | "Consulta médica general" |
-| `HOSPITALIZACION` | Caja cierra la cuenta de un paciente egresado | "Hospitalización — Medicina general, 3 días" |
-| `SERVICIOS_MEDICOS` | Caja cierra una cuenta ambulatoria (laboratorio, imágenes) | "Servicios médicos ambulatorios" |
+| Cita | `TIPO_OBLIGACION_CONSULTA` | `CONSULTA_MEDICA` |
+| Cuenta de hospitalización (al egreso) | `TIPO_OBLIGACION_HOSPITALIZACION` | `HOSPITALIZACION` |
+| Cuenta ambulatoria (laboratorio, imágenes) | `TIPO_OBLIGACION_SERVICIOS` | `SERVICIOS_MEDICOS` |
 
-  El `monto` de una cuenta es su saldo: cargos (día cama, medicamentos, servicios) menos descuentos. Las citas y las cuentas comparten el correlativo `SAL-AAAA-NNNNNN`.
+**2. Tributario confirma el pago a Salud** (servicio de Salud, ver sección 3).
 
-**Estado de la obligación** (ruta propuesta, *por confirmar con Tributario*):
-
-```
-GET /api/v1/integraciones/salud/obligaciones/{numero_referencia}
-→ { "success": true, "data": { "estado": "PAGADO", "numero_autorizacion": "AUT-…", "fecha_pago": "2026-10-08T10:15" } }
-```
-
-Salud da la cita por pagada si `estado` es `PAGADO`, `PAGADA`, `CONFIRMADO` o `APROBADO`, o si llega `pagoConfirmado: true`.
+**3. Consulta de estado (opcional, *por confirmar*).** `GET /api/v1/integraciones/salud/obligaciones/{numero_referencia}`. La usa el botón "Verificar pago". Si Tributario no la publica (404/405), Salud lo indica y espera la confirmación del paso 2.
 
 ### Verificación de conexión (los tres módulos)
 
@@ -150,9 +152,45 @@ URL base: `https://saludumg.online/api/v1/salud`. Todos requieren `X-API-Key`. L
 | **WS-SALUD-02** Establecimientos disponibles | Seguridad | `GET /establecimientos/disponibilidad` (detalle abajo) | `disponible`, `mensaje` y `establecimientos[]` |
 | **WS-SALUD-06** Horas de práctica | Educación | `GET /practicantes/{cui}/horas` | `horasAcumuladas`, `fechaInicio`, `fechaFin`, `supervisor`, `estado` |
 | Costo de una cita | Tributario | `GET /citas/{id}/costo` | `cita_id`, `monto`, `pago_confirmado` |
-| Aviso de pago | Tributario | `POST /pagos/notificacion` con `numero_referencia`, `estado` (`PAGADO` o `ANULADO`), `numero_autorizacion`, `fecha_pago`, `monto_pagado` | `200` registrado (la cita o la cuenta queda pagada) · `400` datos incompletos · `404` referencia desconocida |
+| Confirmación de pago | Tributario | `POST /pagos/confirmacion` (detalle abajo). `POST /pagos/notificacion` se mantiene por compatibilidad | `200` procesado · `400` · `401`/`403` · `404` · `409` monto distinto |
 | Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación, hospitalización (camas, ocupación, hospitalizados, egresos), farmacia (recetas e inventario bajo mínimo), cuentas (abiertas, por cobrar, cobrado en 30 días) y presupuesto. **Sin datos personales** |
 | Ejecución presupuestaria | Auditoría Social | `GET /presupuesto/ejecucion` | Periodo vigente: `monto_asignado`, `monto_ejecutado_servicio_social`, `porcentaje_ejecutado` |
+
+### Confirmación de pago en detalle (Tributario)
+
+`POST https://saludumg.online/api/v1/salud/pagos/confirmacion`
+
+Headers: `X-API-Key: <clave que Salud entrega a Tributario>`, `X-Modulo-Origen: tributario` y `Idempotency-Key: <el mismo evento_id>`.
+
+```json
+{
+  "evento_id": "pago-aprobado-123",
+  "data": {
+    "numero_referencia": "SAL-2026-000120",
+    "referencia_tributario": "REF-TRIB-000123",
+    "estado": "APROBADO",
+    "estado_pago": "PAGADO",
+    "numero_autorizacion": "123456",
+    "monto_pagado": 150.00,
+    "fecha_pago": "2026-10-10T11:30:00"
+  }
+}
+```
+
+| `estado_pago` / `estado` | Qué hace Salud |
+|---|---|
+| `PAGADO`, `APROBADO`, `CONFIRMADO` | La cita o la cuenta queda **pagada**, con autorización y fecha de pago |
+| contiene `PARCIAL` | Registra **pago parcial**; el cobro sigue pendiente (*por confirmar con Tributario*) |
+| `RECHAZADO` | Lo registra; el cobro sigue pendiente |
+| `ANULADO` | Cita: cobro anulado. Cuenta: vuelve a ABIERTA para reenviarse con referencia nueva |
+
+| HTTP | Cuándo |
+|---|---|
+| 200 | Procesado. Si el `evento_id` ya llegó antes, responde lo mismo con `"duplicado": true` y no lo vuelve a aplicar |
+| 400 | Falta `numero_referencia` o el estado, o `Idempotency-Key` ≠ `evento_id` |
+| 401 / 403 | Sin clave, clave incorrecta o clave de otro módulo |
+| 404 | Salud no tiene ese `numero_referencia` |
+| 409 | `monto_pagado` distinto de lo cobrado (cita: su costo; cuenta: su saldo) |
 
 ### WS-SALUD-02 en detalle (Seguridad)
 
