@@ -12,7 +12,7 @@ Navegador ──token──> Backend de Salud ──X-API-Key + token del usuari
 
 - El frontend **nunca** llama directo a otro módulo ni conoce la API key.
 - El backend de Salud envía la **`X-API-Key`** acordada entre equipos y, si hay un usuario, **reenvía su access token** (guía del Login Único, sección 7: todos comparten `aud: rsd-api`).
-- Si el otro módulo no está configurado o no responde, Salud responde **503** con un mensaje claro. **Las operaciones propias de Salud no se ven afectadas.**
+- Si el otro módulo no está configurado o no responde, Salud responde **503** con un mensaje claro. Si el módulo sí responde pero **rechaza** la petición (por ejemplo, Tributario no acepta un cobro), Salud responde **422** con el motivo que dio el módulo ("Tributario rechazó la solicitud: ..."), y **424** si la respuesta no se puede interpretar o el módulo no aceptó la clave. El motivo también queda en la bitácora de integraciones. No se usa 502 porque los proxies lo reemplazan por su propia página y el mensaje no llega a la pantalla. **Las operaciones propias de Salud no se ven afectadas.**
 
 ## 2. Servicios que consume Salud
 

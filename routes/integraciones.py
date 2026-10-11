@@ -37,11 +37,25 @@ MENSAJES = {
 
 
 def _error_modulo(resultado, modulo):
+    """Respuesta de Salud cuando falla la llamada a otro módulo.
+
+    422 = el módulo recibió la petición y la rechazó (se muestra su motivo).
+    424 = el módulo respondió algo que Salud no puede usar (formato inesperado
+          o no aceptó nuestra clave).
+    503 = el módulo no está configurado o no responde.
+    No se usa 502: los proxies (nginx, Cloudflare) lo reemplazan por su propia
+    página y el mensaje no llega al navegador."""
     codigo = resultado.get("error", "modulo_no_disponible")
-    status = 502 if codigo == "respuesta_invalida" else 503
+    estado = resultado.get("estado_http") or 0
     mensaje = MENSAJES.get(codigo, MENSAJES["modulo_no_disponible"]).format(m=modulo)
-    if resultado.get("detalle"):
-        mensaje = f"{modulo} rechazó la solicitud: {resultado['detalle']}"
+    status = 503
+    if codigo == "respuesta_invalida":
+        rechazo = 400 <= estado < 500
+        status = 422 if rechazo and estado not in (401, 403) else 424
+        if resultado.get("detalle"):
+            mensaje = f"{modulo} rechazó la solicitud: {resultado['detalle']}"
+        elif rechazo:
+            mensaje = f"{modulo} rechazó la solicitud (código {estado}) sin indicar el motivo."
     return jsonify(success=False, error=codigo, modulo=modulo, message=mensaje), status
 
 

@@ -80,7 +80,10 @@ def _llamar(metodo, base_url, path, operacion=None, registrar=True, timeout=TIME
         simulado = resultado.get("simulado", False)
         detalle = resumir(resultado["data"])
     else:
+        # En la bitácora queda también el motivo que dio el módulo (su "detalle"), no solo el código
         detalle = resultado.get("message")
+        if resultado.get("detalle"):
+            detalle = f"{detalle}: {resultado['detalle']}"
     resultado["estado_http"] = estado_http
     if registrar:
         registrar_bitacora("saliente", _modulo_de(path), operacion or path, metodo, path, estado_http,
@@ -97,8 +100,7 @@ def _interpretar(respuesta):
                 "message": f"El módulo respondió con error {respuesta.status_code}"}
     if respuesta.status_code >= 400:
         try:
-            cuerpo = respuesta.json()
-            detalle = cuerpo.get("message") or cuerpo.get("mensaje") or cuerpo.get("error") if isinstance(cuerpo, dict) else None
+            detalle = _motivo(respuesta.json())
         except ValueError:
             detalle = None
         return {"success": False, "error": "respuesta_invalida",
@@ -111,6 +113,29 @@ def _interpretar(respuesta):
     simulado = bool(isinstance(cuerpo, dict) and cuerpo.get("simulado")) or \
         bool(isinstance(datos, dict) and datos.get("simulado"))
     return {"success": True, "data": datos, "simulado": simulado}
+
+
+def _texto(valor):
+    """Pasa a texto lo que un módulo manda como explicación (texto, lista o diccionario)."""
+    if isinstance(valor, dict):
+        return "; ".join(f"{c}: {_texto(v)}" for c, v in valor.items() if v not in (None, "", [], {}))
+    if isinstance(valor, (list, tuple)):
+        return "; ".join(t for t in (_texto(v) for v in valor) if t)
+    return "" if valor is None or isinstance(valor, bool) else str(valor).strip()
+
+
+def _motivo(cuerpo):
+    """Motivo de un rechazo: el mensaje del módulo más su "detalle" (Tributario
+    explica ahí qué dato no aceptó), sin repetir textos."""
+    if not isinstance(cuerpo, dict):
+        return None
+    partes = []
+    for clave in ("message", "mensaje", "detalle", "detail", "detalles", "errores", "errors"):
+        texto = _texto(cuerpo.get(clave))
+        if texto and not any(texto in p for p in partes):
+            partes.append(texto)
+    # "error" suele ser solo el código: se usa si no vino nada más
+    return ". ".join(p.rstrip(".") for p in partes) or _texto(cuerpo.get("error")) or None
 
 
 def _get(base_url, path, params=None, **kwargs):
