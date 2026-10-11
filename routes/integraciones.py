@@ -6,6 +6,8 @@ usuario, y el backend de Salud llama al módulo destino (servidor a servidor).
 Si el otro módulo no está configurado o no responde, se devuelve un error
 claro (503) y la operación propia de Salud no se ve afectada.
 """
+from datetime import datetime, timedelta
+
 from flask import Blueprint, jsonify, request
 
 from auth import validar_token, requiere_permiso
@@ -37,6 +39,11 @@ def _error_modulo(resultado, modulo):
     status = 502 if codigo == "respuesta_invalida" else 503
     return jsonify(success=False, error=codigo, modulo=modulo,
                    message=MENSAJES.get(codigo, MENSAJES["modulo_no_disponible"]).format(m=modulo)), status
+
+
+# Único tipo de obligación usado por ahora. EMERGENCIA y ESPECIALIDAD están
+# propuestos pero pendientes de confirmar con Tributario.
+TIPO_OBLIGACION_CONSULTA = "CONSULTA_MEDICA"
 
 
 @integraciones_bp.route("/api/v1/salud/integraciones/estado", methods=["GET"])
@@ -154,7 +161,7 @@ def estudiante_educacion(cui):
 @requiere_permiso("pagos.verificar")
 def verificar_pago_cita(id):
     """
-    WS-SALUD-09 - Verificar en Tributario el pago de una cita
+    WS-SALUD-09 - Registrar en Tributario la obligación de pago de una cita
     ---
     tags:
       - Integraciones
@@ -167,7 +174,10 @@ def verificar_pago_cita(id):
         required: true
     responses:
       200:
-        description: "pagoConfirmado true/false; si es true, la cita queda marcada como pagada"
+        description: >
+          numeroReferencia, monto y la respuesta de Tributario. Tributario registra la
+          obligación como PENDIENTE: eso no marca la cita como pagada (la confirmación
+          de pago llega después por POST /api/v1/salud/pagos/confirmacion).
       503:
         description: Tributario no configurado o no disponible
     """
@@ -180,20 +190,27 @@ def verificar_pago_cita(id):
                        message="El paciente no tiene CUI registrado; Tributario lo necesita"), 400
 
     monto = float(cita.costo) if cita.costo else Config.COSTO_CONSULTA
-    referencia = generar_numero_referencia_pago()
-    r = verificar_pago_tributario(referencia, paciente.cui, "CONSULTA_MEDICA", monto, "PENDIENTE_VERIFICACION")
+    if not cita.numero_referencia:
+        cita.numero_referencia = generar_numero_referencia_pago(cita.id)
+        db.session.commit()
+    referencia = cita.numero_referencia
+
+    fecha_emision = datetime.now().date()
+    fecha_vencimiento = fecha_emision + timedelta(days=Config.TRIBUTARIO_PLAZO_VENCIMIENTO_DIAS)
+    concepto = cita.motivo or "Consulta médica general"
+
+    r = verificar_pago_tributario(referencia, paciente.cui, TIPO_OBLIGACION_CONSULTA, concepto, monto,
+                                  fecha_emision.isoformat(), fecha_vencimiento.isoformat())
     if not r["success"]:
         return _error_modulo(r, "Tributario")
 
     datos = r["data"] if isinstance(r["data"], dict) else {}
-    estado = str(datos.get("estado") or datos.get("estadoPago") or datos.get("estado_pago") or "").upper()
-    confirmado = bool(datos.get("pagoConfirmado") or datos.get("confirmado")) or estado in ("CONFIRMADO", "PAGADO", "APROBADO")
-    if confirmado:
-        cita.pago_confirmado = True
-        cita.costo = monto
+    if datos.get("referencia_tributario"):
+        cita.referencia_tributario = datos["referencia_tributario"]
         db.session.commit()
+
     return jsonify(success=True, data={
-        "pagoConfirmado": confirmado,
+        "pagoConfirmado": bool(cita.pago_confirmado),
         "numeroReferencia": referencia,
         "monto": monto,
         "respuestaTributario": datos,

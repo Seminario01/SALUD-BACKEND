@@ -43,6 +43,7 @@ app.json.ensure_ascii = False
 API_KEY = os.getenv("MODULOS_API_KEY", "")          # si está definida, se exige igual
 SALUD_URL = os.getenv("SALUD_URL", "http://127.0.0.1:5050").rstrip("/")
 REGISTRO = deque(maxlen=200)                         # últimas peticiones recibidas
+OBLIGACIONES = {}                                    # numero_referencia -> {cuerpo, referencia_tributario}
 
 MODULO_POR_RUTA = {"/api/v1/seguridad": "Seguridad", "/api/v1/educacion": "Educación",
                    "/api/v1/tributario": "Tributario", "/simulador": "Simulador"}
@@ -194,6 +195,33 @@ def verificar_pago():
                "estado": "CONFIRMADO", "pagoConfirmado": True, "numeroAutorizacion": _autorizacion(referencia or dpi),
                "fechaPago": (datetime.now() - timedelta(hours=2)).isoformat(timespec="minutes"),
                "canal": "Agencia bancaria"})
+
+
+@app.post("/api/v1/integraciones/salud/obligaciones")
+def registrar_obligacion():
+    """Contrato actual de Tributario (docs/CONTRATOS.md): Salud registra la
+    obligación de pago de una cita. Responde PENDIENTE; la confirmación del
+    pago llega después por separado (POST .../salud/pagos/confirmacion)."""
+    cuerpo = request.get_json(silent=True) or {}
+    referencia = cuerpo.get("numero_referencia")
+    faltan = [c for c in ("numero_referencia", "dpi_persona", "tipo_obligacion", "concepto", "monto",
+                          "fecha_emision", "fecha_vencimiento") if not cuerpo.get(c)]
+    if faltan:
+        return jsonify(success=False, error="datos_incompletos", message=f"Faltan: {', '.join(faltan)}",
+                       simulado=True), 400
+
+    existente = OBLIGACIONES.get(referencia)
+    if existente is not None:
+        if existente["cuerpo"] == cuerpo:
+            return ok({"numero_referencia": referencia, "referencia_tributario": existente["referencia_tributario"],
+                       "estado": "PENDIENTE"}, 200)
+        return jsonify(success=False, error="referencia_duplicada",
+                       message="numero_referencia ya existe con datos distintos", simulado=True), 409
+
+    referencia_tributario = f"REF-TRIB-{len(OBLIGACIONES) + 1:06d}"
+    OBLIGACIONES[referencia] = {"cuerpo": cuerpo, "referencia_tributario": referencia_tributario}
+    return ok({"numero_referencia": referencia, "referencia_tributario": referencia_tributario,
+               "estado": "PENDIENTE"}, 201)
 
 
 @app.get("/api/v1/tributario/contribuyentes/<cui>")

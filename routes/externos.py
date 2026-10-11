@@ -1,4 +1,6 @@
 import time
+from datetime import datetime
+from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, request, jsonify
 from extensions import db
@@ -17,10 +19,14 @@ OPERACIONES = {
     "externos.establecimientos_disponibilidad": "Disponibilidad de establecimientos (WS-SALUD-02)",
     "externos.horas_practicante": "Horas de práctica (WS-SALUD-06)",
     "externos.costo_cita": "Costo y pago de una cita",
+    "externos.confirmacion_pago": "Confirmación de pago de Tributario",
     "externos.indicadores": "Indicadores agregados",
 }
 MODULOS = {"seguridad": "Seguridad", "educacion": "Educación", "educación": "Educación",
            "tributario": "Tributario", "auditoria": "Auditoría", "auditoría": "Auditoría"}
+
+# Pendiente de confirmar con Tributario los valores exactos de estado que significan "pagado".
+ESTADOS_PAGADO = ("APROBADO", "PAGADO", "PAGADO_COMPLETO", "CONFIRMADO")
 
 
 @externos_bp.before_request
@@ -247,6 +253,95 @@ def costo_cita(id):
         "monto": float(cita.costo) if cita.costo else 0,
         "pago_confirmado": cita.pago_confirmado,
     }), 200
+
+
+@externos_bp.route("/api/v1/salud/pagos/confirmacion", methods=["POST"])
+@validar_api_key
+def confirmacion_pago():
+    """
+    Confirmación de pago que Tributario envía a Salud
+    ---
+    tags:
+      - Integración externa
+    security:
+      - ApiKeyAuth: []
+    parameters:
+      - name: Idempotency-Key
+        in: header
+        type: string
+        required: false
+        description: Identificador del evento (alternativa a evento_id en el body)
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          required: [evento_id, data]
+          properties:
+            evento_id:
+              type: string
+            data:
+              type: object
+              required: [numero_referencia]
+              properties:
+                numero_referencia:
+                  type: string
+                referencia_tributario:
+                  type: string
+                estado:
+                  type: string
+                estado_pago:
+                  type: string
+                numero_autorizacion:
+                  type: string
+                monto_pagado:
+                  type: number
+                fecha_pago:
+                  type: string
+    responses:
+      200:
+        description: Confirmación procesada (o evento ya procesado antes)
+      400:
+        description: Faltan datos, monto_pagado no es un número, o fecha_pago no es una fecha ISO
+      404:
+        description: numero_referencia no corresponde a ninguna cita
+      409:
+        description: El monto pagado no coincide con el costo de la cita
+    """
+    cuerpo = request.get_json(silent=True) or {}
+    datos = cuerpo.get("data")
+    evento_id = cuerpo.get("evento_id") or request.headers.get("Idempotency-Key")
+    if not evento_id or not isinstance(datos, dict) or not datos.get("numero_referencia"):
+        return jsonify(success=False, error="datos_incompletos", message="Se requiere evento_id y data.numero_referencia"), 400
+    cita = CitaMedica.query.filter_by(numero_referencia=str(datos["numero_referencia"])).first()
+    if not cita:
+        return jsonify(success=False, error="no_encontrado", message="numero_referencia no existe"), 404
+    if cita.evento_pago_id == evento_id:
+        return jsonify(success=True, data={"cita_id": cita.id, "pago_confirmado": bool(cita.pago_confirmado)}, message="Evento ya procesado"), 200
+    monto = None
+    if datos.get("monto_pagado") is not None:
+        try:
+            monto = Decimal(str(datos["monto_pagado"]))
+        except InvalidOperation:
+            return jsonify(success=False, error="monto_invalido", message="monto_pagado no es un número"), 400
+    estado = str(datos.get("estado_pago") or datos.get("estado") or "").upper()
+    aprobado = estado in ESTADOS_PAGADO
+    if aprobado and monto is not None and cita.costo is not None and monto != cita.costo:
+        return jsonify(success=False, error="monto_no_coincide", message=f"El monto pagado ({monto}) no coincide con el costo de la cita ({cita.costo})"), 409
+    fecha_pago = None
+    if datos.get("fecha_pago"):
+        try:
+            fecha_pago = datetime.fromisoformat(str(datos["fecha_pago"]).replace("Z", "+00:00")).replace(tzinfo=None)
+        except ValueError:
+            return jsonify(success=False, error="fecha_invalida", message="fecha_pago no es una fecha ISO"), 400
+    cita.pago_confirmado = aprobado
+    cita.referencia_tributario = datos.get("referencia_tributario")
+    cita.numero_autorizacion = datos.get("numero_autorizacion")
+    cita.fecha_pago = fecha_pago
+    cita.monto_pagado = monto
+    cita.evento_pago_id = evento_id
+    db.session.commit()
+    return jsonify(success=True, data={"cita_id": cita.id, "pago_confirmado": aprobado}), 200
 
 
 def calcular_indicadores():

@@ -32,6 +32,12 @@ class CitaMedica(db.Model):
     motivo = db.Column(db.String(300))
     costo = db.Column(db.Numeric(10, 2))
     pago_confirmado = db.Column(db.Boolean, default=False)
+    numero_referencia = db.Column(db.String(40), unique=True)
+    referencia_tributario = db.Column(db.String(80))
+    numero_autorizacion = db.Column(db.String(80))
+    fecha_pago = db.Column(db.DateTime)
+    monto_pagado = db.Column(db.Numeric(10, 2))
+    evento_pago_id = db.Column(db.String(100))
     fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
 
 

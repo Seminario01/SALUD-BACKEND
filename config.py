@@ -31,5 +31,9 @@ class Config:
     URL_SEGURIDAD = os.getenv("URL_SEGURIDAD", "http://localhost:5002")
     URL_TRIBUTARIO = os.getenv("URL_TRIBUTARIO", "http://localhost:5003")
 
+    # API key propia de Tributario (servidor externo real, distinto de MODULOS_API_KEY)
+    TRIBUTARIO_API_KEY = os.getenv("TRIBUTARIO_API_KEY", "")
+    TRIBUTARIO_PLAZO_VENCIMIENTO_DIAS = int(os.getenv("TRIBUTARIO_PLAZO_VENCIMIENTO_DIAS", "15"))
+
     # Monto por defecto de una consulta cuando la cita no tiene costo registrado
     COSTO_CONSULTA = float(os.getenv("COSTO_CONSULTA", "150"))

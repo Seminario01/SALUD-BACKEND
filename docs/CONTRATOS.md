@@ -87,21 +87,42 @@ Responde `esPracticante`, `universidad`, `carrera`, `nivel` y `estado`. Un `404`
 
 ### Tributario
 
-**WS-SALUD-09: Verificar el pago de una cita.** El número de referencia lo genera Salud con el formato `SALUD-AAAA-XXXXXXXX`.
+Tributario es un servidor externo real (no un módulo hermano como Educación o Seguridad), con su **propia API key** (`TRIBUTARIO_API_KEY`, distinta de `MODULOS_API_KEY`) y enviando siempre `X-Modulo-Origen: salud`.
+
+**WS-SALUD-09: Registrar la obligación de pago de una cita.** El número de referencia lo genera Salud con el formato `SAL-AAAA-NNNNNN` (NNNNNN es el id de la cita, con ceros a la izquierda: la misma cita siempre produce la misma referencia).
 
 ```
-POST /api/v1/tributario/pagos/verificar
-{ "numero_referencia": "SALUD-2026-D27521DB", "dpi": "2501123450102",
-  "concepto": "CONSULTA_MEDICA", "monto": 150.00, "estado_pago": "PENDIENTE_VERIFICACION" }
+POST /api/v1/integraciones/salud/obligaciones
+{ "numero_referencia": "SAL-2026-000120", "dpi_persona": "1234567890101",
+  "tipo_obligacion": "CONSULTA_MEDICA", "concepto": "Consulta médica general",
+  "monto": 150.00, "moneda": "GTQ", "fecha_emision": "2026-10-08", "fecha_vencimiento": "2026-10-23" }
 ```
+Respuesta esperada (`201` al registrar por primera vez; `200` si se reenvían los mismos datos; `409` si la referencia se repite con datos distintos):
 ```json
 { "success": true, "data": {
-    "numero_referencia": "SALUD-2026-D27521DB", "estado": "CONFIRMADO", "pagoConfirmado": true,
-    "numeroAutorizacion": "AUT-C578AB9FF9", "montoRegistrado": 150.00, "fechaPago": "2026-10-02T20:49" } }
+    "numero_referencia": "SAL-2026-000120", "referencia_tributario": "REF-TRIB-000045",
+    "estado": "PENDIENTE" } }
 ```
+- `tipo_obligacion` solo usa `CONSULTA_MEDICA` por ahora; `EMERGENCIA` y `ESPECIALIDAD` están propuestos, pendientes de confirmar con Tributario.
+- El estado `PENDIENTE` **no** marca la cita como pagada en Salud: solo confirma que Tributario registró la obligación. El pago se confirma por separado (ver abajo).
 
-- Salud da el pago por confirmado si llega `pagoConfirmado: true`, o `estado` igual a `CONFIRMADO`, `PAGADO` o `APROBADO`.
-- Cualquier otro valor (por ejemplo `PENDIENTE`) se trata como **no pagado**.
+**Confirmación de pago (Tributario → Salud).** Cuando el pago se concreta, Tributario llama a Salud:
+
+```
+POST https://<url-de-salud>/api/v1/salud/pagos/confirmacion
+Headers: X-API-Key: <acordada>, Idempotency-Key: <evento_id> (o enviarlo en el body)
+{ "evento_id": "EVT-2026-000982",
+  "data": {
+    "numero_referencia": "SAL-2026-000120", "referencia_tributario": "REF-TRIB-000045",
+    "estado_pago": "APROBADO", "numero_autorizacion": "AUT-C578AB9FF9",
+    "monto_pagado": 150.00, "fecha_pago": "2026-10-10T14:32:00" } }
+```
+```json
+{ "success": true, "data": { "cita_id": 120, "pago_confirmado": true } }
+```
+- `evento_id` (o el header `Idempotency-Key`) hace la llamada idempotente: reenviar el mismo evento responde `200` sin volver a procesar.
+- Valores de `estado`/`estado_pago` que Salud interpreta como pagado: `APROBADO`, `PAGADO`, `PAGADO_COMPLETO`, `CONFIRMADO` (pendiente de confirmar con Tributario los valores exactos). Cualquier otro valor se trata como **no pagado**.
+- `404` si `numero_referencia` no corresponde a ninguna cita; `409` si `monto_pagado` no coincide con el costo de la cita; `400` si faltan datos o el monto/fecha no tienen formato válido.
 
 ### Verificación de conexión (los tres módulos)
 
@@ -122,6 +143,7 @@ URL base: `https://saludumg.online/api/v1/salud`. Todos requieren `X-API-Key`. L
 | **WS-SALUD-02** Establecimientos disponibles | Seguridad | `GET /establecimientos/disponibilidad?departamento=&municipio=&tipoAtencion=&nivelUrgencia=` | `disponible`, `mensaje` y `establecimientos[]` con `nombreEstablecimiento`, `tipoEstablecimiento`, `direccion`, `telefono`, `estadoServicio` y `tipoAtencionDisponible` |
 | **WS-SALUD-06** Horas de práctica | Educación | `GET /practicantes/{cui}/horas` | `horasAcumuladas`, `fechaInicio`, `fechaFin`, `supervisor`, `estado` |
 | Costo de una cita | Tributario | `GET /citas/{id}/costo` | `cita_id`, `monto`, `pago_confirmado` |
+| Confirmación de pago | Tributario | `POST /pagos/confirmacion` con `evento_id` y `data` (ver sección 2) | `cita_id`, `pago_confirmado` |
 | Indicadores agregados | Auditoría Social | `GET /indicadores` (con API key, o con token de rol `auditoria:*`) | Totales de pacientes, citas, recursos, turnos, vacunación y presupuesto. **Sin datos personales** |
 | Ejecución presupuestaria | Auditoría Social | `GET /presupuesto/ejecucion` | Periodo vigente: `monto_asignado`, `monto_ejecutado_servicio_social`, `porcentaje_ejecutado` |
 
