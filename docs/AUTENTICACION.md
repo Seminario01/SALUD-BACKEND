@@ -77,6 +77,7 @@ La autorización sigue el documento **"Matriz de permisos — Módulo Salud"**. 
 | Administración | `salud:admin` | `admin.salud` |
 | Ciudadano | `ciudadano` | `ciudadano1`, `ciudadano2` |
 | Auditoría Social | `auditoria:analista`, `auditoria:admin` | `analista1` |
+| Tablero de Auditoría (solo `/auditoria/indicadores`) | `auditoria:lectura` | `auditor1` |
 
 Los roles nuevos y sus usuarios se agregan a un Keycloak existente con `keycloak-local/agregar_puestos.py`, sin reimportar el realm: los `sub` de los usuarios no cambian. También están en `keycloak-local/import/rsd-realm.json` para instalaciones nuevas.
 

@@ -29,6 +29,7 @@ ROLES = {
     "salud:farmacia": "Farmacia: despacho de recetas e inventario de medicamentos",
     "salud:caja": "Caja: cobros, cuentas del paciente y verificación de pagos",
     "salud:jefatura": "Jefatura médica: personal médico, practicantes y reportes clínicos",
+    "auditoria:lectura": "Auditoría Social: lectura de indicadores agregados para el tablero",
 }
 
 USUARIOS = [
@@ -37,6 +38,7 @@ USUARIOS = [
     ("farmacia1", "Silvia", "Ordóñez", ["salud:farmacia"]),
     ("caja1", "Roberto", "Méndez", ["salud:caja"]),
     ("jefatura1", "Carmen", "Recinos", ["salud:jefatura", "salud:medico"]),
+    ("auditor1", "Luis", "Aguilar", ["auditoria:lectura"]),
 ]
 
 

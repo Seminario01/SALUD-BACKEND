@@ -11,6 +11,7 @@ from routes.integraciones import integraciones_bp
 from routes.farmacia import farmacia_bp
 from routes.hospitalizacion import hospitalizacion_bp
 from routes.caja import caja_bp
+from routes.auditoria import auditoria_bp
 
 def registrar_rutas(app):
     app.register_blueprint(pacientes_bp)
@@ -26,3 +27,4 @@ def registrar_rutas(app):
     app.register_blueprint(farmacia_bp)
     app.register_blueprint(hospitalizacion_bp)
     app.register_blueprint(caja_bp)
+    app.register_blueprint(auditoria_bp)

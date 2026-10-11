@@ -141,6 +141,42 @@ check("analista1 NO ve el listado de pacientes (datos personales)", "GET", "/pac
 check("analista1 NO ve expedientes", "GET", f"/expedientes/{p1}", T["analista1"], 403)
 check("/indicadores sin credenciales", "GET", "/indicadores", None, 401)
 
+print("--- Tablero de Auditoría: GET /auditoria/indicadores?desde=&hasta= (rol auditoria:lectura)")
+try:
+    T["auditor1"] = token("auditor1")
+except Exception:                              # noqa: BLE001
+    sys.exit("Falta el usuario auditor1 (rol auditoria:lectura): corra keycloak-local/agregar_puestos.py")
+AUD = "/auditoria/indicadores"
+RANGO = "?desde=2026-01-01&hasta=2026-12-31"
+check("tablero sin token", "GET", AUD + RANGO, None, 401)
+check("tablero con token alterado", "GET", AUD + RANGO, T["auditor1"][:-4] + "AAAA", 401)
+check("ciudadano1 en el tablero -> sin el rol", "GET", AUD + RANGO, T["ciudadano1"], 403)
+r = check("analista1 en el tablero -> sin el rol auditoria:lectura", "GET", AUD + RANGO, T["analista1"], 403)
+dato("cuerpo de error uniforme (error, mensaje)", set(r.json()) == {"error", "mensaje"})
+check("tablero sin desde ni hasta", "GET", AUD, T["auditor1"], 400)
+check("tablero sin hasta", "GET", AUD + "?desde=2026-01-01", T["auditor1"], 400)
+check("tablero con fecha en otro formato", "GET", AUD + "?desde=01/01/2026&hasta=2026-12-31", T["auditor1"], 400)
+check("tablero con fecha que no existe", "GET", AUD + "?desde=2026-02-30&hasta=2026-12-31", T["auditor1"], 400)
+r = check("tablero con hasta anterior a desde", "GET", AUD + "?desde=2026-12-31&hasta=2026-01-01", T["auditor1"], 400)
+dato("error rango_invalido", r.json().get("error") == "rango_invalido")
+t = check("auditor1 consulta el tablero", "GET", AUD + RANGO, T["auditor1"], 200).json()
+UNIDADES = {"citas", "personas", "casos", "dias", "porcentaje", "quetzales"}
+dato("indicadores: clave en minúsculas con guiones bajos, sin repetir",
+     all(re.fullmatch(r"[a-z][a-z0-9_]*", i["clave"]) for i in t["indicadores"])
+     and len({i["clave"] for i in t["indicadores"]}) == len(t["indicadores"]) > 0)
+dato("indicadores: valor numérico y unidad de la lista",
+     all(type(i["valor"]) in (int, float) and i["unidad"] in UNIDADES and i["etiqueta"] for i in t["indicadores"]))
+dato("series: 12 puntos con x = YYYY-MM y valor numérico",
+     all(len(s["puntos"]) == 12 and s["unidad"] in UNIDADES
+         and all(re.fullmatch(r"\d{4}-\d{2}", p["x"]) and type(p["valor"]) in (int, float) for p in s["puntos"])
+         for s in t["series"]) and len(t["series"]) > 0)
+atendidas = next(i["valor"] for i in t["indicadores"] if i["clave"] == "citas_atendidas")
+dato("la serie mensual de citas atendidas suma lo mismo que el indicador",
+     sum(p["valor"] for s in t["series"] if s["clave"] == "citas_atendidas" for p in s["puntos"]) == atendidas)
+dato("tablero sin datos personales", not re.search(r"cui|nombre_completo|telefono", json.dumps(t)))
+check("auditor1 NO ve pacientes", "GET", "/pacientes", T["auditor1"], 403)
+check("auditor1 NO ve el panel del personal", "GET", "/panel", T["auditor1"], 403)
+
 print("--- Integración con otros módulos (Salud consume sus servicios)")
 r = check("estado de integraciones (admin)", "GET", "/integraciones/estado", T["admin.salud"], 200)
 estado = r.json()["data"]

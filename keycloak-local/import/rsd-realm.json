@@ -47,6 +47,10 @@
         "name": "auditoria:admin"
       },
       {
+        "name": "auditoria:lectura",
+        "description": "Auditoría Social: lectura de indicadores agregados para el tablero"
+      },
+      {
         "name": "salud:enfermeria",
         "description": "Enfermería: triaje, vacunación, hospitalización y camas"
       },
@@ -266,6 +270,26 @@
         "servidor_publico",
         "salud:jefatura",
         "salud:medico"
+      ]
+    },
+    {
+      "username": "auditor1",
+      "enabled": true,
+      "email": "auditor1@demo.gt",
+      "emailVerified": true,
+      "firstName": "Luis",
+      "lastName": "Aguilar",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "Demo2026*",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "default-roles-rsd",
+        "servidor_publico",
+        "auditoria:lectura"
       ]
     }
   ],

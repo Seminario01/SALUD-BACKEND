@@ -37,6 +37,8 @@ ROL_ADMIN = "salud:admin"
 ROL_CIUDADANO = "ciudadano"
 # Auditoría Social: solo lectura de datos AGREGADOS (indicadores), nunca datos personales.
 ROLES_AUDITORIA = ("auditoria:analista", "auditoria:admin")
+# Rol que pide el tablero de Auditoría para GET /auditoria/indicadores (routes/auditoria.py).
+ROL_AUDITORIA_LECTURA = "auditoria:lectura"
 
 # Personal del hospital (cualquier puesto interno).
 ROLES_PERSONAL = (ROL_MEDICO, ROL_ENFERMERIA, ROL_RECEPCION, ROL_FARMACIA, ROL_CAJA, ROL_JEFATURA, ROL_ADMIN)

@@ -110,6 +110,30 @@ Auditoría consume indicadores **agregados** de Salud (sin datos personales):
 
 Un analista de Auditoría que entra al frontend de Salud ve **solo el panel de indicadores**, en modo lectura. No puede ver pacientes, citas, vacunación ni expedientes (el backend responde 403).
 
+### Tablero de Auditoría (provisional)
+
+`GET /api/v1/salud/auditoria/indicadores?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` (`routes/auditoria.py`).
+Solo con token, rol **`auditoria:lectura`**. Devuelve los datos del rango pedido:
+
+```json
+{
+  "modulo": "salud", "desde": "2026-01-01", "hasta": "2026-12-31",
+  "indicadores": [
+    { "clave": "citas_atendidas", "etiqueta": "Citas atendidas", "valor": 42, "unidad": "citas" }
+  ],
+  "series": [
+    { "clave": "citas_atendidas", "etiqueta": "Citas atendidas por mes", "unidad": "citas",
+      "puntos": [ { "x": "2026-01", "valor": 5 } ] }
+  ]
+}
+```
+
+- `clave`: no se cambia una vez publicada. `valor`: siempre número. `unidad`: `citas`, `personas`, `casos`, `dias`, `porcentaje` o `quetzales`.
+- Errores con el cuerpo `{ "error": "rango_invalido", "mensaje": "..." }`: **400** (falta `desde` o `hasta`, formato distinto de `YYYY-MM-DD`, `hasta` anterior a `desde`, rango de más de 5 años), **401**, **403**, **500** (sin traza).
+- No incluye camas, recetas ni presupuesto: no tienen unidad en la lista o no dependen del rango de fechas. El presupuesto sigue en `/presupuesto/ejecucion`.
+
+**Pendiente de confirmar con la ingeniera:** la ruta final, el formato del cuerpo de error, la forma exacta de la respuesta 200, el rango máximo y quién crea el rol en el Login Único. Cada punto se cambia en un solo lugar de `routes/auditoria.py`.
+
 ## 6. Pruebas
 
 `pruebas/prueba_auth.py` verifica todo lo anterior (65 pruebas). Las de datos de integración se ejecutan solo si los módulos (o los simuladores) responden.

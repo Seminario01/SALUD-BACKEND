@@ -9,7 +9,7 @@ Sigue el contrato de "Cómo consumir el Login Único":
 | Client del frontend | `salud-web` (público, Authorization Code + PKCE) |
 | Client para curl | `rsd-test-cli` (solo terminal) |
 | Audiencia (`aud`) | `rsd-api` |
-| Usuarios | `medico1`, `admin.salud`, `ciudadano1`, `ciudadano2`, `analista1`, y los puestos `enfermera1`, `recepcion1`, `farmacia1`, `caja1`, `jefatura1` |
+| Usuarios | `medico1`, `admin.salud`, `ciudadano1`, `ciudadano2`, `analista1`, y los puestos `enfermera1`, `recepcion1`, `farmacia1`, `caja1`, `jefatura1`, y `auditor1` (`auditoria:lectura`) |
 | Contraseña | `Demo2026*` |
 | Roles | `salud:medico`, `salud:admin`, `salud:enfermeria`, `salud:recepcion`, `salud:farmacia`, `salud:caja`, `salud:jefatura`, `ciudadano`, `servidor_publico`, `auditoria:*` |
 
