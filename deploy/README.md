@@ -212,6 +212,12 @@ Actualiza el código, levanta los contenedores, trae un respaldo nuevo de produc
 y al final compara cuántos pacientes y citas hay en cada servidor (deben coincidir). Las copias
 quedan en `~/respaldos-de-produccion` del respaldo (últimos 30 días).
 
+Copia la **misma versión que corre en producción** (no lo último de GitHub), así el respaldo
+nunca va adelantado. También corre sola todos los días a las 3:45, después del respaldo de
+producción de las 3:15 (registro en `~/respaldos-de-produccion/replica.log`). En los dos
+servidores conviven otros proyectos (`tesis-*`): la réplica solo toca los contenedores `salud-*`
+y la tarea programada solo agrega su línea.
+
 **Si producción falla:** encender el túnel en el respaldo (sección 5) con producción apagada.
 
 ## Probado

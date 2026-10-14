@@ -2,7 +2,7 @@
 # ============================================================================
 # Replica producción en el servidor de RESPALDO (se corre en el respaldo)
 #
-#   1. Código: git pull de los tres repos (rama denilson-dev).
+#   1. Código: la misma versión (commit) de los tres repos que corre en producción.
 #   2. Levanta todo con docker compose (el túnel de Cloudflare NO: el respaldo
 #      no se publica; si los dos tuvieran el túnel, las visitas se repartirían).
 #   3. Datos: le pide a producción un respaldo nuevo, lo trae y lo restaura aquí.
@@ -11,6 +11,9 @@
 #
 # Uso (desde la PC):
 #   ssh denis@IP_DEL_RESPALDO 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/replicar.sh denis@IP_DE_PRODUCCION'
+# También corre solo todos los días a las 3:45 (cron del respaldo; registro en
+# ~/respaldos-de-produccion/replica.log). Solo toca los contenedores salud-*: en los
+# mismos servidores conviven otros proyectos (tesis-*) que no se tocan.
 #
 # Necesita una llave SSH de este servidor hacia producción (deploy/README.md, sección 10).
 # ============================================================================
@@ -23,9 +26,11 @@ RAIZ="$HOME/proyecto-salud"
 COPIAS="$HOME/respaldos-de-produccion"
 DIAS_A_GUARDAR=30
 
-echo "=== 1. Código"
+echo "=== 1. Código (la misma versión que corre en producción, no lo último de GitHub)"
 for repo in SALUD-BACKEND SALUD-FRONTEND SALUD-DATABASE; do
-  git -C "$RAIZ/$repo" pull -q origin denilson-dev
+  COMMIT="$(ssh $SSH_OPCIONES "$PRODUCCION" "git -C ~/proyecto-salud/$repo rev-parse HEAD")"
+  git -C "$RAIZ/$repo" fetch -q origin denilson-dev
+  git -C "$RAIZ/$repo" checkout -q -B denilson-dev "$COMMIT"
   echo "OK   $repo -> $(git -C "$RAIZ/$repo" log --oneline -1)"
 done
 
