@@ -3,10 +3,12 @@ from datetime import date, datetime
 from extensions import db
 from models import Turno, Paciente
 from auth import validar_token, requiere_permiso, puede
+from validacion import entero
 
 turnos_bp = Blueprint("turnos", __name__)
 
 TIPOS_ATENCION = ("consulta_general", "emergencia", "especialidad")
+PRIORIDADES = ("normal", "urgente")
 
 @turnos_bp.route("/api/v1/salud/turnos", methods=["POST"])
 @validar_token
@@ -19,8 +21,18 @@ def generar_turno():
     if data["tipo_atencion"] not in TIPOS_ATENCION:
         return jsonify(success=False, error="datos_invalidos",
                        message="tipo_atencion debe ser: " + ", ".join(TIPOS_ATENCION)), 400
-    if not Paciente.query.get(data["paciente_id"]):
+    if data.get("prioridad", "normal") not in PRIORIDADES:
+        return jsonify(success=False, error="datos_invalidos",
+                       message="prioridad debe ser: " + ", ".join(PRIORIDADES)), 400
+    paciente_id = entero(data, "paciente_id", 1, 2_147_483_647, obligatorio=True)
+    if not Paciente.query.get(paciente_id):
         return jsonify(success=False, error="no_encontrado", message="El paciente no existe"), 404
+    # Un paciente no puede estar dos veces en la fila de hoy
+    hoy = datetime.combine(date.today(), datetime.min.time())
+    if Turno.query.filter(Turno.paciente_id == paciente_id, Turno.fecha_hora_ingreso >= hoy,
+                          Turno.estado.in_(["en_espera", "llamado", "en_atencion"])).first():
+        return jsonify(success=False, error="ya_existe",
+                       message="El paciente ya tiene un turno activo hoy"), 409
 
     # Los turnos usan la hora LOCAL del servidor (TZ=America/Guatemala en Docker).
     # Antes se guardaba en UTC pero se comparaba con la fecha local: después de
@@ -32,7 +44,7 @@ def generar_turno():
     siguiente_numero = (ultimo.numero_turno + 1) if ultimo else 1
 
     turno = Turno(
-        paciente_id=data["paciente_id"],
+        paciente_id=paciente_id,
         tipo_atencion=data["tipo_atencion"],
         prioridad=data.get("prioridad", "normal"),
         numero_turno=siguiente_numero,

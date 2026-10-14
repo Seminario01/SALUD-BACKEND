@@ -284,17 +284,21 @@ def crear_receta():
     if not isinstance(items, list) or not items:
         return _error(400, "datos_incompletos", "La receta necesita al menos un medicamento")
     detalles, vistos = [], set()
+    if len(items) > 50:
+        return _error(400, "datos_invalidos", "Una receta admite como máximo 50 medicamentos")
     for item in items:
-        mid, cantidad = _entero((item or {}).get("medicamento_id")), _entero((item or {}).get("cantidad"))
-        if mid is None or cantidad is None or cantidad <= 0:
-            return _error(400, "datos_invalidos", "Cada medicamento necesita medicamento_id y una cantidad mayor a 0")
+        if not isinstance(item, dict):
+            return _error(400, "datos_invalidos", "Cada medicamento debe ser un objeto con medicamento_id y cantidad")
+        mid, cantidad = _entero(item.get("medicamento_id")), _entero(item.get("cantidad"))
+        if mid is None or cantidad is None or not 1 <= cantidad <= 1000:
+            return _error(400, "datos_invalidos", "Cada medicamento necesita medicamento_id y una cantidad entre 1 y 1000")
         if mid in vistos:
             return _error(400, "datos_invalidos", "Un medicamento aparece dos veces en la receta")
         vistos.add(mid)
         if not Medicamento.query.get(mid):
             return _error(404, "no_encontrado", f"El medicamento {mid} no existe")
         detalles.append(DetalleReceta(medicamento_id=mid, cantidad=cantidad,
-                                      dosis=((item.get("dosis") or "").strip() or None)))
+                                      dosis=texto(item, "dosis", 200, etiqueta="La dosis")))
     expediente_id = _entero(data.get("expediente_id"))
     if expediente_id:
         atencion = ExpedienteClinico.query.get(expediente_id)

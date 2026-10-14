@@ -11,6 +11,14 @@ Es repetible: si los pacientes de prueba ya existen, los reutiliza.
 """
 import json, os, sys, base64, tempfile, requests
 import re
+from datetime import datetime, timedelta
+
+
+def futuro(dias, hora):
+    """Fecha de cita a `dias` días, a la `hora` y con el minuto actual: las citas no pueden
+    ir en el pasado ni repetirse a la misma hora, así cada corrida usa una hora distinta."""
+    momento = datetime.now() + timedelta(days=dias)
+    return momento.replace(hour=hora, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
 TMP = tempfile.gettempdir()
 
@@ -86,7 +94,7 @@ else:
     check("medico1 registra vacunacion p2", "POST", "/vacunacion", T["medico1"], 201, json={"paciente_id": p2})
 check("medico1 registra atencion p2", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 201, json={"diagnostico": "Gripe"})
 c2 = check("recepcion1 agenda cita p2", "POST", "/citas", T["recepcion1"], 201,
-           json={"paciente_id": p2, "fecha_hora": "2026-10-01 10:00:00"}).json()["data"]["id"]
+           json={"paciente_id": p2, "fecha_hora": futuro(1, 10)}).json()["data"]["id"]
 
 print("--- OWASP API1 BOLA: ciudadano1 intentando datos de ciudadano2")
 check("ciudadano1 ve SU paciente", "GET", f"/pacientes/{p1}", T["ciudadano1"], 200)
@@ -103,9 +111,9 @@ r = check("ciudadano1 lista citas", "GET", "/citas", T["ciudadano1"], 200)
 ok = all(c["paciente_id"] == p1 for c in r.json()["data"]); resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      ciudadano1 solo recibe SUS citas ({len(r.json()['data'])} citas, todas del paciente {p1})")
 r = check("ciudadano1 lista citas con ?paciente_id ajeno", "GET", f"/citas?paciente_id={p2}", T["ciudadano1"], 200)
 ok = all(c["paciente_id"] == p1 for c in r.json()["data"]); resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      el filtro ?paciente_id ajeno no se salta la regla")
-check("ciudadano1 agenda cita a nombre de otro", "POST", "/citas", T["ciudadano1"], 403, json={"paciente_id": p2, "fecha_hora": "2026-10-02 10:00:00"})
+check("ciudadano1 agenda cita a nombre de otro", "POST", "/citas", T["ciudadano1"], 403, json={"paciente_id": p2, "fecha_hora": futuro(2, 10)})
 check("ciudadano1 cancela cita ajena", "DELETE", f"/citas/{c2}", T["ciudadano1"], 403)
-check("ciudadano1 agenda SU cita", "POST", "/citas", T["ciudadano1"], 201, json={"paciente_id": p1, "fecha_hora": "2026-10-03 09:00:00"})
+check("ciudadano1 agenda SU cita", "POST", "/citas", T["ciudadano1"], 201, json={"paciente_id": p1, "fecha_hora": futuro(3, 9)})
 check("ciudadano2 cancela SU cita", "DELETE", f"/citas/{c2}", T["ciudadano2"], 200)
 check("medico1 ve expediente de cualquiera", "GET", f"/expedientes/{p2}", T["medico1"], 200)
 check("medico1 lista citas", "GET", "/citas", T["medico1"], 200)
@@ -122,7 +130,7 @@ check("vacunacion duplicada -> 409", "POST", "/vacunacion", T["medico1"], 409, j
 check("vacunacion de paciente inexistente -> 404", "POST", "/vacunacion", T["medico1"], 404, json={"paciente_id": 999999})
 check("atencion sin diagnostico -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400, json={"notas": "x"})
 cita_p1 = check("cita de p1 para probar", "POST", "/citas", T["recepcion1"], 201,
-                json={"paciente_id": p1, "fecha_hora": "2026-11-01 08:00:00"}).json()["data"]["id"]
+                json={"paciente_id": p1, "fecha_hora": futuro(18, 8)}).json()["data"]["id"]
 check("atencion con cita de OTRO paciente -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400,
       json={"diagnostico": "X", "cita_id": cita_p1})
 check("recurso con tipo invalido -> 400", "POST", "/recursos", T["admin.salud"], 400, json={"tipo": "helicoptero", "total": 1})
@@ -174,6 +182,32 @@ check("servicio con costo NaN", "POST", "/servicios", A, 400,
       json={"codigo": "QA-1", "nombre": "Prueba", "categoria": "IMAGEN", "costo": "NaN"})
 check("servicio con costo negativo", "POST", "/servicios", A, 400,
       json={"codigo": "QA-1", "nombre": "Prueba", "categoria": "IMAGEN", "costo": -5})
+print("--- Reglas de negocio")
+R = T["recepcion1"]
+check("cita en el pasado", "POST", "/citas", R, 400, json={"paciente_id": p2, "fecha_hora": "2020-01-01 10:00"})
+check("cita a más de un año", "POST", "/citas", R, 400, json={"paciente_id": p2, "fecha_hora": futuro(400, 10)})
+check("cita con fecha imposible", "POST", "/citas", R, 400, json={"paciente_id": p2, "fecha_hora": "2026-02-30 10:00"})
+check("cita de paciente que no existe", "POST", "/citas", R, 404, json={"paciente_id": 999999, "fecha_hora": futuro(5, 10)})
+check("cita con paciente_id de texto", "POST", "/citas", R, 400, json={"paciente_id": "abc", "fecha_hora": futuro(5, 10)})
+hora = futuro(6, 11)
+check("cita nueva", "POST", "/citas", R, 201, json={"paciente_id": p2, "fecha_hora": hora})
+check("misma cita a la misma hora -> 409", "POST", "/citas", R, 409, json={"paciente_id": p2, "fecha_hora": hora})
+check("reprogramar cita al pasado", "PUT", f"/citas/{c2}", R, 400, json={"fecha_hora": "2020-01-01 10:00"})
+check("turno con prioridad inventada", "POST", "/turnos", R, 400,
+      json={"paciente_id": p2, "tipo_atencion": "consulta_general", "prioridad": "vip"})
+primero = requests.post(API + "/turnos", headers={"Authorization": f"Bearer {R}"},
+                        json={"paciente_id": p2, "tipo_atencion": "consulta_general"}).status_code
+dato(f"turno de p2 ({primero}: 201 nuevo o 409 si ya estaba en la fila)", primero in (201, 409))
+check("segundo turno activo del mismo paciente hoy -> 409", "POST", "/turnos", R, 409,
+      json={"paciente_id": p2, "tipo_atencion": "consulta_general"})
+check("presupuesto: ejecutado mayor al asignado", "PUT", "/presupuesto", A, 400,
+      json={"periodo": "2026-Q4", "monto_asignado": 100, "monto_ejecutado_servicio_social": 500})
+check("presupuesto: periodo inventado", "PUT", "/presupuesto", A, 400,
+      json={"periodo": "ayer", "monto_asignado": 100})
+check("receta con un medicamento que no es objeto", "POST", "/recetas", T["medico1"], 400,
+      json={"paciente_id": p2, "items": [5]})
+check("receta con cantidad 0", "POST", "/recetas", T["medico1"], 400,
+      json={"paciente_id": p2, "items": [{"medicamento_id": 1, "cantidad": 0}]})
 check("vacunación con es_estudiante de texto", "PUT", f"/vacunacion/{p2}", T["medico1"], 400, json={"es_estudiante": "si"})
 
 print("--- Tablero de Auditoría: GET /auditoria/indicadores?desde=&hasta= (rol auditoria:lectura)")
@@ -247,7 +281,7 @@ if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
 
     print("--- Tributario: obligaciones de pago")
     cita_cobro = check("cita nueva para cobrar", "POST", "/citas", T["recepcion1"], 201,
-                       json={"paciente_id": p1, "fecha_hora": "2026-11-02 08:00:00"}).json()["data"]["id"]
+                       json={"paciente_id": p1, "fecha_hora": futuro(19, 8)}).json()["data"]["id"]
     d = check("recepcion1 envía el cobro a Tributario", "POST", f"/citas/{cita_cobro}/cobro", T["recepcion1"], 200).json()["data"]
     ok = d.get("estadoCobro") == "PENDIENTE" and bool(d.get("fechaVencimiento")); resultados.append(ok)
     print(f"{'OK ' if ok else 'FALLA'}      estado PENDIENTE, vence {d.get('fechaVencimiento')}, referencia {d.get('numeroReferencia')}")

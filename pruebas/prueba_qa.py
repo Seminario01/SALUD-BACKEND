@@ -1,6 +1,6 @@
 """
-Prueba de QA con datos basura: ataca cada endpoint que crea, edita o borra
-(los saca de Swagger) y avisa si alguno responde 500 o una página HTML.
+Prueba de QA con datos basura: ataca cada endpoint de la API (los saca de
+Swagger) y avisa si alguno responde 500 o una página HTML.
 
   - Tokens falsos: Bearer null, undefined, vacío, alterado, alg=none.
   - Cuerpos raros: vacío, null, [], texto, JSON mal escrito.
@@ -137,6 +137,46 @@ def atacar():
                 r = requests.request(metodo, url, headers=hdr, **kw)
                 if r.status_code >= 500 or "<html" in r.text.lower():
                     fallas.append((f"{metodo} {ruta}", caso, r.status_code))
+
+    # 3. Consultas (GET): filtros y búsquedas con basura, e ids que no existen o no caben
+    parametros = {"q", "paciente_id", "estado", "area", "periodo", "modulo", "direccion", "limite", "todos",
+                  "bajo_minimo", "departamento", "municipio", "tipoAtencion", "especialidad", "nivelUrgencia",
+                  "desde", "hasta", "pagina", "por_pagina"}
+    basura_url = ["", "   ", "abc", "-1", "0", "99999999999999999999", "1e308", "' OR 1=1 --",
+                  "<script>alert(1)</script>", "%00", "😀", "x" * 3000, "null", "[]"]
+    for ruta, operaciones in spec["paths"].items():
+        if "get" not in operaciones or "apispec" in ruta:
+            continue
+        op = operaciones["get"]
+        propios = {p["name"] for p in op.get("parameters", []) if p.get("in") == "query"}
+        con_id = "{" in ruta
+        rutas = []
+        if con_id:
+            rutas = [re.sub(r"\{[^}]+\}", v, ruta) for v in ("0", "99999999999999999999", "2147483648")]
+        partes = ruta.split("/")
+        for i, p in enumerate(partes):
+            if p.startswith("{"):
+                partes[i] = str(ids.get(partes[i - 1], 1))
+        base = "/".join(partes)
+        hdr = {"Authorization": f"Bearer {t}"}
+        for u in USUARIOS:
+            prueba = {"Authorization": f"Bearer {tokens[u]}"}
+            if requests.get(API + base, headers=prueba).status_code != 403:
+                hdr = prueba
+                break
+        if clave_api:
+            hdr["X-API-Key"] = clave_api
+        for url in rutas:
+            enviadas += 1
+            r = requests.get(API + url, headers=hdr)
+            if r.status_code >= 500 or "<html" in r.text.lower():
+                fallas.append((f"GET {ruta}", f"id {url.split('/')[-1][:12]}", r.status_code))
+        for nombre in sorted(propios | parametros):
+            for valor in basura_url:
+                enviadas += 1
+                r = requests.get(API + base, headers=hdr, params={nombre: valor})
+                if r.status_code >= 500 or "<html" in r.text.lower():
+                    fallas.append((f"GET {ruta}", f"{nombre}={valor[:12]}", r.status_code))
     return enviadas, fallas
 
 

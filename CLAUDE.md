@@ -69,6 +69,9 @@ Los datos que llegan en el cuerpo se validan con `validacion.py` (`texto`, `cui`
 `opcion`, `fecha_pasada`, `telefono`, `booleano`): si no sirven lanzan `DatoInvalido` y
 `app.py` responde 400 en JSON. `app.py` también rechaza cuerpos que no son un objeto JSON y
 convierte en 400/409 los errores de la base (`DataError`, `IntegrityError`), nunca en 500.
+Reglas de negocio: citas solo desde ahora hasta 366 días y sin repetir paciente y hora;
+un turno activo por paciente al día; el presupuesto ejecutado no supera al asignado.
+Las pruebas crean citas con `futuro(dias, hora)`, nunca con fechas fijas.
 
 ## Integraciones con otros módulos
 

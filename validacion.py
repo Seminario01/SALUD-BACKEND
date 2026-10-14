@@ -5,7 +5,7 @@ obligatorio) y lanza DatoInvalido si el dato no sirve. app.py convierte
 DatoInvalido en una respuesta 400 con el mismo formato del resto de la API.
 """
 import re
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 
@@ -93,4 +93,41 @@ def booleano(data, campo, defecto=False):
     valor = data.get(campo, defecto)
     if not isinstance(valor, bool):
         raise DatoInvalido(f"{campo} debe ser true o false")
+    return valor
+
+
+def fecha_hora_futura(valor, etiqueta="La fecha y hora", max_dias=366):
+    """Fecha y hora ('2026-10-20 10:00' o con T) desde ahora hasta max_dias adelante.
+    Si trae zona horaria (Z, -06:00) se pasa a la hora local del servidor."""
+    if valor is None or valor == "":
+        raise DatoInvalido(f"{etiqueta} es obligatoria (AAAA-MM-DD HH:MM)")
+    if not isinstance(valor, str):
+        raise DatoInvalido(f"{etiqueta} debe ser texto con formato AAAA-MM-DD HH:MM")
+    try:
+        momento = datetime.fromisoformat(valor.strip().replace("Z", "+00:00"))
+    except ValueError:
+        raise DatoInvalido(f"{etiqueta} es inválida (AAAA-MM-DD HH:MM)")
+    if momento.tzinfo is not None:
+        momento = momento.astimezone().replace(tzinfo=None)
+    ahora = datetime.now()
+    if momento < ahora - timedelta(minutes=5):
+        raise DatoInvalido(f"{etiqueta} no puede estar en el pasado")
+    if momento > ahora + timedelta(days=max_dias):
+        raise DatoInvalido(f"{etiqueta} no puede ser a más de {max_dias} días")
+    return momento.replace(second=0, microsecond=0)
+
+
+def entero(data, campo, minimo, maximo, obligatorio=False, etiqueta=None):
+    """Número entero (o texto con solo dígitos) dentro de [minimo, maximo]."""
+    nombre = etiqueta or campo
+    valor = data.get(campo)
+    if valor is None or valor == "":
+        if obligatorio:
+            raise DatoInvalido(f"{nombre} es obligatorio")
+        return None
+    if isinstance(valor, bool) or not isinstance(valor, (int, str)) or not re.fullmatch(r"-?\d{1,12}", str(valor).strip()):
+        raise DatoInvalido(f"{nombre} debe ser un número entero")
+    valor = int(str(valor).strip())
+    if not minimo <= valor <= maximo:
+        raise DatoInvalido(f"{nombre} debe estar entre {minimo} y {maximo}")
     return valor

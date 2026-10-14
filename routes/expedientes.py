@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import ExpedienteClinico, Paciente, CitaMedica
 from auth import validar_token, requiere_permiso, puede
-from validacion import texto
+from validacion import entero, texto
 
 expedientes_bp = Blueprint("expedientes", __name__)
 
@@ -48,7 +48,7 @@ def registrar_atencion(paciente_id):
         return jsonify(success=False, error="datos_invalidos", message="El diagnóstico es obligatorio"), 400
 
     # Si se asocia una cita, debe ser de ESTE paciente (evita mezclar expedientes).
-    cita_id = data.get("cita_id") or None
+    cita_id = entero(data, "cita_id", 1, 2_147_483_647, etiqueta="cita_id")
     if cita_id is not None:
         cita = CitaMedica.query.get(cita_id)
         if cita is None or cita.paciente_id != paciente_id:
@@ -59,9 +59,9 @@ def registrar_atencion(paciente_id):
         paciente_id=paciente_id,
         cita_id=cita_id,
         medico_sub=g.usuario["sub"],
-        diagnostico=data.get("diagnostico"),
-        tratamiento=data.get("tratamiento"),
-        notas=data.get("notas"),
+        diagnostico=texto(data, "diagnostico", 4000, etiqueta="El diagnóstico"),
+        tratamiento=texto(data, "tratamiento", 4000, etiqueta="El tratamiento"),
+        notas=texto(data, "notas", 4000, etiqueta="Las notas"),
     )
     db.session.add(registro)
     db.session.commit()

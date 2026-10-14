@@ -1,8 +1,8 @@
-from datetime import datetime
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import CitaMedica, Paciente
 from auth import validar_token, puede
+from validacion import entero, fecha_hora_futura, texto
 
 ESTADOS_CITA = ("pendiente", "confirmada", "atendida", "cancelada")
 
@@ -23,12 +23,13 @@ def _puede_gestionar(paciente_id):
     return propio is not None and str(paciente_id) == str(propio.id)
 
 
-def _fecha(valor):
-    """Acepta '2026-10-01 10:00:00' o '2026-10-01T10:00'. None si es inválida."""
-    try:
-        return datetime.fromisoformat(str(valor))
-    except ValueError:
-        return None
+def _cita_repetida(paciente_id, fecha_hora, excepto=None):
+    """El paciente ya tiene otra cita (no cancelada) a esa misma hora."""
+    q = CitaMedica.query.filter(CitaMedica.paciente_id == paciente_id, CitaMedica.fecha_hora == fecha_hora,
+                                CitaMedica.estado != "cancelada")
+    if excepto is not None:
+        q = q.filter(CitaMedica.id != excepto)
+    return q.first() is not None
 
 
 def _sin_permiso():
@@ -67,20 +68,19 @@ def crear_cita():
         description: Un ciudadano intentó agendar para otro paciente
     """
     data = request.get_json(silent=True) or {}
-    if not data.get("paciente_id") or not data.get("fecha_hora"):
-        return jsonify(success=False, error="datos_invalidos", message="paciente_id y fecha_hora son obligatorios"), 400
-    if not _puede_gestionar(data["paciente_id"]):
+    paciente_id = entero(data, "paciente_id", 1, 2_147_483_647, obligatorio=True)
+    if not _puede_gestionar(paciente_id):
         return _sin_permiso()
-    fecha_hora = _fecha(data["fecha_hora"])
-    if fecha_hora is None:
-        return jsonify(success=False, error="datos_invalidos", message="fecha_hora inválida (formato AAAA-MM-DD HH:MM)"), 400
+    fecha_hora = fecha_hora_futura(data.get("fecha_hora"))
+    motivo = texto(data, "motivo", 300, etiqueta="El motivo")
+    medico_sub = texto(data, "medico_sub", 36, etiqueta="medico_sub")
+    if not Paciente.query.get(paciente_id):
+        return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
+    if _cita_repetida(paciente_id, fecha_hora):
+        return jsonify(success=False, error="ya_existe",
+                       message="El paciente ya tiene una cita a esa misma hora"), 409
 
-    cita = CitaMedica(
-        paciente_id=data["paciente_id"],
-        medico_sub=data.get("medico_sub"),
-        fecha_hora=fecha_hora,
-        motivo=data.get("motivo"),
-    )
+    cita = CitaMedica(paciente_id=paciente_id, medico_sub=medico_sub, fecha_hora=fecha_hora, motivo=motivo)
     db.session.add(cita)
     db.session.commit()
     return jsonify(success=True, data={"id": cita.id}, message="Cita creada"), 201
@@ -127,9 +127,10 @@ def reprogramar_cita(id):
 
     data = request.get_json(silent=True) or {}
     if "fecha_hora" in data:
-        fecha_hora = _fecha(data["fecha_hora"])
-        if fecha_hora is None:
-            return jsonify(success=False, error="datos_invalidos", message="fecha_hora inválida (formato AAAA-MM-DD HH:MM)"), 400
+        fecha_hora = fecha_hora_futura(data["fecha_hora"])
+        if _cita_repetida(cita.paciente_id, fecha_hora, excepto=cita.id):
+            return jsonify(success=False, error="ya_existe",
+                           message="El paciente ya tiene otra cita a esa misma hora"), 409
         cita.fecha_hora = fecha_hora
     if "estado" in data:
         # El estado (confirmada, atendida...) solo lo cambia el personal que gestiona citas.
