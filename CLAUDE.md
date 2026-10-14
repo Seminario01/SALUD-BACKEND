@@ -16,12 +16,20 @@ Soy Antonio (Denilson), estudiante. Trabajo en el **Módulo Salud** del proyecto
 
 Nunca se edita código directamente en el servidor; todo pasa por git.
 
+Al cerrar cada sesión de trabajo, el servidor de respaldo se replica desde producción con
+`deploy/replicar.sh` (código, contenedores y datos; ver `deploy/README.md`, sección 10).
+El respaldo nunca enciende el túnel de Cloudflare mientras producción esté funcionando.
+
 ## Reglas
 
 - Trabajar siempre en la rama `denilson-dev`. Nunca en `main`.
 - No unir (merge) nada de las ramas de los compañeros (`jeffry-dev`, `amilcar-dev`, `sandy-dev`) ni de
   `main` hasta nuevo aviso de Antonio: se trabaja solo en `denilson-dev`.
 - Explicar en español, paso a paso y simple.
+- Al dar comandos de servidor, darlos para pegar en la PC con el `ssh` incluido
+  (`ssh denis@IP '...'`), así siempre queda claro en qué servidor corren.
+  Con PowerShell 5.1, lo que va dentro del `ssh` se escribe entre comillas simples y sin
+  comillas dobles adentro (PowerShell 5.1 las rompe al pasarlas a ssh).
 - Al dar comandos, decir siempre dónde van: en la PC o en el servidor (por SSH).
   Cada comando debe empezar con `cd` a su carpeta, por ejemplo:
   `cd ~/proyecto-salud/SALUD-BACKEND/deploy && docker compose ps`

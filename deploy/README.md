@@ -181,6 +181,39 @@ Si la base vieja todavía tiene la tabla `usuarios_roles` (esquema de Cognito):
 | `502 Bad Gateway` en `/api` | El contenedor del backend está caído: `docker compose logs backend` |
 | Cambié `.env` pero no se aplica | Usar `docker compose up -d`; un simple `restart` no relee el `.env` |
 
+## 10. Servidor de respaldo (réplica en frío)
+
+Flujo de trabajo: **PC → GitHub → producción (Latitude) → al cerrar la sesión, respaldo**.
+El respaldo tiene el mismo código y una copia de los datos del último cierre, pero **no tiene
+el túnel de Cloudflare encendido**: si dos servidores atienden el mismo túnel, Cloudflare reparte
+las visitas entre los dos y los datos quedan divididos.
+
+**Preparar el respaldo (una sola vez).** Todo se corre desde la PC; cada comando lleva su `ssh`:
+
+1. Llave de la PC en los dos servidores (pide la contraseña de cada uno una vez):
+   ```powershell
+   Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" | ssh denis@IP_PRODUCCION "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+   Get-Content "$env:USERPROFILE\.ssh\id_ed25519.pub" | ssh denis@IP_RESPALDO "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+   ```
+2. En el respaldo: clonar los tres repos (sección 2) y copiar el `.env` de producción. El `.env`
+   pasa de un servidor al otro a través de la PC, sin guardarse en ella:
+   ```powershell
+   scp denis@IP_PRODUCCION:proyecto-salud/SALUD-BACKEND/deploy/.env denis@IP_RESPALDO:proyecto-salud/SALUD-BACKEND/deploy/.env
+   ```
+3. Llave del respaldo hacia producción, para que `replicar.sh` traiga los datos sin contraseña.
+
+**Replicar (al cerrar cada sesión de trabajo):**
+
+```powershell
+ssh denis@IP_RESPALDO 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/replicar.sh denis@IP_PRODUCCION'
+```
+
+Actualiza el código, levanta los contenedores, trae un respaldo nuevo de producción, lo restaura
+y al final compara cuántos pacientes y citas hay en cada servidor (deben coincidir). Las copias
+quedan en `~/respaldos-de-produccion` del respaldo (últimos 30 días).
+
+**Si producción falla:** encender el túnel en el respaldo (sección 5) con producción apagada.
+
 ## Probado
 
 - gunicorn (`--preload --workers 2`) + nginx con esta misma configuración + Login Único + MySQL.
