@@ -49,3 +49,11 @@ python keycloak-local/agregar_puestos.py                       # http://localhos
 ```
 
 Pide el usuario y la contraseña del **admin** de Keycloak. Se puede correr varias veces: lo que ya existe no se toca. En el servidor, la consola solo responde en `localhost:8081`, así que se corre desde el servidor o por un túnel SSH.
+
+## Protección contra fuerza bruta
+
+```bash
+python keycloak-local/proteger_login.py                        # http://localhost:8081
+```
+
+Después de 5 contraseñas equivocadas seguidas, el usuario queda bloqueado 1 minuto, y la espera crece hasta 15 minutos. Nunca deshabilita la cuenta. Para desbloquear antes: consola → Users → el usuario → *Unlock*. `import/rsd-realm.json` ya trae esta opción para instalaciones nuevas.

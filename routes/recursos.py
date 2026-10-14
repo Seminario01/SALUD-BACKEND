@@ -47,7 +47,7 @@ def actualizar_recurso(id):
     if not recurso:
         return jsonify(success=False, error="no_encontrado", message="Recurso no existe"), 404
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     if recurso.tipo == "cama" and ("disponible" in data or "total" in data) \
             and Cama.query.filter_by(recurso_id=recurso.id).first():
         return jsonify(success=False, error="por_censo",
@@ -76,7 +76,7 @@ def actualizar_recurso(id):
 @validar_token
 @requiere_permiso("recursos.gestionar")
 def crear_recurso():
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     if data.get("tipo") not in TIPOS_RECURSO:
         return jsonify(success=False, error="datos_invalidos",
                        message=f"tipo debe ser uno de: {', '.join(TIPOS_RECURSO)}"), 400

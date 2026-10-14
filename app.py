@@ -1,11 +1,14 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flasgger import Swagger
+from sqlalchemy.exc import DataError, IntegrityError
+from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from config import Config
 import migraciones
 from extensions import db
 from routes.init import registrar_rutas
 from auth import precargar_jwks
+from validacion import DatoInvalido
 
 SWAGGER_TEMPLATE = {
     "swagger": "2.0",
@@ -57,6 +60,41 @@ def crear_app():
     @app.errorhandler(405)
     def metodo_no_permitido(_e):
         return jsonify(success=False, error="metodo_no_permitido", message="Método HTTP no permitido en esta ruta"), 405
+
+    # Un cuerpo que no es un objeto JSON ({...}) se rechaza antes de llegar a la ruta:
+    # null, [], texto suelto o JSON mal escrito responden 400 y no 500.
+    @app.before_request
+    def cuerpo_debe_ser_objeto():
+        if request.method in ("POST", "PUT", "PATCH") and request.get_data(cache=True):
+            if not isinstance(request.get_json(silent=True), dict):
+                return jsonify(success=False, error="datos_invalidos",
+                               message="El cuerpo debe ser un objeto JSON con Content-Type: application/json"), 400
+
+    @app.errorhandler(DatoInvalido)
+    def dato_invalido(e):
+        db.session.rollback()
+        codigo = "ya_existe" if e.status == 409 else "datos_invalidos"
+        return jsonify(success=False, error=codigo, message=e.mensaje), e.status
+
+    # Red de seguridad: un dato que no cabe en la columna o un duplicado que se escapó
+    # de la validación de la ruta no debe convertirse en un 500.
+    @app.errorhandler(DataError)
+    def dato_fuera_de_rango(_e):
+        db.session.rollback()
+        return jsonify(success=False, error="datos_invalidos",
+                       message="Algún dato es demasiado largo o tiene un valor fuera de rango"), 400
+
+    @app.errorhandler(IntegrityError)
+    def dato_duplicado(_e):
+        db.session.rollback()
+        return jsonify(success=False, error="conflicto",
+                       message="El registro ya existe o depende de otro que no existe"), 409
+
+    # Cualquier otro error HTTP (400, 413, 415...) también en JSON, nunca la página HTML de Flask.
+    @app.errorhandler(HTTPException)
+    def error_http(e):
+        return jsonify(success=False, error=(e.name or "error").lower().replace(" ", "_"),
+                       message=e.description), e.code
 
     @app.errorhandler(500)
     def error_interno(_e):

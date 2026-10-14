@@ -27,6 +27,7 @@ from flask import Blueprint, g, jsonify, request
 import cuentas
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_MEDICO
 from extensions import db
+from validacion import texto
 from models import Cama, ExpedienteClinico, Hospitalizacion, NotaHospitalizacion, Paciente, RecursoHospitalario
 
 hospitalizacion_bp = Blueprint("hospitalizacion", __name__)
@@ -212,9 +213,9 @@ def crear_cama():
         description: El código ya existe
     """
     data = request.get_json(silent=True) or {}
-    codigo = str(data.get("codigo") or "").strip().upper()
+    codigo = (texto(data, "codigo", 20, etiqueta="El código") or "").upper()
     area = data.get("area")
-    if not codigo or area not in AREAS:
+    if not codigo or not isinstance(area, str) or area not in AREAS:
         return _error(400, "datos_invalidos", f"Indique el código y un área: {', '.join(AREAS)}")
     if Cama.query.filter_by(codigo=codigo).first():
         return _error(409, "duplicado", f"Ya existe la cama {codigo}")
@@ -386,8 +387,8 @@ def ordenar_ingreso():
     if not paciente:
         return _error(404, "no_encontrado", "Paciente no existe")
     area = data.get("area")
-    diagnostico = (data.get("diagnostico") or "").strip()
-    if area not in AREAS or not diagnostico:
+    diagnostico = texto(data, "diagnostico", 2000, etiqueta="El diagnóstico")
+    if not isinstance(area, str) or area not in AREAS or not diagnostico:
         return _error(400, "datos_invalidos", f"Indique el diagnóstico de ingreso y un área: {', '.join(AREAS)}")
     abierta = Hospitalizacion.query.filter(Hospitalizacion.paciente_id == paciente.id,
                                            Hospitalizacion.estado.in_(("PENDIENTE", "ACTIVO"))).first()
@@ -400,7 +401,7 @@ def ordenar_ingreso():
         if not atencion or atencion.paciente_id != paciente.id:
             return _error(400, "datos_invalidos", "La atención no pertenece a este paciente")
     h = Hospitalizacion(paciente_id=paciente.id, sala=area, diagnostico=diagnostico,
-                        indicaciones=(data.get("indicaciones") or "").strip() or None,
+                        indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"),
                         expediente_id=expediente_id, estado="PENDIENTE", fecha_ingreso=datetime.now(),
                         medico_sub=g.usuario["sub"], medico_nombre=_usuario())
     db.session.add(h)
@@ -515,7 +516,7 @@ def dar_egreso(id):
         return _error(404, "no_encontrado", "Hospitalización no existe")
     data = request.get_json(silent=True) or {}
     tipo = str(data.get("tipo_egreso") or "").upper()
-    resumen = (data.get("resumen") or "").strip()
+    resumen = texto(data, "resumen", 4000, etiqueta="El resumen") or ""
     if tipo not in TIPOS_EGRESO or not resumen:
         return _error(400, "datos_invalidos", "Indique el tipo de egreso y el resumen")
     if h.estado != "ACTIVO":
@@ -617,10 +618,10 @@ def agregar_nota(id):
     if h.estado != "ACTIVO":
         return _error(409, "estado_invalido", "Solo se registran notas de pacientes ingresados")
     data = request.get_json(silent=True) or {}
-    nota = (data.get("nota") or "").strip()
+    nota = texto(data, "nota", 4000, etiqueta="La nota") or ""
     if not nota:
         return _error(400, "datos_invalidos", "Escriba la nota")
-    presion = (data.get("presion") or "").strip() or None
+    presion = texto(data, "presion", 10, etiqueta="La presión")
     if presion and not PRESION.match(presion):
         return _error(400, "datos_invalidos", "Presión arterial con formato 120/80")
     try:

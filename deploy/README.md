@@ -132,7 +132,24 @@ crontab -e                                                  # automático, todos
 15 3 * * * bash $HOME/proyecto-salud/SALUD-BACKEND/deploy/respaldo.sh >> $HOME/respaldos-salud/respaldo.log 2>&1
 ```
 
-Se guardan en `~/respaldos-salud` y se conservan los últimos 7 días.
+Se guardan en `~/respaldos-salud` y se conservan los últimos 7 días. Para ver si ya está programado: `crontab -l` (debe salir la línea de `respaldo.sh`).
+
+**Copia fuera del servidor** (en la PC, PowerShell). Si el disco del servidor falla, los respaldos de `~/respaldos-salud` se pierden con él; `deploy/copiar_respaldos.ps1` trae una copia a la PC (`%USERPROFILE%\Respaldos-Salud`, últimos 30 días, registro en `copias.log`).
+
+1. Llave SSH, una sola vez, para que la copia no pida contraseña (Enter en todas las preguntas):
+   ```powershell
+   ssh-keygen -t ed25519
+   type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh USUARIO@IP_DEL_SERVIDOR "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+   ```
+   La llave privada (`id_ed25519`, sin `.pub`) da acceso al servidor: no se comparte ni se sube a git.
+2. Probar la copia a mano:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File C:\Denis\SALUD-BACKEND\deploy\copiar_respaldos.ps1 -Servidor USUARIO@IP_DEL_SERVIDOR
+   ```
+3. Programarla todos los días a las 9:00 (solo corre si la PC está encendida a esa hora):
+   ```powershell
+   schtasks /Create /SC DAILY /ST 09:00 /TN "Copiar respaldos Salud" /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\Denis\SALUD-BACKEND\deploy\copiar_respaldos.ps1 -Servidor USUARIO@IP_DEL_SERVIDOR"
+   ```
 
 **Restaurar** (desde `SALUD-BACKEND/deploy`; reemplaza los datos actuales):
 

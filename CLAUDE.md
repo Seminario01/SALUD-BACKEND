@@ -59,6 +59,17 @@ con recetas de un solo paciente, fallan aunque el código esté bien. Para tener
 pueden correr varias veces; los turnos solo valen para el día en que se cargan).
 En `cmd` de Windows las rutas son `C:\Denis\...`, no `/c/Denis/...`.
 
+`pruebas/prueba_qa.py` ataca todos los endpoints de escritura con datos basura (null, tipos
+equivocados, textos enormes, SQL, tokens falsos) y falla si alguno responde 500 o HTML.
+Solo en la PC: copia la base local antes y la restaura al final.
+
+## Validación de datos
+
+Los datos que llegan en el cuerpo se validan con `validacion.py` (`texto`, `cui`, `monto`,
+`opcion`, `fecha_pasada`, `telefono`, `booleano`): si no sirven lanzan `DatoInvalido` y
+`app.py` responde 400 en JSON. `app.py` también rechaza cuerpos que no son un objeto JSON y
+convierte en 400/409 los errores de la base (`DataError`, `IntegrityError`), nunca en 500.
+
 ## Integraciones con otros módulos
 
 - Todas las llamadas salientes pasan por `_llamar` en `services_externos.py` y quedan en

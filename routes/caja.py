@@ -16,7 +16,7 @@ Matriz de permisos: cuentas.ver (Recepción, Caja, Admin), cuentas.gestionar
 El ciudadano ve solo SUS cuentas.
 """
 from datetime import date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from flask import Blueprint, g, jsonify, request
 
@@ -28,6 +28,7 @@ from models import CuentaPaciente, Hospitalizacion, MovimientoCuenta, Paciente, 
 from routes.integraciones import (ESTADOS_PAGADO, _error_modulo, _fecha_hora, _siguiente_referencia,
                                   emision_y_vencimiento, resultado_registro)
 from services_externos import consultar_obligacion, registrar_obligacion
+from validacion import monto as validar_monto, texto
 
 caja_bp = Blueprint("caja", __name__)
 
@@ -184,19 +185,16 @@ def crear_servicio():
         description: El código ya existe
     """
     data = request.get_json(silent=True) or {}
-    codigo = str(data.get("codigo") or "").strip().upper()
-    nombre = (data.get("nombre") or "").strip()
-    categoria = str(data.get("categoria") or "").upper()
-    try:
-        costo = Decimal(str(data.get("costo")))
-    except (InvalidOperation, TypeError):
-        costo = Decimal("-1")
-    if not codigo or not nombre or categoria not in ("LABORATORIO", "IMAGEN", "PROCEDIMIENTO", "DIA_CAMA") or costo < 0:
-        return _error(400, "datos_invalidos", "Indique código, nombre, categoría y un costo válido")
+    codigo = texto(data, "codigo", 20, obligatorio=True, etiqueta="El código").upper()
+    nombre = texto(data, "nombre", 100, obligatorio=True, etiqueta="El nombre")
+    categoria = (texto(data, "categoria", 30, obligatorio=True, etiqueta="La categoría") or "").upper()
+    if categoria not in ("LABORATORIO", "IMAGEN", "PROCEDIMIENTO", "DIA_CAMA"):
+        return _error(400, "datos_invalidos", "La categoría debe ser LABORATORIO, IMAGEN, PROCEDIMIENTO o DIA_CAMA")
+    costo = validar_monto(data.get("costo"), "El costo")
     if Servicio.query.filter_by(codigo=codigo).first():
         return _error(409, "duplicado", f"Ya existe el servicio {codigo}")
     s = Servicio(codigo=codigo, nombre=nombre, categoria=categoria, costo=costo,
-                 descripcion=(data.get("descripcion") or None), estado="ACTIVO")
+                 descripcion=texto(data, "descripcion", 1000, etiqueta="La descripción"), estado="ACTIVO")
     db.session.add(s)
     db.session.commit()
     return jsonify(success=True, data=_servicio(s), message="Servicio agregado"), 201
@@ -234,13 +232,7 @@ def actualizar_servicio(id):
         return _error(404, "no_encontrado", "Servicio no existe")
     data = request.get_json(silent=True) or {}
     if "costo" in data:
-        try:
-            costo = Decimal(str(data["costo"]))
-        except (InvalidOperation, TypeError):
-            costo = Decimal("-1")
-        if costo < 0:
-            return _error(400, "datos_invalidos", "Costo inválido")
-        s.costo = costo
+        s.costo = validar_monto(data["costo"], "El costo")
     if "estado" in data:
         if data["estado"] not in ("ACTIVO", "INACTIVO"):
             return _error(400, "datos_invalidos", "Estado debe ser ACTIVO o INACTIVO")
@@ -446,13 +438,8 @@ def agregar_descuento(id):
     if error:
         return error
     data = request.get_json(silent=True) or {}
-    motivo = (data.get("motivo") or "").strip()
-    try:
-        monto = Decimal(str(data.get("monto"))).quantize(Decimal("0.01"))
-    except (InvalidOperation, TypeError):
-        monto = Decimal("0")
-    if monto <= 0 or not motivo:
-        return _error(400, "datos_invalidos", "Indique un monto mayor a 0 y el motivo")
+    motivo = texto(data, "motivo", 200, obligatorio=True, etiqueta="El motivo")
+    monto = validar_monto(data.get("monto"), "El monto", minimo=Decimal("0.01"))
     if monto > Decimal(c.saldo or 0):
         return _error(400, "datos_invalidos", f"El descuento no puede ser mayor al saldo (Q{Decimal(c.saldo or 0):.2f})")
     cuentas.agregar(c, MovimientoCuenta(tipo="DESCUENTO", categoria="DESCUENTO", monto=monto,

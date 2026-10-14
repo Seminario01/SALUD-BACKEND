@@ -3,6 +3,10 @@ from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import Paciente
 from auth import validar_token, requiere_permiso, puede
+from validacion import DatoInvalido, cui, fecha_pasada, opcion, telefono, texto
+
+GENEROS = ("M", "F", "Otro")
+SEGUROS = ("IGSS", "Privado", "Ninguno")
 
 pacientes_bp = Blueprint("pacientes", __name__)
 
@@ -13,6 +17,44 @@ def puede_ver_paciente(paciente):
     if puede("pacientes.ver"):
         return True
     return paciente is not None and paciente.usuario_sub == g.usuario["sub"]
+
+
+def _validar(data, actual=None):
+    """Valida los campos de paciente que vienen en `data` y devuelve solo esos,
+    ya limpios. Con `actual` (edición), un valor que no cambió no se vuelve a
+    validar: así los registros antiguos se pueden editar aunque no cumplan el formato."""
+    reglas = {
+        "nombre_completo": lambda: texto(data, "nombre_completo", 200, obligatorio=True, minimo=3,
+                                         etiqueta="nombre_completo"),
+        "cui": lambda: cui(data),
+        "fecha_nacimiento": lambda: fecha_pasada(data, "fecha_nacimiento"),
+        "genero": lambda: opcion(data, "genero", GENEROS),
+        "telefono": lambda: telefono(data),
+        "tipo_seguro": lambda: opcion(data, "tipo_seguro", SEGUROS),
+        "cuidador": lambda: texto(data, "cuidador", 200, etiqueta="cuidador"),
+    }
+    limpio = {}
+    for campo, regla in reglas.items():
+        if campo not in data:
+            continue
+        if actual is not None and data[campo] == getattr(actual, campo):
+            continue   # sin cambios
+        limpio[campo] = regla()
+    if limpio.get("cui"):
+        otro = Paciente.query.filter(Paciente.cui == limpio["cui"])
+        if actual is not None:
+            otro = otro.filter(Paciente.id != actual.id)
+        if otro.first():
+            raise DatoInvalido("Ya hay un paciente registrado con ese CUI", status=409)
+    return limpio
+
+
+def _sub(data):
+    """`sub` del ciudadano en el Login Único (36 caracteres) o None."""
+    sub = texto(data, "usuario_sub", 36, etiqueta="El código de usuario")
+    if sub and len(sub) != 36:
+        raise DatoInvalido("El código de usuario debe tener 36 caracteres (el que ve el ciudadano en 'Mi resumen')")
+    return sub
 
 
 def serializar_paciente(p):
@@ -106,12 +148,12 @@ def crear_paciente():
           type: object
           required: [nombre_completo]
           properties:
-            cui: {type: string}
-            nombre_completo: {type: string}
-            fecha_nacimiento: {type: string, example: "2000-01-15"}
-            genero: {type: string}
-            telefono: {type: string}
-            tipo_seguro: {type: string}
+            cui: {type: string, description: "13 dígitos, único"}
+            nombre_completo: {type: string, description: "3 a 200 caracteres"}
+            fecha_nacimiento: {type: string, example: "2000-01-15", description: "no puede estar en el futuro"}
+            genero: {type: string, enum: [M, F, Otro]}
+            telefono: {type: string, description: "8 a 15 dígitos"}
+            tipo_seguro: {type: string, enum: [IGSS, Privado, Ninguno]}
             cuidador: {type: string}
             usuario_sub:
               type: string
@@ -119,27 +161,16 @@ def crear_paciente():
     responses:
       201:
         description: Paciente registrado
+      400:
+        description: Algún campo no cumple el formato
+      409:
+        description: Ya hay un paciente con ese CUI
     """
-    data = request.get_json() or {}
-    if not data.get("nombre_completo"):
-        return jsonify(success=False, error="datos_invalidos", message="nombre_completo es obligatorio"), 400
-    fecha_nacimiento = None
-    if data.get("fecha_nacimiento"):
-        try:
-            fecha_nacimiento = date.fromisoformat(data["fecha_nacimiento"])
-        except ValueError:
-            return jsonify(success=False, error="datos_invalidos", message="fecha_nacimiento inválida (AAAA-MM-DD)"), 400
-
-    paciente = Paciente(
-        cui=data.get("cui"),
-        nombre_completo=data["nombre_completo"],
-        fecha_nacimiento=fecha_nacimiento,
-        genero=data.get("genero"),
-        telefono=data.get("telefono"),
-        tipo_seguro=data.get("tipo_seguro"),
-        cuidador=data.get("cuidador"),
-        usuario_sub=data.get("usuario_sub"),
-    )
+    data = request.get_json(silent=True) or {}
+    if "nombre_completo" not in data:
+        data["nombre_completo"] = None
+    campos = _validar(data)
+    paciente = Paciente(**campos, usuario_sub=_sub(data))
     db.session.add(paciente)
     db.session.commit()
     return jsonify(success=True, data={"id": paciente.id}, message="Paciente registrado"), 201
@@ -222,31 +253,23 @@ def actualizar_paciente(id):
     if not paciente:
         return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     # El propio ciudadano solo cambia sus datos de contacto; admin/recepción, todo.
     permitidos = ["telefono", "tipo_seguro", "cuidador"]
     if puede("pacientes.registrar"):
         permitidos += ["nombre_completo", "cui", "fecha_nacimiento", "genero", "usuario_sub"]
-
-    if "nombre_completo" in data and "nombre_completo" in permitidos and not (data["nombre_completo"] or "").strip():
-        return jsonify(success=False, error="datos_invalidos", message="nombre_completo no puede quedar vacío"), 400
-    if "fecha_nacimiento" in data and "fecha_nacimiento" in permitidos and data["fecha_nacimiento"]:
-        try:
-            data["fecha_nacimiento"] = date.fromisoformat(data["fecha_nacimiento"])
-        except ValueError:
-            return jsonify(success=False, error="datos_invalidos", message="fecha_nacimiento inválida (AAAA-MM-DD)"), 400
-    if "usuario_sub" in data and "usuario_sub" in permitidos:
-        sub = (data["usuario_sub"] or "").strip() or None
-        if sub and len(sub) != 36:
-            return jsonify(success=False, error="datos_invalidos",
-                           message="El código de usuario debe tener 36 caracteres (el que ve el ciudadano en 'Mi resumen')"), 400
+    data = {campo: valor for campo, valor in data.items() if campo in permitidos}
+    if data.get("fecha_nacimiento") == str(paciente.fecha_nacimiento):
+        del data["fecha_nacimiento"]   # sin cambios (en la base es una fecha, no texto)
+    campos = _validar(data, actual=paciente)
+    if "usuario_sub" in data:
+        sub = _sub(data)
         if sub and Paciente.query.filter(Paciente.usuario_sub == sub, Paciente.id != paciente.id).first():
             return jsonify(success=False, error="ya_existe",
                            message="Ese usuario ya está vinculado a otro paciente"), 409
-        data["usuario_sub"] = sub
+        campos["usuario_sub"] = sub
 
-    for campo in permitidos:
-        if campo in data:
-            setattr(paciente, campo, data[campo] if data[campo] != "" else None)
+    for campo, valor in campos.items():
+        setattr(paciente, campo, valor)
     db.session.commit()
     return jsonify(success=True, data={"id": paciente.id}, message="Actualizado"), 200

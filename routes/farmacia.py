@@ -16,6 +16,7 @@ import cuentas
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_JEFATURA
 from extensions import db
 from models import DetalleReceta, ExpedienteClinico, Medicamento, MovimientoInventario, Paciente, Receta
+from validacion import monto, texto
 
 farmacia_bp = Blueprint("farmacia", __name__)
 
@@ -130,8 +131,8 @@ def crear_medicamento():
         description: Ya existe un medicamento con ese código
     """
     data = request.get_json(silent=True) or {}
-    codigo = (data.get("codigo") or "").strip().upper()
-    nombre = (data.get("nombre") or "").strip()
+    codigo = (texto(data, "codigo", 50, etiqueta="El código") or "").upper()
+    nombre = texto(data, "nombre", 100, etiqueta="El nombre") or ""
     existencia = _entero(data.get("existencia", 0))
     minimo = _entero(data.get("stock_minimo", 10))
     if not codigo or not nombre:
@@ -140,9 +141,9 @@ def crear_medicamento():
         return _error(400, "datos_invalidos", "existencia y stock_minimo deben ser números enteros, 0 o más")
     if Medicamento.query.filter_by(codigo=codigo).first():
         return _error(409, "ya_existe", "Ya existe un medicamento con ese código")
-    m = Medicamento(codigo=codigo, nombre=nombre, presentacion=(data.get("presentacion") or None),
-                    descripcion=data.get("descripcion"), existencia=existencia, stock_minimo=minimo,
-                    precio=data.get("precio"))
+    m = Medicamento(codigo=codigo, nombre=nombre, presentacion=texto(data, "presentacion", 100, etiqueta="La presentación"),
+                    descripcion=texto(data, "descripcion", 2000, etiqueta="La descripción"), existencia=existencia, stock_minimo=minimo,
+                    precio=None if data.get("precio") in (None, "") else monto(data["precio"], "El precio"))
     db.session.add(m)
     db.session.flush()
     if existencia:
@@ -198,7 +199,7 @@ def registrar_movimiento(id):
         return _error(400, "datos_invalidos", f"La existencia quedaría negativa (hay {m.existencia})")
     m.existencia += cantidad
     db.session.add(MovimientoInventario(medicamento_id=m.id, tipo_movimiento=tipo, cantidad=cantidad,
-                                        observacion=(data.get("observacion") or None),
+                                        observacion=texto(data, "observacion", 255, etiqueta="La observación"),
                                         usuario=g.usuario.get("usuario")))
     db.session.commit()
     return jsonify(success=True, data=_medicamento(m), message="Movimiento registrado"), 201
@@ -301,7 +302,7 @@ def crear_receta():
             return _error(400, "datos_invalidos", "La atención no pertenece a este paciente")
     receta = Receta(paciente_id=paciente.id, medico_sub=g.usuario["sub"],
                     medico_nombre=g.usuario.get("nombre") or g.usuario.get("usuario"), expediente_id=expediente_id,
-                    indicaciones=(data.get("indicaciones") or None), estado="PENDIENTE", detalles=detalles)
+                    indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"), estado="PENDIENTE", detalles=detalles)
     db.session.add(receta)
     db.session.commit()
     return jsonify(success=True, data=_receta(receta, {paciente.id: paciente.nombre_completo}),

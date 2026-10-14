@@ -4,6 +4,8 @@ from extensions import db
 from models import CitaMedica, Paciente
 from auth import validar_token, puede
 
+ESTADOS_CITA = ("pendiente", "confirmada", "atendida", "cancelada")
+
 citas_bp = Blueprint("citas", __name__)
 
 
@@ -64,7 +66,7 @@ def crear_cita():
       403:
         description: Un ciudadano intentó agendar para otro paciente
     """
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     if not data.get("paciente_id") or not data.get("fecha_hora"):
         return jsonify(success=False, error="datos_invalidos", message="paciente_id y fecha_hora son obligatorios"), 400
     if not _puede_gestionar(data["paciente_id"]):
@@ -123,7 +125,7 @@ def reprogramar_cita(id):
     if not _puede_gestionar(cita.paciente_id):
         return _sin_permiso()
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     if "fecha_hora" in data:
         fecha_hora = _fecha(data["fecha_hora"])
         if fecha_hora is None:
@@ -133,6 +135,9 @@ def reprogramar_cita(id):
         # El estado (confirmada, atendida...) solo lo cambia el personal que gestiona citas.
         if not puede("citas.gestionar"):
             return jsonify(success=False, error="permiso_denegado", message="Solo el personal puede cambiar el estado"), 403
+        if data["estado"] not in ESTADOS_CITA:
+            return jsonify(success=False, error="datos_invalidos",
+                           message=f"estado debe ser uno de: {', '.join(ESTADOS_CITA)}"), 400
         cita.estado = data["estado"]
 
     db.session.commit()

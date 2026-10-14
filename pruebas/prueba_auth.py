@@ -78,8 +78,8 @@ def paciente_de(usuario, nombre, cui):
     return check(f"admin crea paciente vinculado a {usuario}", "POST", "/pacientes", T["admin.salud"], 201,
                  json={"nombre_completo": nombre, "cui": cui, "usuario_sub": sub(T[usuario])}).json()["data"]["id"]
 
-p1 = paciente_de("ciudadano1", "Carlos Perez", "1111")
-p2 = paciente_de("ciudadano2", "Maria Garcia", "2222")
+p1 = paciente_de("ciudadano1", "Carlos Perez", "1111111111111")
+p2 = paciente_de("ciudadano2", "Maria Garcia", "2222222222222")
 if requests.get(f"{API}/vacunacion/{p2}", headers={"Authorization": f"Bearer {T['medico1']}"}).status_code == 200:
     print("OK       p2 ya tenia registro de vacunacion, se reutiliza")
 else:
@@ -94,7 +94,7 @@ check("ciudadano1 /pacientes/me", "GET", "/pacientes/me", T["ciudadano1"], 200)
 check("ciudadano1 ve paciente ajeno", "GET", f"/pacientes/{p2}", T["ciudadano1"], 403)
 check("ciudadano1 ve id inexistente (no revela)", "GET", "/pacientes/9999", T["ciudadano1"], 403)
 check("ciudadano1 edita paciente ajeno", "PUT", f"/pacientes/{p2}", T["ciudadano1"], 403, json={"telefono": "1"})
-check("ciudadano1 edita SU paciente", "PUT", f"/pacientes/{p1}", T["ciudadano1"], 200, json={"telefono": "5555"})
+check("ciudadano1 edita SU paciente", "PUT", f"/pacientes/{p1}", T["ciudadano1"], 200, json={"telefono": "55551234"})
 check("ciudadano1 ve expediente ajeno", "GET", f"/expedientes/{p2}", T["ciudadano1"], 403)
 check("ciudadano2 ve SU expediente", "GET", f"/expedientes/{p2}", T["ciudadano2"], 200)
 check("ciudadano1 ve vacunacion ajena", "GET", f"/vacunacion/{p2}", T["ciudadano1"], 403)
@@ -141,6 +141,41 @@ check("analista1 NO ve el listado de pacientes (datos personales)", "GET", "/pac
 check("analista1 NO ve expedientes", "GET", f"/expedientes/{p1}", T["analista1"], 403)
 check("/indicadores sin credenciales", "GET", "/indicadores", None, 401)
 
+print("--- Validación de datos (pruebas de QA: vacíos, nulos, tipos y formatos incorrectos)")
+for nombre, valor in [("Bearer null", "Bearer null"), ("Bearer undefined", "Bearer undefined"),
+                      ("Bearer vacío", "Bearer "), ("token alterado", "Bearer " + T["admin.salud"][:-4] + "AAAA")]:
+    r = requests.get(API + "/pacientes", headers={"Authorization": valor})
+    dato(f"{nombre} -> 401 ({r.status_code})", r.status_code == 401)
+A = T["admin.salud"]
+for nombre, cuerpo in [("cuerpo null", "null"), ("cuerpo arreglo", "[]"), ("JSON mal escrito", "{malo"), ("texto suelto", "hola")]:
+    r = requests.post(API + "/pacientes", data=cuerpo,
+                      headers={"Authorization": f"Bearer {A}", "Content-Type": "application/json"})
+    dato(f"{nombre} -> 400 en JSON ({r.status_code})", r.status_code == 400 and r.json().get("success") is False)
+for nombre, cuerpo in [
+        ("sin nombre", {}), ("nombre null", {"nombre_completo": None}), ("nombre solo espacios", {"nombre_completo": "   "}),
+        ("nombre número", {"nombre_completo": 123}), ("nombre lista", {"nombre_completo": ["Ana"]}),
+        ("nombre de 5000 caracteres", {"nombre_completo": "x" * 5000}),
+        ("CUI de 4 dígitos", {"nombre_completo": "Ana López", "cui": "1111"}),
+        ("CUI con letras", {"nombre_completo": "Ana López", "cui": "25011234501AB"}),
+        ("fecha de nacimiento futura", {"nombre_completo": "Ana López", "fecha_nacimiento": "2999-01-01"}),
+        ("fecha imposible", {"nombre_completo": "Ana López", "fecha_nacimiento": "2020-13-45"}),
+        ("género fuera de la lista", {"nombre_completo": "Ana López", "genero": "X"}),
+        ("teléfono con letras", {"nombre_completo": "Ana López", "telefono": "abcdefgh"}),
+        ("seguro fuera de la lista", {"nombre_completo": "Ana López", "tipo_seguro": "Otro"})]:
+    check(f"registrar paciente: {nombre}", "POST", "/pacientes", A, 400, json=cuerpo)
+check("registrar paciente con CUI repetido", "POST", "/pacientes", A, 409,
+      json={"nombre_completo": "Copia", "cui": "2501123450102"})
+check("editar paciente: nombre vacío", "PUT", f"/pacientes/{p2}", A, 400, json={"nombre_completo": ""})
+check("editar paciente: CUI de otro paciente", "PUT", f"/pacientes/{p2}", A, 409, json={"cui": "2501123450102"})
+r = check("SQL en la búsqueda no rompe nada", "GET", "/pacientes?q=' OR 1=1 --", A, 200)
+dato("la búsqueda con SQL no devuelve todos los pacientes", r.json()["data"] == [])
+check("cita con estado inventado", "PUT", f"/citas/{c2}", T["recepcion1"], 400, json={"estado": "borrada"})
+check("servicio con costo NaN", "POST", "/servicios", A, 400,
+      json={"codigo": "QA-1", "nombre": "Prueba", "categoria": "IMAGEN", "costo": "NaN"})
+check("servicio con costo negativo", "POST", "/servicios", A, 400,
+      json={"codigo": "QA-1", "nombre": "Prueba", "categoria": "IMAGEN", "costo": -5})
+check("vacunación con es_estudiante de texto", "PUT", f"/vacunacion/{p2}", T["medico1"], 400, json={"es_estudiante": "si"})
+
 print("--- Tablero de Auditoría: GET /auditoria/indicadores?desde=&hasta= (rol auditoria:lectura)")
 try:
     T["auditor1"] = token("auditor1")
@@ -184,12 +219,15 @@ print("         " + ", ".join(f"{m}: {e['estado']}{' (simulador)' if e['simulado
 check("ciudadano1 NO consulta integraciones", "GET", "/integraciones/estado", T["ciudadano1"], 403)
 check("ciudadano1 NO consulta antecedentes", "GET", f"/pacientes/{p1}/antecedentes", T["ciudadano1"], 403)
 if all(e["estado"] == "conectado" and e["simulado"] for e in estado.values()):
-    riesgo = check("admin registra paciente con CUI que termina en 9", "POST", "/pacientes", T["admin.salud"], 201,
-                   json={"nombre_completo": "Paciente Riesgo Prueba", "cui": "3000000000009"}).json()["data"]["id"]
+    # El CUI es único: se reutiliza el paciente si ya existe (script repetible)
+    previo = requests.get(API + "/pacientes", params={"q": "3000000000009"},
+                          headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"]
+    riesgo = previo[0]["id"] if previo else check(
+        "admin registra paciente con CUI que termina en 9", "POST", "/pacientes", T["admin.salud"], 201,
+        json={"nombre_completo": "Paciente Riesgo Prueba", "cui": "3000000000009"}).json()["data"]["id"]
     d = check("Seguridad: antecedentes de riesgo ALTO", "GET", f"/pacientes/{riesgo}/antecedentes", T["medico1"], 200).json()["data"]
     ok = d.get("tieneAntecedentes") is True and d.get("nivelRiesgo") == "ALTO" and d.get("requiereCustodia") is True
     resultados.append(ok); print(f"{'OK ' if ok else 'FALLA'}      requiereCustodia=True, nivelRiesgo=ALTO")
-    check("Seguridad: CUI que no tiene 13 dígitos no se consulta", "GET", f"/pacientes/{p1}/antecedentes", T["medico1"], 400)
     pacientes = requests.get(API + "/pacientes", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
     sin_antecedentes = next(x["id"] for x in pacientes if x.get("cui") == "2501123450102")   # demo, termina en 2
     d = check("Seguridad: paciente sin antecedentes", "GET", f"/pacientes/{sin_antecedentes}/antecedentes", T["medico1"], 200).json()["data"]

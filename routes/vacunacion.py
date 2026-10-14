@@ -3,6 +3,8 @@ from extensions import db
 from models import Vacunacion, Paciente
 from auth import validar_token, requiere_permiso, puede
 
+from validacion import booleano, texto
+
 vacunacion_bp = Blueprint("vacunacion", __name__)
 
 
@@ -53,9 +55,9 @@ def registrar_vacunacion():
       409:
         description: El paciente ya tiene registro (usar PUT)
     """
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     paciente_id = data.get("paciente_id")
-    if not paciente_id or Paciente.query.get(paciente_id) is None:
+    if not isinstance(paciente_id, int) or isinstance(paciente_id, bool) or Paciente.query.get(paciente_id) is None:
         return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
     # Un solo registro de vacunación por paciente: para cambiarlo se usa PUT.
     if Vacunacion.query.filter_by(paciente_id=paciente_id).first():
@@ -64,9 +66,9 @@ def registrar_vacunacion():
 
     registro = Vacunacion(
         paciente_id=paciente_id,
-        es_estudiante=data.get("es_estudiante", False),
-        esquema_completo=data.get("esquema_completo", False),
-        vacunas_pendientes=data.get("vacunas_pendientes"),
+        es_estudiante=booleano(data, "es_estudiante"),
+        esquema_completo=booleano(data, "esquema_completo"),
+        vacunas_pendientes=texto(data, "vacunas_pendientes", 2000, etiqueta="vacunas_pendientes"),
     )
     db.session.add(registro)
     db.session.commit()
@@ -165,13 +167,13 @@ def actualizar_vacunacion(paciente_id):
     if not registro:
         return jsonify(success=False, error="no_encontrado", message="Sin registro de vacunación"), 404
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True) or {}
     if "es_estudiante" in data:
-        registro.es_estudiante = data["es_estudiante"]
+        registro.es_estudiante = booleano(data, "es_estudiante")
     if "esquema_completo" in data:
-        registro.esquema_completo = data["esquema_completo"]
+        registro.esquema_completo = booleano(data, "esquema_completo")
     if "vacunas_pendientes" in data:
-        registro.vacunas_pendientes = data["vacunas_pendientes"]
+        registro.vacunas_pendientes = texto(data, "vacunas_pendientes", 2000, etiqueta="vacunas_pendientes")
 
     db.session.commit()
     return jsonify(success=True, data={"id": registro.id}, message="Actualizado"), 200
