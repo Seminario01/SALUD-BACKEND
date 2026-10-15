@@ -134,6 +134,19 @@ def _error(status, codigo, mensaje):
     return jsonify(success=False, error=codigo, message=mensaje), status
 
 
+def _sin_verificar(token):
+    """Datos del token SIN validar la firma. Solo para explicar por qué se rechazó
+    (iss y aud no son secretos): nunca se usan para dar acceso."""
+    try:
+        return jwt.decode(token, options={"verify_signature": False})
+    except jwt.InvalidTokenError:
+        return {}
+
+
+# Roles que Keycloak pone a todos los usuarios: no aportan al explicar un 403
+_ROLES_DE_RELLENO = ("offline_access", "uma_authorization")
+
+
 # ---------------------------------------------------------------------------
 # Decoradores
 # ---------------------------------------------------------------------------
@@ -152,9 +165,12 @@ def validar_token(f):
             # Solo pasa si llega una llave que nunca vimos y el Login Único no responde.
             return _error(503, "auth_no_disponible", "No se pudo obtener la llave del Login Único")
         except jwt.PyJWKClientError:
-            return _error(401, "token_invalido", "El token está firmado con una llave desconocida")
+            return _error(401, "token_otro_emisor",
+                          f"El token está firmado con una llave que no es del Login Único configurado "
+                          f"(lo emitió: {_sin_verificar(token).get('iss', 'desconocido')}; "
+                          f"se espera: {Config.AUTH_ISSUER})")
         except jwt.InvalidTokenError:
-            return _error(401, "token_invalido", "Token mal formado")
+            return _error(401, "token_mal_formado", "El token está mal formado (no es un JWT)")
 
         try:
             payload = jwt.decode(
@@ -166,9 +182,21 @@ def validar_token(f):
                 options={"require": ["exp", "iss", "aud", "sub"]},
             )
         except jwt.ExpiredSignatureError:
-            return _error(401, "token_expirado", "El token expiró")
+            return _error(401, "token_expirado", "El token expiró: pida uno nuevo al Login Único")
+        except jwt.InvalidAudienceError:
+            return _error(401, "token_audiencia",
+                          f"El token no incluye la audiencia {Config.AUTH_AUDIENCE} "
+                          f"(trae: {_sin_verificar(token).get('aud') or 'ninguna'})")
+        except jwt.InvalidIssuerError:
+            return _error(401, "token_otro_emisor",
+                          f"El token lo emitió otro servidor ({_sin_verificar(token).get('iss', 'desconocido')}); "
+                          f"se espera: {Config.AUTH_ISSUER}")
+        except jwt.InvalidSignatureError:
+            return _error(401, "token_firma", "La firma del token no es válida (el token fue modificado)")
+        except jwt.MissingRequiredClaimError as e:
+            return _error(401, "token_incompleto", f"Al token le falta el dato '{e.claim}'")
         except jwt.InvalidTokenError:
-            return _error(401, "token_invalido", "Token inválido (firma, issuer o audiencia)")
+            return _error(401, "token_invalido", "El token no es válido")
 
         g.usuario = {
             "sub": payload["sub"],
@@ -223,7 +251,10 @@ def requiere_rol(*roles_permitidos):
         @wraps(f)
         def wrapper(*args, **kwargs):
             if not tiene_rol(*roles_permitidos):
-                return _error(403, "permiso_denegado", "No tiene permiso para esta acción")
+                propios = [r for r in g.usuario["roles"] if r not in _ROLES_DE_RELLENO and not r.startswith("default-roles")]
+                return _error(403, "permiso_denegado",
+                              f"Falta el rol {' o '.join(roles_permitidos)} "
+                              f"(el usuario tiene: {', '.join(propios) or 'ningún rol'})")
             return f(*args, **kwargs)
         return wrapper
     return decorador

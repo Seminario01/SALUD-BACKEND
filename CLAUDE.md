@@ -71,6 +71,14 @@ En `cmd` de Windows las rutas son `C:\Denis\...`, no `/c/Denis/...`.
 equivocados, textos enormes, SQL, tokens falsos) y falla si alguno responde 500 o HTML.
 Solo en la PC: copia la base local antes y la restaura al final.
 
+`pruebas/ver_token.py` revisa un token del Login Único (emisor, audiencia `rsd-api`, vencimiento
+y rol `auditoria:lectura`) y lo prueba contra `/api/indicadores`. Los 401/403 de `auth.py` dicen
+exactamente qué falló (`token_audiencia`, `token_otro_emisor`, `token_firma`, `token_expirado`...).
+
+Revisión de librerías con vulnerabilidades conocidas (antes de cada entrega):
+`npm audit` en SALUD-FRONTEND y `pip-audit -r requirements.txt` en SALUD-BACKEND
+(instalar `pip-audit` en un entorno aparte, no en `venv`). Al 14 oct 2026: 0 en los dos.
+
 ## Validación de datos
 
 Los datos que llegan en el cuerpo se validan con `validacion.py` (`texto`, `cui`, `monto`,
