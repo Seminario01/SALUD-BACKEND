@@ -228,6 +228,18 @@ producción de las 3:15 (registro en `~/respaldos-de-produccion/replica.log`). E
 servidores conviven otros proyectos (`tesis-*`): la réplica solo toca los contenedores `salud-*`
 y la tarea programada solo agrega su línea.
 
+### Vigilancia de la página
+
+`deploy/vigilar.sh` corre en el respaldo cada 5 minutos y revisa `saludumg.online` (página y API)
+pasando por Cloudflare, como un usuario. Solo anota cuando algo cambia: `CAIDA` (con un
+diagnóstico: si producción responde por SSH y cómo están sus contenedores) y `RECUPERADA`.
+
+```powershell
+ssh denis@IP_RESPALDO 'tail -n 20 ~/respaldos-de-produccion/vigilancia.log'
+```
+
+Si el archivo no existe o está vacío, la página no se ha caído desde que se programó.
+
 ### Si producción falla: el respaldo toma el control
 
 El respaldo ya tiene una copia de `~/.cloudflared` (credenciales del túnel, permisos 600) y el
