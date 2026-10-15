@@ -228,7 +228,27 @@ producción de las 3:15 (registro en `~/respaldos-de-produccion/replica.log`). E
 servidores conviven otros proyectos (`tesis-*`): la réplica solo toca los contenedores `salud-*`
 y la tarea programada solo agrega su línea.
 
-**Si producción falla:** encender el túnel en el respaldo (sección 5) con producción apagada.
+### Si producción falla: el respaldo toma el control
+
+El respaldo ya tiene una copia de `~/.cloudflared` (credenciales del túnel, permisos 600) y el
+túnel definido en el compose, apagado. Todo se corre desde la PC:
+
+1. Apagar el túnel de producción, si todavía responde. Si producción está caída, saltar este paso:
+   ```powershell
+   ssh denis@IP_PRODUCCION 'cd ~/proyecto-salud/SALUD-BACKEND/deploy && docker compose stop tunel'
+   ```
+2. En el respaldo: quitar la réplica de la madrugada (si no, cuando producción vuelva, sus datos
+   viejos sobrescribirían los nuevos) y encender el túnel:
+   ```powershell
+   ssh denis@IP_RESPALDO 'crontab -l | grep -v replicar.sh | crontab - ; cd ~/proyecto-salud/SALUD-BACKEND/deploy && COMPOSE_PROFILES=tunel docker compose up -d tunel && sleep 15 && docker compose logs tunel | grep -c Registered'
+   ```
+   Debe salir un número mayor que 0. Desde ese momento `saludumg.online` lo atiende el respaldo,
+   con los datos de la última réplica.
+
+**Volver a producción** es el camino inverso, pero con los datos en sentido contrario: los nuevos
+están en el respaldo. Primero se copian del respaldo a producción, después se apaga el túnel del
+respaldo, se enciende el de producción y por último se vuelve a programar la réplica. Hacerlo con
+calma y con un respaldo de los dos lados antes de empezar.
 
 ## Probado
 
