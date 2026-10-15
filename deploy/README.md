@@ -228,6 +228,17 @@ producción de las 3:15 (registro en `~/respaldos-de-produccion/replica.log`). E
 servidores conviven otros proyectos (`tesis-*`): la réplica solo toca los contenedores `salud-*`
 y la tarea programada solo agrega su línea.
 
+### Revisión rápida: ¿está todo bien?
+
+`deploy/estado.sh` revisa el servidor donde corre (solo lee): contenedores, base de datos,
+respaldos o réplica, tareas programadas, vigilancia, disco y la página. Cada línea dice `OK` o
+`REVISAR`, y al final `Todo bien` o cuántos puntos revisar. Desde la PC:
+
+```powershell
+ssh denis@IP_PRODUCCION 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/estado.sh'
+ssh denis@IP_RESPALDO 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/estado.sh'
+```
+
 ### Vigilancia de la página
 
 `deploy/vigilar.sh` corre en el respaldo cada 5 minutos y revisa `saludumg.online` (página y API)
