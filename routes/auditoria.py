@@ -2,12 +2,13 @@
 Indicadores para el tablero de Auditoría Social (lo administra la ingeniera).
 
     GET /api/v1/salud/auditoria/indicadores?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+    GET /api/indicadores  y  GET /api/v1/indicadores   (la misma consulta; ver RUTAS_ALIAS)
 
 Solo datos AGREGADOS del rango pedido, nunca datos personales.
 No reemplaza a GET /indicadores (routes/externos.py), que usan el panel y los otros módulos.
 
 PROVISIONAL, a la espera de la respuesta de la ingeniera. Cada punto se cambia en un solo lugar:
-  - la ruta ............................ RUTA
+  - la ruta ............................ RUTA y RUTAS_ALIAS
   - el rol ............................. ROLES_PERMITIDOS
   - el formato del cuerpo de error ..... cuerpo_error()
   - la forma de la respuesta 200 ....... cuerpo_ok()
@@ -28,6 +29,10 @@ log = logging.getLogger(__name__)
 auditoria_bp = Blueprint("auditoria", __name__)
 
 RUTA = "/api/v1/salud/auditoria/indicadores"
+# La especificación de Auditoría pide "GET /api/indicadores" y el estándar de contratos usa la
+# base /api/v1: se publican las dos lecturas, mientras la ingeniera confirma cuál usará el
+# tablero. Ninguna choca con /api/v1/salud/indicadores (otro formato, lo usan los otros módulos).
+RUTAS_ALIAS = ("/api/indicadores", "/api/v1/indicadores")
 ROLES_PERMITIDOS = (ROL_AUDITORIA_LECTURA,)
 MAX_DIAS = 5 * 366
 # Lista corta de unidades que acepta el tablero.
@@ -147,6 +152,8 @@ def calcular(desde, hasta):
     return indicadores, series
 
 
+@auditoria_bp.route(RUTAS_ALIAS[1], methods=["GET"])
+@auditoria_bp.route(RUTAS_ALIAS[0], methods=["GET"])
 @auditoria_bp.route(RUTA, methods=["GET"])
 @validar_token
 @requiere_rol(*ROLES_PERMITIDOS)

@@ -246,6 +246,22 @@ dato("tablero sin datos personales", not re.search(r"cui|nombre_completo|telefon
 check("auditor1 NO ve pacientes", "GET", "/pacientes", T["auditor1"], 403)
 check("auditor1 NO ve el panel del personal", "GET", "/panel", T["auditor1"], 403)
 
+print("--- Tablero de Auditoría: rutas alternas /api/indicadores y /api/v1/indicadores")
+RAIZ = API.split("/api/")[0]
+H_AUD = {"Authorization": f"Bearer {T['auditor1']}"}
+principal = requests.get(API + AUD + RANGO, headers=H_AUD).json()
+for alias in ("/api/indicadores", "/api/v1/indicadores"):
+    r = requests.get(RAIZ + alias + RANGO)
+    dato(f"{alias} sin token -> 401 ({r.status_code})", r.status_code == 401)
+    r = requests.get(RAIZ + alias + RANGO, headers={"Authorization": f"Bearer {T['ciudadano1']}"})
+    dato(f"{alias} sin el rol -> 403 ({r.status_code})", r.status_code == 403 and set(r.json()) == {"error", "mensaje"})
+    r = requests.get(RAIZ + alias + "?desde=2026-12-31&hasta=2026-01-01", headers=H_AUD)
+    dato(f"{alias} rango al revés -> 400 rango_invalido ({r.status_code})",
+         r.status_code == 400 and r.json().get("error") == "rango_invalido")
+    r = requests.get(RAIZ + alias + RANGO, headers=H_AUD)
+    dato(f"{alias} con auditor1 -> 200 y lo mismo que la ruta principal ({r.status_code})",
+         r.status_code == 200 and r.json() == principal)
+
 print("--- Integración con otros módulos (Salud consume sus servicios)")
 r = check("estado de integraciones (admin)", "GET", "/integraciones/estado", T["admin.salud"], 200)
 estado = r.json()["data"]

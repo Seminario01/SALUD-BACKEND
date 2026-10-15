@@ -113,6 +113,9 @@ Un analista de Auditoría que entra al frontend de Salud ve **solo el panel de i
 ### Tablero de Auditoría (provisional)
 
 `GET /api/v1/salud/auditoria/indicadores?desde=YYYY-MM-DD&hasta=YYYY-MM-DD` (`routes/auditoria.py`).
+La misma consulta responde también en `GET /api/indicadores` (la ruta de la especificación de
+Auditoría) y en `GET /api/v1/indicadores` (la base `/api/v1` del estándar de contratos), hasta que
+la ingeniera confirme cuál usa el tablero. Ninguna cambia `/api/v1/salud/indicadores`.
 Solo con token, rol **`auditoria:lectura`**. Devuelve los datos del rango pedido:
 
 ```json
@@ -132,7 +135,7 @@ Solo con token, rol **`auditoria:lectura`**. Devuelve los datos del rango pedido
 - Errores con el cuerpo `{ "error": "rango_invalido", "mensaje": "..." }`: **400** (falta `desde` o `hasta`, formato distinto de `YYYY-MM-DD`, `hasta` anterior a `desde`, rango de más de 5 años), **401**, **403**, **500** (sin traza).
 - No incluye camas, recetas ni presupuesto: no tienen unidad en la lista o no dependen del rango de fechas. El presupuesto sigue en `/presupuesto/ejecucion`.
 
-**Pendiente de confirmar con la ingeniera:** la ruta final, el formato del cuerpo de error, la forma exacta de la respuesta 200, el rango máximo y quién crea el rol en el Login Único. Cada punto se cambia en un solo lugar de `routes/auditoria.py`.
+**Pendiente de confirmar con la ingeniera:** cuál de las rutas usa el tablero, la forma exacta de la respuesta 200 (el objeto que envuelve indicadores y series), el rango máximo y la creación del rol en el Login Único. El cuerpo de error `{ "error", "mensaje" }` ya lo confirmó su especificación. Cada punto se cambia en un solo lugar de `routes/auditoria.py`.
 
 ## 6. Pruebas
 
