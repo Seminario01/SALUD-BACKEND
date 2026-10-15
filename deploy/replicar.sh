@@ -21,6 +21,10 @@ set -euo pipefail
 # La primera vez acepta la huella de producción; si después cambia, ssh se niega (protege de suplantación)
 export SSH_OPCIONES="-o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 
+# El túnel de Cloudflare es solo de producción: aunque el .env de este servidor dijera
+# COMPOSE_PROFILES=tunel, lo exportado aquí manda y el túnel no se enciende.
+export COMPOSE_PROFILES=respaldo-sin-tunel
+
 PRODUCCION="${1:?Indique el servidor de producción, por ejemplo denis@100.70.58.32}"
 RAIZ="$HOME/proyecto-salud"
 COPIAS="$HOME/respaldos-de-produccion"

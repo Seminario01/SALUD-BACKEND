@@ -104,5 +104,22 @@ services:
     ports:
       - "127.0.0.1:${PUERTO_WEB:-8080}:80"
 
+  # Túnel de Cloudflare (https://saludumg.online). SOLO en producción: se enciende con
+  # COMPOSE_PROFILES=tunel en el .env de producción. El servidor de respaldo nunca lo
+  # enciende (replicar.sh lo fuerza): dos servidores en el mismo túnel se reparten las visitas.
+  # Usa la misma configuración y credenciales de ~/.cloudflared que el cloudflared instalado
+  # a mano, con la red del servidor (localhost:80 es el frontend), y vuelve solo tras un reinicio.
+  tunel:
+    image: cloudflare/cloudflared:2026.9.0
+    profiles: ["tunel"]
+    restart: unless-stopped
+    network_mode: host
+    user: "${TUNEL_UID:-1000}:${TUNEL_GID:-1000}"   # dueño de ~/.cloudflared (las credenciales son 0400)
+    volumes:
+      - ${HOME}/.cloudflared:${HOME}/.cloudflared:ro
+    command: tunnel --no-autoupdate --config ${HOME}/.cloudflared/config.yml run
+    depends_on:
+      - frontend
+
 volumes:
   salud_mysql:

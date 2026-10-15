@@ -83,18 +83,28 @@ curl -s http://127.0.0.1:8080/config.js                                         
 
 ## 5. Túnel de Cloudflare
 
-En la configuración de `cloudflared` (normalmente `/etc/cloudflared/config.yml`), la regla de `saludumg.online` debe apuntar al puerto del frontend:
+El túnel corre como un servicio más del compose (`tunel`), con `restart: unless-stopped`: si el
+servidor se reinicia, vuelve solo junto con los demás contenedores. Usa la configuración y las
+credenciales de `~/.cloudflared` (túnel con nombre `salud-demo`) y la red del servidor, así que
+`localhost:80` del `config.yml` es el frontend:
 
 ```yaml
 ingress:
   - hostname: saludumg.online
-    service: http://localhost:8080
+    service: http://localhost:80        # el mismo puerto que PUERTO_WEB
   - service: http_status:404
 ```
 
-```bash
-sudo systemctl restart cloudflared
+**Solo en producción** se enciende, con esta línea en `deploy/.env`:
+
 ```
+COMPOSE_PROFILES=tunel
+```
+
+El servidor de respaldo nunca la lleva, y `replicar.sh` la anula de todos modos: si dos servidores
+atienden el mismo túnel, Cloudflare reparte las visitas entre los dos y los datos quedan divididos.
+
+Revisar el túnel: `docker compose logs tunel --tail 20` (debe decir `Registered tunnel connection`).
 
 ## 6. Login Único en producción (pedir a la ingeniera)
 
