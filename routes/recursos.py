@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models import Cama, RecursoHospitalario
 from auth import validar_token, requiere_permiso, puede
+from validacion import texto
 
 recursos_bp = Blueprint("recursos", __name__)
 
@@ -16,6 +17,8 @@ def _validar_cantidades(disponible, total):
         return "disponible y total deben ser números enteros"
     if disponible < 0 or total < 0:
         return "Las cantidades no pueden ser negativas"
+    if total > 100_000:
+        return "El total no puede pasar de 100,000"
     if disponible > total:
         return "No puede haber más disponibles que el total"
     return None
@@ -66,7 +69,7 @@ def actualizar_recurso(id):
     if "total" in data:
         recurso.total = int(data["total"])
     if "descripcion" in data:
-        recurso.descripcion = data["descripcion"]
+        recurso.descripcion = texto(data, "descripcion", 200, etiqueta="La descripción")
 
     db.session.commit()
     return jsonify(success=True, data={"id": recurso.id}, message="Recurso actualizado"), 200
@@ -85,7 +88,7 @@ def crear_recurso():
         return jsonify(success=False, error="datos_invalidos", message=error), 400
     recurso = RecursoHospitalario(
         tipo=data["tipo"],
-        descripcion=data.get("descripcion"),
+        descripcion=texto(data, "descripcion", 200, etiqueta="La descripción"),
         disponible=int(data.get("disponible", 0)),
         total=int(data.get("total", 0)),
     )

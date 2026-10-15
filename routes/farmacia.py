@@ -137,8 +137,8 @@ def crear_medicamento():
     minimo = _entero(data.get("stock_minimo", 10))
     if not codigo or not nombre:
         return _error(400, "datos_incompletos", "codigo y nombre son requeridos")
-    if existencia is None or existencia < 0 or minimo is None or minimo < 0:
-        return _error(400, "datos_invalidos", "existencia y stock_minimo deben ser números enteros, 0 o más")
+    if existencia is None or minimo is None or not (0 <= existencia <= 1_000_000 and 0 <= minimo <= 1_000_000):
+        return _error(400, "datos_invalidos", "existencia y stock_minimo deben ser números enteros entre 0 y 1,000,000")
     if Medicamento.query.filter_by(codigo=codigo).first():
         return _error(409, "ya_existe", "Ya existe un medicamento con ese código")
     m = Medicamento(codigo=codigo, nombre=nombre, presentacion=texto(data, "presentacion", 100, etiqueta="La presentación"),
@@ -191,7 +191,7 @@ def registrar_movimiento(id):
     data = request.get_json(silent=True) or {}
     tipo = str(data.get("tipo") or "").upper()
     cantidad = _entero(data.get("cantidad"))
-    if tipo not in ("ENTRADA", "AJUSTE") or cantidad is None or cantidad == 0:
+    if tipo not in ("ENTRADA", "AJUSTE") or cantidad is None or cantidad == 0 or abs(cantidad) > 1_000_000:
         return _error(400, "datos_invalidos", "tipo (ENTRADA o AJUSTE) y una cantidad distinta de 0 son requeridos")
     if tipo == "ENTRADA" and cantidad < 0:
         return _error(400, "datos_invalidos", "Una entrada debe ser mayor a 0")
