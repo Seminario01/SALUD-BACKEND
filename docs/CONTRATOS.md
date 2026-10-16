@@ -56,7 +56,16 @@ GET /api/v1/seguridad/ciudadanos/antecedentes/{cui}?nombreCompleto=José Antonio
 - El CUI va en la ruta y tiene **exactamente 13 dígitos**; Salud no consulta si el paciente no tiene un CUI válido.
 - `nombreCompleto` es **opcional**: Seguridad puede usarlo para confirmar la identidad o ignorarlo. La llave es el CUI.
 - `nivelRiesgo` puede ser `NINGUNO`, `BAJO`, `MEDIO` o `ALTO`.
-- Un `404` se interpreta como "sin antecedentes registrados".
+- Un `404` significa "sin antecedentes activos encontrados en Seguridad": no distingue entre una persona no registrada y una registrada sin antecedentes, así que **no es una certificación**. La pantalla lo muestra con ese texto.
+
+**Alternativa con Keycloak (no se usa todavía).** Seguridad publicó además
+`POST /api/v1/seguridad/antecedentes/verificar` con `{"cui": "..."}`, token del Login Único (audiencia
+`rsd-api`, rol de realm `seguridad:antecedentes:consultar`) y respuesta directa, sin `data`:
+`registrado`, `tiene_antecedentes`, `antecedentes.penales`, `antecedentes.policiales`, `nivel_riesgo`,
+`fecha_actualizacion`. Este sí distingue "no registrado" de "sin antecedentes". Es adicional: el GET
+con API key se mantiene y no se va a apagar (confirmado por Seguridad el 15/10/2026). Para usarlo, Salud
+pediría una cuenta de servicio (`client_credentials`) con ese rol. CUI de prueba: `0000000000101`
+(riesgo ALTO), `0000000000102` (registrado sin antecedentes), `0000000000999` (no registrado).
 
 **Alertas activas.** Se muestran en el panel del personal de Emergencias (departamento del hospital, `DEPARTAMENTO_ALERTAS`).
 

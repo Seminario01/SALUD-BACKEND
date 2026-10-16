@@ -134,7 +134,8 @@ def antecedentes_paciente(id):
 
     r = consultar_antecedentes_seguridad(paciente.cui.strip(), paciente.nombre_completo)
     if r.get("error") == "no_encontrado":
-        # Seguridad no tiene registro de la persona: sin antecedentes conocidos
+        # 404 de Seguridad: sin antecedentes ACTIVOS encontrados. No distingue "no registrado" de
+        # "registrado sin antecedentes", así que no es una certificación (lo aclaró Seguridad).
         return jsonify(success=True, data={"encontrado": False, "tieneAntecedentes": False}), 200
     if not r["success"]:
         return _error_modulo(r, "Seguridad")

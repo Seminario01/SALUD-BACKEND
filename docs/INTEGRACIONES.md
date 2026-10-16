@@ -29,7 +29,7 @@ Navegador ──token──> Backend de Salud ──X-API-Key + token del usuari
 
 **Seguridad (antecedentes).** Salud envía el CUI y el nombre completo. Seguridad responde:
 `tieneAntecedentes`, `tipoAntecedente`, `nivelRiesgo`, `requiereCustodia`.
-Si Seguridad responde 404, Salud lo interpreta como "sin antecedentes registrados".
+Si Seguridad responde 404, Salud lo muestra como "sin antecedentes activos encontrados en Seguridad" (no es una certificación: el 404 no distingue entre no registrado y registrado sin antecedentes).
 El paciente **siempre** se atiende; el resultado solo indica cuidados o custodia adicionales.
 
 **Educación (estudiante).** Salud envía el CUI. Educación responde `establecimiento`, `grado`, `seccion`, `jornada`.
