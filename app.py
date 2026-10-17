@@ -9,6 +9,7 @@ from extensions import db
 from routes.init import registrar_rutas
 from auth import precargar_jwks
 from validacion import DatoInvalido
+from bitacora_accesos import registrar_acceso
 
 SWAGGER_TEMPLATE = {
     "swagger": "2.0",
@@ -51,6 +52,9 @@ def crear_app():
     # Descarga las llaves del Login Único al arrancar: así el backend sigue
     # validando tokens aunque el servidor de identidad se apague después.
     precargar_jwks()
+
+    # Bitácora de accesos: quién vio o modificó datos de pacientes (bitacora_accesos.py)
+    app.after_request(registrar_acceso)
 
     # Errores de la API siempre en JSON (los otros módulos esperan {"success": false, ...})
     @app.errorhandler(404)

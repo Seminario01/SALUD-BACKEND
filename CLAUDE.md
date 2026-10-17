@@ -89,6 +89,15 @@ Reglas de negocio: citas solo desde ahora hasta 366 días y sin repetir paciente
 un turno activo por paciente al día; el presupuesto ejecutado no supera al asignado.
 Las pruebas crean citas con `futuro(dias, hora)`, nunca con fechas fijas.
 
+## Bitácora de accesos
+
+`bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:
+cada GET a los datos de UN paciente (ficha, expediente, vacunación, antecedentes, receta, cuenta,
+hospitalización; sin repetir lo mismo en 5 minutos) y todo POST/PUT/DELETE que terminó bien.
+Lo rechazado (4xx) no se anota. Se consulta en `GET /bitacora/accesos` (permiso `bitacora.ver`,
+solo Administración) y en la pantalla `/bitacora` del frontend. Al agregar una ruta nueva que
+toque pacientes, poner su descripción en `VER` o `CAMBIOS` de ese archivo.
+
 ## Integraciones con otros módulos
 
 - Todas las llamadas salientes pasan por `_llamar` en `services_externos.py` y quedan en

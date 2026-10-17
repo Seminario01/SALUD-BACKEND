@@ -87,6 +87,7 @@ PERMISOS = {
     "presupuesto.editar":     (ADM,),
     "integraciones.ver":      (JEF, ADM),
     "integraciones.demo":     (JEF, ADM),
+    "bitacora.ver":           (ADM,),                # quién vio o modificó cada expediente
 }
 
 

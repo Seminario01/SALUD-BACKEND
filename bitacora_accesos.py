@@ -1,0 +1,158 @@
+"""
+Bitácora de accesos: quién vio o modificó datos de pacientes, y cuándo.
+
+Se registra al terminar cada petición con token del Login Único (after_request):
+  - ver:       consultas a datos de UN paciente (ficha, expediente, vacunación,
+               antecedentes, receta, cuenta, hospitalización). Las listas no se
+               registran, y si la misma persona vuelve a ver lo mismo en menos de
+               5 minutos tampoco (la ficha pide varias cosas a la vez).
+  - crear / modificar / anular: todo POST, PUT o DELETE que terminó bien.
+Las peticiones rechazadas (401, 403, 404, 400...) no se registran como acceso.
+
+Igual que bitacora.py, escribe con una conexión propia: un error al registrar
+nunca afecta la operación del usuario.
+"""
+import logging
+from datetime import datetime, timedelta
+
+from flask import g, request
+
+from bitacora import enmascarar
+from extensions import db
+from models import BitacoraAcceso, CitaMedica, CuentaPaciente, Hospitalizacion, Receta, Turno
+
+log = logging.getLogger(__name__)
+PREFIJO = "/api/v1/salud"
+REPETIDO = timedelta(minutes=5)
+
+# Ruta (como está declarada en Flask, sin el prefijo) -> descripción. {id} es el número del recurso.
+VER = {
+    "/pacientes/<int:id>": "Vio la ficha del paciente",
+    "/expedientes/<int:paciente_id>": "Vio el expediente clínico",
+    "/vacunacion/<int:paciente_id>": "Vio el registro de vacunación",
+    "/pacientes/<int:id>/antecedentes": "Consultó antecedentes en Seguridad",
+    "/recetas/<int:id>": "Vio la receta No. {id}",
+    "/cuentas/<int:id>": "Vio la cuenta No. {id}",
+    "/hospitalizaciones/<int:id>": "Vio la hospitalización No. {id}",
+}
+
+CAMBIOS = {
+    ("POST", "/pacientes"): ("crear", "Registró al paciente"),
+    ("PUT", "/pacientes/<int:id>"): ("modificar", "Modificó los datos del paciente"),
+    ("POST", "/citas"): ("crear", "Agendó la cita No. {nuevo}"),
+    ("PUT", "/citas/<int:id>"): ("modificar", "Modificó la cita No. {id}"),
+    ("DELETE", "/citas/<int:id>"): ("anular", "Canceló la cita No. {id}"),
+    ("POST", "/citas/<int:id>/cobro"): ("modificar", "Generó el cobro de la cita No. {id}"),
+    ("POST", "/citas/<int:id>/verificar-pago"): ("modificar", "Verificó el pago de la cita No. {id}"),
+    ("POST", "/expedientes/<int:paciente_id>/atenciones"): ("crear", "Registró una atención en el expediente"),
+    ("POST", "/vacunacion"): ("crear", "Creó el registro de vacunación"),
+    ("PUT", "/vacunacion/<int:paciente_id>"): ("modificar", "Modificó el registro de vacunación"),
+    ("DELETE", "/vacunacion/<int:paciente_id>"): ("anular", "Anuló el registro de vacunación"),
+    ("POST", "/turnos"): ("crear", "Generó el turno No. {nuevo}"),
+    ("PUT", "/turnos/<int:id>/llamar"): ("modificar", "Llamó al turno No. {id}"),
+    ("PUT", "/turnos/<int:id>/atender"): ("modificar", "Atendió el turno No. {id}"),
+    ("PUT", "/turnos/<int:id>/finalizar"): ("modificar", "Finalizó el turno No. {id}"),
+    ("POST", "/recetas"): ("crear", "Emitió la receta No. {nuevo}"),
+    ("POST", "/recetas/<int:id>/despachar"): ("modificar", "Despachó la receta No. {id}"),
+    ("POST", "/recetas/<int:id>/anular"): ("anular", "Anuló la receta No. {id}"),
+    ("POST", "/hospitalizaciones"): ("crear", "Ordenó el ingreso No. {nuevo}"),
+    ("POST", "/hospitalizaciones/<int:id>/asignar-cama"): ("modificar", "Asignó cama en la hospitalización No. {id}"),
+    ("POST", "/hospitalizaciones/<int:id>/egreso"): ("modificar", "Dio egreso en la hospitalización No. {id}"),
+    ("POST", "/hospitalizaciones/<int:id>/anular"): ("anular", "Anuló la hospitalización No. {id}"),
+    ("POST", "/hospitalizaciones/<int:id>/notas"): ("crear", "Agregó una nota en la hospitalización No. {id}"),
+    ("POST", "/cuentas"): ("crear", "Abrió la cuenta No. {nuevo}"),
+    ("POST", "/cuentas/<int:id>/cargos"): ("modificar", "Agregó un cargo a la cuenta No. {id}"),
+    ("POST", "/cuentas/<int:id>/descuentos"): ("modificar", "Aplicó un descuento a la cuenta No. {id}"),
+    ("POST", "/cuentas/<int:id>/movimientos/<int:mid>/anular"): ("anular", "Anuló un movimiento de la cuenta No. {id}"),
+    ("POST", "/cuentas/<int:id>/cerrar"): ("modificar", "Cerró la cuenta No. {id}"),
+    ("POST", "/cuentas/<int:id>/verificar-pago"): ("modificar", "Verificó el pago de la cuenta No. {id}"),
+}
+
+# Para las rutas cuyo número no es el del paciente: de qué tabla se saca el paciente
+DUENO = {"/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta,
+         "/hospitalizaciones": Hospitalizacion, "/cuentas": CuentaPaciente}
+
+PUESTOS = [("salud:jefatura", "Jefatura médica"), ("salud:admin", "Administración"), ("salud:medico", "Médico"),
+           ("salud:enfermeria", "Enfermería"), ("salud:recepcion", "Recepción"), ("salud:farmacia", "Farmacia"),
+           ("salud:caja", "Caja"), ("ciudadano", "Ciudadano")]
+
+
+def _puesto(roles):
+    return next((nombre for rol, nombre in PUESTOS if rol in roles), None)
+
+
+def _datos_respuesta(respuesta):
+    try:
+        cuerpo = respuesta.get_json(silent=True) or {}
+        datos = cuerpo.get("data")
+        return datos if isinstance(datos, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _paciente(regla, args, datos):
+    if "paciente_id" in args:
+        return args["paciente_id"]
+    if regla.startswith("/pacientes/") and "id" in args:
+        return args["id"]
+    if isinstance(datos.get("paciente_id"), int):
+        return datos["paciente_id"]
+    if regla == "/pacientes" and isinstance(datos.get("id"), int):
+        return datos["id"]
+    cuerpo = request.get_json(silent=True) if request.is_json else None
+    if isinstance(cuerpo, dict) and isinstance(cuerpo.get("paciente_id"), int):
+        return cuerpo["paciente_id"]
+    modelo = next((m for prefijo, m in DUENO.items() if regla.startswith(prefijo + "/")), None)
+    if modelo is not None and "id" in args:
+        fila = db.session.get(modelo, args["id"])
+        return getattr(fila, "paciente_id", None)
+    return None
+
+
+def registrar_acceso(respuesta):
+    """after_request: anota la petición si fue de un usuario con token y terminó bien."""
+    try:
+        usuario = getattr(g, "usuario", None)
+        if (not usuario or respuesta.status_code >= 400 or request.url_rule is None
+                or not request.path.startswith(PREFIJO)):
+            return respuesta
+        regla = request.url_rule.rule[len(PREFIJO):]
+        args = request.view_args or {}
+        datos = _datos_respuesta(respuesta)
+        formato = {"id": args.get("id", ""), "nuevo": datos.get("numero_turno") or datos.get("id", "")}
+
+        if request.method == "GET":
+            if regla not in VER:
+                return respuesta
+            accion, descripcion = "ver", VER[regla].format(**formato)
+        elif request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            if regla.startswith(("/integraciones/simular", "/auditoria")):
+                return respuesta
+            accion, descripcion = CAMBIOS.get((request.method, regla),
+                                              ("modificar", f"{request.method} {regla}"))
+            descripcion = descripcion.format(**formato)
+        else:
+            return respuesta
+
+        paciente_id = _paciente(regla, args, datos)
+        ahora = datetime.now()
+        if accion == "ver":
+            reciente = BitacoraAcceso.query.filter(
+                BitacoraAcceso.usuario == usuario.get("usuario"), BitacoraAcceso.descripcion == descripcion,
+                BitacoraAcceso.paciente_id == paciente_id, BitacoraAcceso.fecha >= ahora - REPETIDO).first()
+            if reciente:
+                return respuesta
+
+        ip = (request.headers.get("CF-Connecting-IP") or request.headers.get("X-Real-IP")
+              or request.remote_addr or "")[:45]
+        with db.engine.begin() as conexion:
+            conexion.execute(BitacoraAcceso.__table__.insert().values(
+                fecha=ahora, usuario=(usuario.get("usuario") or usuario.get("sub"))[:100],
+                nombre=(usuario.get("nombre") or "")[:150] or None, puesto=_puesto(usuario.get("roles", [])),
+                accion=accion, descripcion=descripcion[:255], paciente_id=paciente_id,
+                metodo=request.method, ruta=enmascarar(request.path)[:255],
+                estado_http=respuesta.status_code, ip=ip or None,
+            ))
+    except Exception as error:  # noqa: BLE001 - la bitácora nunca debe romper la operación
+        log.warning("No se pudo registrar en la bitácora de accesos: %s", error)
+    return respuesta

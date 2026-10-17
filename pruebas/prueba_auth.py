@@ -225,6 +225,26 @@ check("receta que no existe", "GET", "/recetas/999999", T["medico1"], 404)
 r = requests.get(API + "/recetas", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
 dato("la lista de recetas trae el DPI para buscar", bool(r) and "paciente_cui" in r[0])
 
+print("--- Bitácora de accesos: quién vio o modificó cada expediente (solo Administración)")
+BIT = "/bitacora/accesos"
+check("bitácora sin token", "GET", BIT, None, 401)
+check("recepcion1 NO ve la bitácora", "GET", BIT, T["recepcion1"], 403)
+check("medico1 NO ve la bitácora", "GET", BIT, T["medico1"], 403)
+check("ciudadano1 NO ve la bitácora", "GET", BIT, T["ciudadano1"], 403)
+requests.get(API + f"/expedientes/{p2}", headers={"Authorization": f"Bearer {T['medico1']}"})
+r = check("admin.salud ve la bitácora del paciente", "GET", f"{BIT}?paciente_id={p2}", T["admin.salud"], 200).json()
+dato("queda que medico1 vio el expediente clínico",
+     any(x["usuario"] == "medico1" and x["accion"] == "ver" and x["descripcion"] == "Vio el expediente clínico"
+         and x["paciente_id"] == p2 and x["puesto"] == "Médico" for x in r["data"]))
+r = check("bitácora filtrada por acción", "GET", f"{BIT}?accion=ver&limite=5", T["admin.salud"], 200).json()
+dato("el filtro por acción devuelve solo 'ver' y máximo 5", len(r["data"]) <= 5 and all(x["accion"] == "ver" for x in r["data"]))
+requests.get(API + "/pacientes/999999", headers={"Authorization": f"Bearer {T['medico1']}"})
+r = requests.get(API + f"{BIT}?paciente_id=999999", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()
+dato("un 404 no queda como acceso", r["total"] == 0)
+check("bitácora con fecha inválida", "GET", f"{BIT}?desde=2026-13-01", T["admin.salud"], 400)
+check("bitácora con acción inválida", "GET", f"{BIT}?accion=borrar", T["admin.salud"], 400)
+check("bitácora con paciente_id no numérico", "GET", f"{BIT}?paciente_id=1%20OR%201=1", T["admin.salud"], 400)
+
 print("--- Tablero de Auditoría: GET /auditoria/indicadores?desde=&hasta= (rol auditoria:lectura)")
 try:
     T["auditor1"] = token("auditor1")
@@ -546,6 +566,13 @@ dato("queda EXONERADA sin enviar cobro", ex["estado"] == "EXONERADA" and not ex[
 check("verificar pago sin cobro", "POST", f"/cuentas/{amb['id']}/verificar-pago", T["caja1"], 409)
 check("admin.salud cambia una tarifa", "PUT", f"/servicios/{lab['id']}", T["admin.salud"], 200, json={"costo": lab["costo"]})
 check("caja1 NO cambia tarifas", "PUT", f"/servicios/{lab['id']}", T["caja1"], 403, json={"costo": 1})
+bit = requests.get(API + f"/bitacora/accesos?paciente_id={p2}&usuario=caja1&limite=1000", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota los cambios de caja1 en la cuenta (abrir, cargo, descuento, cerrar)",
+     {f"Abrió la cuenta No. {amb['id']}", f"Agregó un cargo a la cuenta No. {amb['id']}",
+      f"Aplicó un descuento a la cuenta No. {amb['id']}", f"Cerró la cuenta No. {amb['id']}"}
+     <= {x["descripcion"] for x in bit})
+dato("los intentos rechazados (409, 400) no quedan en la bitácora", all(x["metodo"] != "GET" or x["accion"] == "ver" for x in bit)
+     and sum(1 for x in bit if x["descripcion"] == f"Cerró la cuenta No. {amb['id']}") == 1)
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

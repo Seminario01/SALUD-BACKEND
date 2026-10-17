@@ -153,6 +153,24 @@ class BitacoraIntegracion(db.Model):
     detalle = db.Column(db.String(255))
 
 
+class BitacoraAcceso(db.Model):
+    """Quién vio o modificó datos de pacientes, y cuándo (bitácora para Administración).
+    La escribe bitacora_accesos.py al terminar cada petición del personal o del ciudadano."""
+    __tablename__ = "bitacora_accesos"
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    usuario = db.Column(db.String(100), index=True)
+    nombre = db.Column(db.String(150))
+    puesto = db.Column(db.String(60))
+    accion = db.Column(db.String(12), nullable=False)          # ver, crear, modificar, anular
+    descripcion = db.Column(db.String(255), nullable=False)
+    paciente_id = db.Column(db.Integer, index=True)
+    metodo = db.Column(db.String(10), nullable=False)
+    ruta = db.Column(db.String(255), nullable=False)
+    estado_http = db.Column(db.Integer)
+    ip = db.Column(db.String(45))
+
+
 # ---------------------------------------------------------------------------
 # Farmacia: medicamentos, recetas e inventario (tablas de salud_db)
 # ---------------------------------------------------------------------------
