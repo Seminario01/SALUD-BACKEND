@@ -114,8 +114,10 @@ def _contexto(lista):
 
 def _respuesta(c, status=200, mensaje=None):
     nombres, hosp = _contexto([c])
-    return jsonify(success=True, data=_cuenta(c, nombres, hosp.get(c.hospitalizacion_id), detalle=True),
-                   message=mensaje), status
+    dato = _cuenta(c, nombres, hosp.get(c.hospitalizacion_id), detalle=True)
+    paciente = Paciente.query.get(c.paciente_id)
+    dato["paciente_cui"] = paciente.cui if paciente else None   # para el estado de cuenta impreso
+    return jsonify(success=True, data=dato, message=mensaje), status
 
 
 def _cuenta_abierta(id):
@@ -279,7 +281,11 @@ def listar_cuentas():
         query = query.filter_by(estado=request.args["estado"].upper())
     lista = query.order_by(CuentaPaciente.id.desc()).limit(300).all()
     nombres, hosp = _contexto(lista)
-    return jsonify(success=True, data=[_cuenta(c, nombres, hosp.get(c.hospitalizacion_id)) for c in lista]), 200
+    ids = {c.paciente_id for c in lista}
+    cuis = {p.id: p.cui for p in Paciente.query.filter(Paciente.id.in_(ids)).all()} if ids else {}
+    # El CUI permite buscar en la lista por DPI
+    return jsonify(success=True, data=[{**_cuenta(c, nombres, hosp.get(c.hospitalizacion_id)), "paciente_cui": cuis.get(c.paciente_id)}
+                                       for c in lista]), 200
 
 
 @caja_bp.route("/api/v1/salud/cuentas/<int:id>", methods=["GET"])

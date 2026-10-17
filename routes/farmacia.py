@@ -352,8 +352,46 @@ def listar_recetas():
         query = query.filter_by(estado=estado)
     recetas = query.order_by(Receta.id.desc()).limit(200).all()
     ids = {r.paciente_id for r in recetas}
-    nombres = {p.id: p.nombre_completo for p in Paciente.query.filter(Paciente.id.in_(ids)).all()} if ids else {}
-    return jsonify(success=True, data=[_receta(r, nombres) for r in recetas]), 200
+    pacientes = {p.id: p for p in Paciente.query.filter(Paciente.id.in_(ids)).all()} if ids else {}
+    nombres = {i: p.nombre_completo for i, p in pacientes.items()}
+    # El CUI permite buscar en la lista por DPI (solo personal de Salud ve esta lista completa)
+    return jsonify(success=True, data=[{**_receta(r, nombres), "paciente_cui": getattr(pacientes.get(r.paciente_id), "cui", None)}
+                                       for r in recetas]), 200
+
+
+@farmacia_bp.route("/api/v1/salud/recetas/<int:id>", methods=["GET"])
+@validar_token
+def ver_receta(id):
+    """
+    Una receta, para verla o imprimirla
+    ---
+    tags:
+      - Farmacia
+    security:
+      - BearerAuth: []
+    description: >
+      Personal con permiso recetas.ver: cualquier receta. Ciudadano: solo las suyas
+      (si no es suya responde 404, para no revelar qué recetas existen).
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Receta con paciente (nombre y CUI), médico, medicamentos y dosis
+      404:
+        description: La receta no existe o no pertenece al usuario
+    """
+    r = Receta.query.get(id)
+    propio = None if puede("recetas.ver") else _paciente_propio()
+    if not r or (not puede("recetas.ver") and (propio is None or r.paciente_id != propio.id)):
+        return _error(404, "no_encontrado", "Receta no existe")
+    p = Paciente.query.get(r.paciente_id)
+    dato = _receta(r, {r.paciente_id: p.nombre_completo if p else None})
+    dato["paciente_cui"] = p.cui if p else None
+    dato["paciente_fecha_nacimiento"] = str(p.fecha_nacimiento) if p and p.fecha_nacimiento else None
+    return jsonify(success=True, data=dato), 200
 
 
 @farmacia_bp.route("/api/v1/salud/recetas/<int:id>/despachar", methods=["POST"])

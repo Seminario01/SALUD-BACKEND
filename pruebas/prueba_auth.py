@@ -210,6 +210,21 @@ check("receta con cantidad 0", "POST", "/recetas", T["medico1"], 400,
       json={"paciente_id": p2, "items": [{"medicamento_id": 1, "cantidad": 0}]})
 check("vacunación con es_estudiante de texto", "PUT", f"/vacunacion/{p2}", T["medico1"], 400, json={"es_estudiante": "si"})
 
+print("--- Documentos para imprimir: receta y estado de cuenta (GET /recetas/{id}, /cuentas/{id})")
+recetas_p2 = requests.get(API + "/recetas", params={"paciente_id": p2},
+                          headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
+if recetas_p2:
+    rid = recetas_p2[0]["id"]
+    r = check("médico ve una receta para imprimir", "GET", f"/recetas/{rid}", T["medico1"], 200)
+    d = r.json()["data"]
+    dato("la receta trae paciente, DPI, médico y medicamentos",
+         bool(d.get("paciente")) and "paciente_cui" in d and isinstance(d.get("items"), list))
+    check("ciudadano2 ve SU receta", "GET", f"/recetas/{rid}", T["ciudadano2"], 200)
+    check("ciudadano1 NO ve la receta de otro (404, no revela)", "GET", f"/recetas/{rid}", T["ciudadano1"], 404)
+check("receta que no existe", "GET", "/recetas/999999", T["medico1"], 404)
+r = requests.get(API + "/recetas", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
+dato("la lista de recetas trae el DPI para buscar", bool(r) and "paciente_cui" in r[0])
+
 print("--- Tablero de Auditoría: GET /auditoria/indicadores?desde=&hasta= (rol auditoria:lectura)")
 try:
     T["auditor1"] = token("auditor1")
