@@ -80,7 +80,9 @@ def turnos_activos():
     def serializar(t):
         dato = {"id": t.id, "numero_turno": t.numero_turno, "estado": t.estado,
                 "prioridad": t.prioridad, "tipo_atencion": t.tipo_atencion,
-                "modulo_asignado": t.modulo_asignado}
+                "modulo_asignado": t.modulo_asignado,
+                # La pantalla de la sala anuncia por voz cada llamado nuevo (o cuando se vuelve a llamar)
+                "llamado_en": t.fecha_hora_llamado.isoformat(timespec="seconds") if t.fecha_hora_llamado else None}
         if personal:
             dato.update(paciente_id=t.paciente_id, paciente=nombres.get(t.paciente_id))
         return dato

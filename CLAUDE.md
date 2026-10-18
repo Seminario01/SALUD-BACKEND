@@ -116,6 +116,12 @@ pública del frontend) que consulta `GET /verificar/receta/<código>` **sin toke
 médico, medicamentos y estado (vigente, despachada o anulada); del paciente solo iniciales y los
 últimos 4 del DPI. Límite: 30 consultas por minuto por visitante. El número de receta no sirve como código.
 
+## Reporte de diagnósticos
+
+`GET /reportes/diagnosticos` (`routes/reportes.py`, permiso `reportes.ver`: Médico, Jefatura,
+Administración y Auditoría): diagnósticos más frecuentes en un período, agrupados sin tildes,
+mayúsculas ni el punto final. Solo cifras. Para Auditoría, los de menos de 3 pacientes van en "Otros".
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

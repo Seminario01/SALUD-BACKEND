@@ -89,6 +89,7 @@ PERMISOS = {
     "integraciones.ver":      (JEF, ADM),
     "integraciones.demo":     (JEF, ADM),
     "bitacora.ver":           (ADM,),                # quién vio o modificó cada expediente
+    "reportes.ver":           (MED, JEF, ADM, *ROLES_AUDITORIA),  # diagnósticos más frecuentes (solo cifras)
 }
 
 

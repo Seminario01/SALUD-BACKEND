@@ -67,6 +67,7 @@ MATRIZ = {
     "integraciones.demo":     {"JEF", "ADM"},
     "bitacora.ver":           {"ADM"},
     "pacientes.alergias":     {"MED", "ENF", "REC"},
+    "reportes.ver":           {"MED", "JEF", "ADM", "AUD"},
 }
 
 
@@ -136,6 +137,7 @@ PRUEBAS = {
     "integraciones.demo":     lambda u: not denegado(pedir(u, "POST", "/integraciones/simular/no-existe")),
     "bitacora.ver":           lambda u: not denegado(pedir(u, "GET", "/bitacora/accesos?limite=1")),
     "pacientes.alergias":     lambda u: not denegado(pedir(u, "PUT", "/pacientes/999999/alergias", json={})),
+    "reportes.ver":           lambda u: not denegado(pedir(u, "GET", "/reportes/diagnosticos")),
 }
 
 assert set(PRUEBAS) == set(MATRIZ), "La prueba debe cubrir todos los permisos de la matriz"

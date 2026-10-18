@@ -758,6 +758,28 @@ dato("no encuentra a nadie", d == [])
 dato("como máximo 5 resultados", len(requests.get(API + "/pacientes/posibles-duplicados?nombre_completo=Maria%20Garcia",
                                                     headers=H("recepcion1")).json()["data"]) <= 5)
 
+print("--- Reporte de diagnósticos más frecuentes")
+for paciente, texto_dx in ((p1, "Rinitis de prueba."), (p2, "RINITIS DE PRUEBA"), (p2, "rinitis de prueba" + chr(10) + "Con congestión")):
+    check("medico1 registra una atención para el reporte", "POST", f"/expedientes/{paciente}/atenciones", T["medico1"], 201,
+          json={"diagnostico": texto_dx})
+rep = check("jefatura1 ve el reporte", "GET", "/reportes/diagnosticos?limite=50", T["jefatura1"], 200).json()
+fila = next((x for x in rep["data"] if x["diagnostico"].lower() == "rinitis de prueba"), None)
+dato("agrupa sin importar mayúsculas, punto final ni la segunda línea", fila is not None and fila["atenciones"] >= 3 and fila["pacientes"] == 2)
+dato("trae totales y porcentajes", rep["total_atenciones"] >= 3 and 0 < fila["porcentaje"] <= 100 and bool(rep["desde"] and rep["hasta"]))
+dato("solo cifras: ningún dato de pacientes", "paciente_id" not in str(rep) and "Perez" not in str(rep) and "Garcia" not in str(rep))
+aud = check("analista1 (Auditoría) ve el reporte", "GET", "/reportes/diagnosticos?limite=50", T["analista1"], 200).json()
+dato("para Auditoría, un diagnóstico de solo 2 pacientes se suma en 'Otros'",
+     not any(x["diagnostico"].lower() == "rinitis de prueba" for x in aud["data"]) and aud["data"][-1]["diagnostico"] == "Otros diagnósticos")
+dato("Auditoría y Jefatura suman el mismo total", aud["total_atenciones"] == rep["total_atenciones"])
+check("recepcion1 NO ve el reporte", "GET", "/reportes/diagnosticos", T["recepcion1"], 403)
+check("ciudadano1 NO ve el reporte", "GET", "/reportes/diagnosticos", T["ciudadano1"], 403)
+check("fecha con otro formato", "GET", "/reportes/diagnosticos?desde=01/10/2026", T["jefatura1"], 400)
+check("desde después de hasta", "GET", "/reportes/diagnosticos?desde=2026-10-10&hasta=2026-10-01", T["jefatura1"], 400)
+check("período de más de 3 años", "GET", "/reportes/diagnosticos?desde=2020-01-01&hasta=2026-01-01", T["jefatura1"], 400)
+check("límite fuera de rango", "GET", "/reportes/diagnosticos?limite=0", T["jefatura1"], 400)
+vacio = check("un período sin atenciones", "GET", "/reportes/diagnosticos?desde=2001-01-01&hasta=2001-12-31", T["jefatura1"], 200).json()
+dato("da cero sin fallar", vacio["total_atenciones"] == 0 and vacio["data"] == [])
+
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)
 check("indicadores con api key", "GET", "/indicadores", None, 200, headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")})
