@@ -109,12 +109,14 @@ jobs:
           mysql -h 127.0.0.1 -u root < base-de-datos/datos_demo.sql
           mysql -h 127.0.0.1 -u root < base-de-datos/demo_turnos_hoy.sql
 
+      # Cada prueba deja su salida en un archivo; si falla, las líneas "FALLA" y el error se
+      # publican como avisos (Annotations), que se ven en la página de la corrida sin iniciar sesión.
       - name: Pruebas de la API (prueba_auth)
-        run: python pruebas/prueba_auth.py
+        run: bash .github/correr_prueba.sh pruebas/prueba_auth.py
       - name: Matriz de permisos (prueba_permisos)
-        run: python pruebas/prueba_permisos.py
+        run: bash .github/correr_prueba.sh pruebas/prueba_permisos.py
       - name: Datos basura (prueba_qa)
-        run: python pruebas/prueba_qa.py
+        run: bash .github/correr_prueba.sh pruebas/prueba_qa.py
 
       - name: Registro del backend (si algo falló)
         if: failure()
