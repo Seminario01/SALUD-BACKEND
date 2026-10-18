@@ -259,6 +259,7 @@ def listar_citas():
         "fecha_vencimiento": c.fecha_vencimiento.isoformat() if c.fecha_vencimiento else None,
         "numero_autorizacion": c.numero_autorizacion,
         "referencia_tributario": c.referencia_tributario,
+        "fecha_pago": c.fecha_pago.isoformat(timespec="seconds") if c.fecha_pago else None,
     } for c in citas]), 200
 
 @citas_bp.route("/api/v1/salud/citas/<int:id>", methods=["GET"])
