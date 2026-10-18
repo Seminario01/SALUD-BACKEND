@@ -27,6 +27,8 @@ class CitaMedica(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
     medico_sub = db.Column(db.String(SUB_LEN))  # `sub` del médico en el Login Único
+    medico_nombre = db.Column(db.String(150))   # nombre del médico (para el detalle de la cita)
+    agendada_por = db.Column(db.String(150))    # quién la agendó (nombre y puesto)
     fecha_hora = db.Column(db.DateTime, nullable=False)
     estado = db.Column(db.Enum("pendiente", "confirmada", "atendida", "cancelada"), default="pendiente")
     motivo = db.Column(db.String(300))

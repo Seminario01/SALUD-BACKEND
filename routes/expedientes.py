@@ -64,6 +64,10 @@ def registrar_atencion(paciente_id):
         notas=texto(data, "notas", 4000, etiqueta="Las notas"),
     )
     db.session.add(registro)
+    # La cita atendida queda a nombre del médico que registró la atención (si no tenía médico)
+    if cita_id is not None and not cita.medico_sub:
+        cita.medico_sub = g.usuario["sub"]
+        cita.medico_nombre = (g.usuario.get("nombre") or g.usuario.get("usuario") or "")[:150] or None
     db.session.commit()
 
     return jsonify(success=True, data={"id": registro.id}, message="Atención registrada"), 201

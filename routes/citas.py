@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, g
 from extensions import db
-from models import CitaMedica, Paciente
-from auth import validar_token, puede
+from models import BitacoraAcceso, CitaMedica, ExpedienteClinico, Hospitalizacion, Paciente, Receta
+from auth import ROL_MEDICO, validar_token, puede, tiene_rol
+from bitacora_accesos import _puesto
 from validacion import entero, fecha_hora_futura, texto
 
 ESTADOS_CITA = ("pendiente", "confirmada", "atendida", "cancelada")
@@ -30,6 +31,30 @@ def _cita_repetida(paciente_id, fecha_hora, excepto=None):
     if excepto is not None:
         q = q.filter(CitaMedica.id != excepto)
     return q.first() is not None
+
+
+def _yo():
+    """Nombre del usuario actual para guardarlo en la cita."""
+    return (g.usuario.get("nombre") or g.usuario.get("usuario") or "")[:150] or None
+
+
+def _nombre_medico(sub, guardado=None):
+    """Nombre del médico: el guardado en la cita o, para citas antiguas, el que quedó
+    en sus recetas, hospitalizaciones u otras citas (el Login Único solo da el `sub`)."""
+    if guardado or not sub:
+        return guardado
+    for modelo in (CitaMedica, Receta, Hospitalizacion):
+        fila = modelo.query.filter(modelo.medico_sub == sub, modelo.medico_nombre.isnot(None)).first()
+        if fila:
+            return fila.medico_nombre
+    return None
+
+
+def _asignarme_si_soy_medico(cita):
+    """Si un médico agenda o atiende una cita sin médico, la cita queda a su nombre."""
+    if not cita.medico_sub and tiene_rol(ROL_MEDICO):
+        cita.medico_sub = g.usuario["sub"]
+        cita.medico_nombre = _yo()
 
 
 def _sin_permiso():
@@ -80,7 +105,11 @@ def crear_cita():
         return jsonify(success=False, error="ya_existe",
                        message="El paciente ya tiene una cita a esa misma hora"), 409
 
-    cita = CitaMedica(paciente_id=paciente_id, medico_sub=medico_sub, fecha_hora=fecha_hora, motivo=motivo)
+    puesto = _puesto(g.usuario.get("roles", []))
+    cita = CitaMedica(paciente_id=paciente_id, medico_sub=medico_sub, medico_nombre=_nombre_medico(medico_sub),
+                      fecha_hora=fecha_hora, motivo=motivo,
+                      agendada_por=f"{_yo() or ''}{f' ({puesto})' if puesto else ''}"[:150] or None)
+    _asignarme_si_soy_medico(cita)
     db.session.add(cita)
     db.session.commit()
     return jsonify(success=True, data={"id": cita.id}, message="Cita creada"), 201
@@ -140,6 +169,8 @@ def reprogramar_cita(id):
             return jsonify(success=False, error="datos_invalidos",
                            message=f"estado debe ser uno de: {', '.join(ESTADOS_CITA)}"), 400
         cita.estado = data["estado"]
+        if cita.estado in ("confirmada", "atendida"):
+            _asignarme_si_soy_medico(cita)
 
     db.session.commit()
     return jsonify(success=True, data={"id": cita.id}, message="Cita actualizada"), 200
@@ -216,6 +247,7 @@ def listar_citas():
         "id": c.id,
         "paciente_id": c.paciente_id,
         "medico_sub": c.medico_sub,
+        "medico_nombre": c.medico_nombre,
         "fecha_hora": str(c.fecha_hora),
         "estado": c.estado,
         "motivo": c.motivo,
@@ -228,3 +260,81 @@ def listar_citas():
         "numero_autorizacion": c.numero_autorizacion,
         "referencia_tributario": c.referencia_tributario,
     } for c in citas]), 200
+
+@citas_bp.route("/api/v1/salud/citas/<int:id>", methods=["GET"])
+@validar_token
+def ver_cita(id):
+    """
+    Detalle de una cita: paciente, médico, fecha, pago, atención e historial
+    ---
+    tags:
+      - Citas
+    security:
+      - BearerAuth: []
+    description: >
+      Personal con citas.ver: cualquier cita. Ciudadano: solo las suyas (404 si es de otro,
+      para no revelar que existe). La atención registrada (diagnóstico) solo se incluye para
+      quien puede ver expedientes; el historial de cambios, solo para el personal.
+    parameters:
+      - name: id
+        in: path
+        type: integer
+        required: true
+    responses:
+      200:
+        description: Detalle de la cita
+      404:
+        description: La cita no existe (o es de otro paciente)
+    """
+    cita = CitaMedica.query.get(id)
+    personal = puede("citas.ver")
+    if cita is not None and not personal:
+        propio = _paciente_propio()
+        if propio is None or propio.id != cita.paciente_id:
+            cita = None
+    if cita is None:
+        return jsonify(success=False, error="no_encontrado", message="Cita no existe"), 404
+
+    p = Paciente.query.get(cita.paciente_id)
+    dato = {
+        "id": cita.id,
+        "estado": cita.estado,
+        "fecha_hora": str(cita.fecha_hora),
+        "motivo": cita.motivo,
+        # fecha_creacion se guarda en UTC (datetime.utcnow): se marca para que el navegador la pase a hora local
+        "fecha_creacion": cita.fecha_creacion.isoformat(timespec="seconds") + "Z" if cita.fecha_creacion else None,
+        "agendada_por": cita.agendada_por,
+        "medico_sub": cita.medico_sub,
+        "medico_nombre": _nombre_medico(cita.medico_sub, cita.medico_nombre),
+        "paciente_id": cita.paciente_id,
+        "paciente": p.nombre_completo if p else None,
+        "paciente_cui": p.cui if p else None,
+        "paciente_telefono": p.telefono if p else None,
+        "paciente_fecha_nacimiento": str(p.fecha_nacimiento) if p and p.fecha_nacimiento else None,
+        # Pago (Tributario)
+        "costo": float(cita.costo) if cita.costo is not None else None,
+        "pago_confirmado": bool(cita.pago_confirmado),
+        "estado_cobro": "PAGADO" if cita.pago_confirmado else cita.estado_cobro,
+        "numero_referencia": cita.numero_referencia,
+        "referencia_tributario": cita.referencia_tributario,
+        "fecha_vencimiento": cita.fecha_vencimiento.isoformat() if cita.fecha_vencimiento else None,
+        "numero_autorizacion": cita.numero_autorizacion,
+        "fecha_pago": cita.fecha_pago.isoformat(timespec="seconds") if cita.fecha_pago else None,
+    }
+    if puede("expediente.ver") or not personal:
+        dato["atenciones"] = [{
+            "id": a.id, "fecha_atencion": str(a.fecha_atencion), "diagnostico": a.diagnostico,
+            "tratamiento": a.tratamiento, "medico": _nombre_medico(a.medico_sub),
+        } for a in ExpedienteClinico.query.filter_by(cita_id=cita.id).order_by(ExpedienteClinico.fecha_atencion).all()]
+    if personal:
+        ruta = f"/api/v1/salud/citas/{cita.id}"
+        cambios = BitacoraAcceso.query.filter(
+            BitacoraAcceso.accion != "ver",
+            db.or_(BitacoraAcceso.ruta == ruta, BitacoraAcceso.ruta.like(ruta + "/%"),
+                   BitacoraAcceso.descripcion == f"Agendó la cita No. {cita.id}"),
+        ).order_by(BitacoraAcceso.fecha).limit(100).all()
+        dato["historial"] = [{
+            "fecha": h.fecha.isoformat(timespec="seconds"), "descripcion": h.descripcion,
+            "usuario": h.nombre or h.usuario, "puesto": h.puesto,
+        } for h in cambios]
+    return jsonify(success=True, data=dato), 200

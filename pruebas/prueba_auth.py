@@ -133,6 +133,25 @@ cita_p1 = check("cita de p1 para probar", "POST", "/citas", T["recepcion1"], 201
                 json={"paciente_id": p1, "fecha_hora": futuro(18, 8)}).json()["data"]["id"]
 check("atencion con cita de OTRO paciente -> 400", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400,
       json={"diagnostico": "X", "cita_id": cita_p1})
+print("--- Detalle de una cita: GET /citas/{id}")
+r = check("recepcion1 ve el detalle de la cita de p2", "GET", f"/citas/{c2}", T["recepcion1"], 200).json()["data"]
+dato("trae paciente, DPI, quién la agendó y datos del pago",
+     r["paciente_id"] == p2 and "paciente_cui" in r and "Recepción" in (r["agendada_por"] or "")
+     and {"estado_cobro", "numero_referencia", "fecha_pago", "historial"} <= set(r))
+dato("recepción NO recibe la atención clínica (no ve expedientes)", "atenciones" not in r)
+check("ciudadano2 ve SU cita", "GET", f"/citas/{c2}", T["ciudadano2"], 200)
+r = requests.get(API + f"/citas/{c2}", headers={"Authorization": f"Bearer {T['ciudadano2']}"}).json()["data"]
+dato("el ciudadano no recibe el historial interno", "historial" not in r)
+check("ciudadano1 NO ve la cita de otro (404, no revela)", "GET", f"/citas/{c2}", T["ciudadano1"], 404)
+check("cita que no existe", "GET", "/citas/999999", T["medico1"], 404)
+check("detalle de cita sin token", "GET", f"/citas/{c2}", None, 401)
+check("medico1 registra la atención de la cita de p1", "POST", f"/expedientes/{p1}/atenciones", T["medico1"], 201,
+      json={"diagnostico": "Control", "cita_id": cita_p1})
+r = check("medico1 ve el detalle con la atención", "GET", f"/citas/{cita_p1}", T["medico1"], 200).json()["data"]
+dato("la cita queda a nombre del médico que la atendió y muestra el diagnóstico",
+     bool(r["medico_nombre"]) and any(a["diagnostico"] == "Control" for a in r["atenciones"]))
+dato("el historial muestra quién agendó la cita",
+     any(h["descripcion"] == f"Agendó la cita No. {cita_p1}" and h["puesto"] == "Recepción" for h in r["historial"]))
 check("recurso con tipo invalido -> 400", "POST", "/recursos", T["admin.salud"], 400, json={"tipo": "helicoptero", "total": 1})
 check("recurso con disponible > total -> 400", "POST", "/recursos", T["admin.salud"], 400,
       json={"tipo": "cama", "disponible": 15, "total": 10})

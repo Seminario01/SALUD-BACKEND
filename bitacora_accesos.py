@@ -34,6 +34,7 @@ VER = {
     "/recetas/<int:id>": "Vio la receta No. {id}",
     "/cuentas/<int:id>": "Vio la cuenta No. {id}",
     "/hospitalizaciones/<int:id>": "Vio la hospitalización No. {id}",
+    "/citas/<int:id>": "Vio la cita No. {id}",
 }
 
 CAMBIOS = {

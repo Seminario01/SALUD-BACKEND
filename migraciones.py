@@ -71,6 +71,9 @@ COLUMNAS = [
     # Tributario: referencia que genera su sistema
     ("citas_medicas", "referencia_tributario", "VARCHAR(40) NULL"),
     ("cuentas_paciente", "referencia_tributario", "VARCHAR(40) NULL"),
+    # Citas: médico que atiende y quién la agendó (detalle de la cita)
+    ("citas_medicas", "medico_nombre", "VARCHAR(150) NULL"),
+    ("citas_medicas", "agendada_por", "VARCHAR(150) NULL"),
 ]
 
 # Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se
