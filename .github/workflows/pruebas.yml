@@ -1,0 +1,121 @@
+# Pruebas automáticas del backend: corren solas en GitHub cada vez que se sube código.
+#
+# 1) "rapidas": reglas sin servidor (lotes, alertas), que todo compile y librerías sin
+#    vulnerabilidades conocidas.
+# 2) "completas": arma un ambiente igual al de la PC (MySQL, Login Único de prueba con
+#    keycloak-local/import, simuladores, datos de SALUD-DATABASE) y corre prueba_auth,
+#    prueba_permisos y prueba_qa. Todo es temporal y de prueba: no toca producción ni usa
+#    claves reales (las cuentas de prueba son las del realm de keycloak-local).
+name: Pruebas
+
+on:
+  push:
+    branches: [denilson-dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pruebas-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: America/Guatemala
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  rapidas:
+    name: Reglas, compilación y librerías
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Todo el código compila
+        run: python -m compileall -q . -x "(venv|\.git)"
+      - name: Regla de vencimientos (lotes)
+        run: python pruebas/prueba_lotes.py
+      - name: Alertas clínicas (signos, alergias, duplicados)
+        run: python pruebas/prueba_alertas.py
+      - name: Librerías sin vulnerabilidades conocidas
+        run: pipx run pip-audit -r requirements.txt
+
+  completas:
+    name: Pruebas completas (API, permisos y datos basura)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"      # base temporal de la prueba, se borra al terminar
+          TZ: America/Guatemala
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+    env:
+      DATABASE_URL: mysql+pymysql://root:@127.0.0.1/salud_db
+      AUTH_ISSUER: http://localhost:8081/realms/rsd
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: Seminario01/SALUD-DATABASE
+          ref: denilson-dev
+          path: base-de-datos
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Login Único de prueba (Keycloak con el realm de keycloak-local)
+        run: |
+          docker run -d --name keycloak -p 8081:8080 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 12)" \
+            -v "$GITHUB_WORKSPACE/keycloak-local/import:/opt/keycloak/data/import:ro" \
+            quay.io/keycloak/keycloak:26.4.0 start-dev --import-realm
+
+      - name: Base de datos (estructura de SALUD-DATABASE)
+        run: mysql -h 127.0.0.1 -u root < base-de-datos/schema.sql
+
+      - name: Esperar al Login Único
+        run: |
+          for i in $(seq 1 90); do
+            curl -sf http://localhost:8081/realms/rsd/.well-known/openid-configuration >/dev/null && exit 0
+            sleep 2
+          done
+          docker logs keycloak | tail -n 40; exit 1
+
+      - name: Levantar simuladores y backend
+        run: |
+          nohup python simuladores/app.py > simuladores.log 2>&1 &
+          nohup gunicorn --preload --workers 2 --bind 127.0.0.1:5050 --timeout 60 "app:crear_app()" > backend.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:5050/api/v1/salud/estado >/dev/null && curl -s -o /dev/null http://127.0.0.1:5055/ && exit 0
+            sleep 2
+          done
+          cat backend.log; exit 1
+
+      - name: Datos de demostración (después de que el backend creó sus tablas)
+        run: |
+          mysql -h 127.0.0.1 -u root < base-de-datos/datos_demo.sql
+          mysql -h 127.0.0.1 -u root < base-de-datos/demo_turnos_hoy.sql
+
+      - name: Pruebas de la API (prueba_auth)
+        run: python pruebas/prueba_auth.py
+      - name: Matriz de permisos (prueba_permisos)
+        run: python pruebas/prueba_permisos.py
+      - name: Datos basura (prueba_qa)
+        run: python pruebas/prueba_qa.py
+
+      - name: Registro del backend (si algo falló)
+        if: failure()
+        run: tail -n 200 backend.log; tail -n 50 simuladores.log

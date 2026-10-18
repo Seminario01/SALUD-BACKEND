@@ -79,6 +79,10 @@ Revisión de librerías con vulnerabilidades conocidas (antes de cada entrega):
 `npm audit` en SALUD-FRONTEND y `pip-audit -r requirements.txt` en SALUD-BACKEND
 (instalar `pip-audit` en un entorno aparte, no en `venv`). Al 14 oct 2026: 0 en los dos.
 
+En GitHub, `.github/workflows/pruebas.yml` corre todo esto solo en cada push a `denilson-dev`
+(MySQL, Keycloak con `keycloak-local/import`, simuladores y datos de SALUD-DATABASE): ver la
+pestaña Actions del repo. Si se agrega una prueba que necesita algo nuevo, agregarlo también ahí.
+
 ## Validación de datos
 
 Los datos que llegan en el cuerpo se validan con `validacion.py` (`texto`, `cui`, `monto`,

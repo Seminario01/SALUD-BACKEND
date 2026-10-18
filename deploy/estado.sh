@@ -38,6 +38,12 @@ if [ "$ROL" = "PRODUCCIÓN" ]; then
   h="$(horas_desde "$HOME/respaldos-salud/salud_db_*.sql.gz")"
   { [ -n "$h" ] && [ "$h" -lt 26 ]; } && ok "último respaldo hace ${h} h" || revisar "último respaldo: ${h:-ninguno} h (debe ser menos de 26)"
   crontab -l 2>/dev/null | grep -q respaldo.sh && ok "respaldo diario programado (3:15)" || revisar "falta programar respaldo.sh en crontab"
+  prueba="$(tail -n 1 "$HOME/respaldos-salud/prueba-restauracion.log" 2>/dev/null)"
+  case "$prueba" in
+    *"  OK  "*) ok "última prueba de restauración: ${prueba%%  OK*} (el respaldo sí se restaura)" ;;
+    *FALLA*)    revisar "la última prueba de restauración FALLÓ: $prueba" ;;
+    *)          revisar "todavía no se ha probado restaurar un respaldo (bash deploy/probar_respaldo.sh)" ;;
+  esac
 else
   [ -z "$(docker ps -q --filter name=^salud-tunel-1$)" ] && ok "túnel apagado (correcto en el respaldo)"
   h="$(horas_desde "$HOME/respaldos-de-produccion/salud_db_*.sql.gz")"

@@ -257,6 +257,19 @@ Como el respaldo pasa apagado casi siempre, el aviso principal es un **monitor e
 backend y la base de datos responden, 503 si la base no contesta) y manda un correo si falla.
 `estado.sh` también revisa esa dirección.
 
+### Prueba de que los respaldos sí se restauran
+
+`deploy/probar_respaldo.sh` levanta un MySQL temporal y aislado (sin red), restaura ahí el último
+respaldo, cuenta pacientes, citas, recetas, etc., lo compara con producción (solo lectura) y borra el
+contenedor. Deja una línea en `~/respaldos-salud/prueba-restauracion.log`, que `estado.sh` muestra.
+
+```powershell
+ssh denis@100.70.58.32 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/probar_respaldo.sh'
+ssh denis@100.70.58.32 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/probar_respaldo.sh --programar'
+```
+
+La segunda la deja programada todos los domingos a las 4:00 (después del respaldo de las 3:15).
+
 ### Si producción falla: el respaldo toma el control
 
 El respaldo ya tiene una copia de `~/.cloudflared` (credenciales del túnel, permisos 600) y el
