@@ -251,6 +251,12 @@ ssh denis@IP_RESPALDO 'tail -n 20 ~/respaldos-de-produccion/vigilancia.log'
 
 Si el archivo no existe o está vacío, la página no se ha caído desde que se programó.
 
+Como el respaldo pasa apagado casi siempre, el aviso principal es un **monitor externo**
+(UptimeRobot, cuenta gratuita de Antonio) que cada 5 minutos consulta
+`https://saludumg.online/api/v1/salud/estado` (sin token; 200 `{"estado": "ok"}` solo si el
+backend y la base de datos responden, 503 si la base no contesta) y manda un correo si falla.
+`estado.sh` también revisa esa dirección.
+
 ### Si producción falla: el respaldo toma el control
 
 El respaldo ya tiene una copia de `~/.cloudflared` (credenciales del túnel, permisos 600) y el

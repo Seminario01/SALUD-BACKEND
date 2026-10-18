@@ -58,5 +58,10 @@ uso="$(df --output=pcent "$HOME" | tail -n 1 | tr -dc 0-9)"
 [ "$uso" -lt 85 ] && ok "disco al ${uso}%" || revisar "disco al ${uso}% (liberar espacio)"
 pagina="$(curl -s -o /dev/null -m 20 -w '%{http_code}' https://saludumg.online/)"
 [ "$pagina" = "200" ] && ok "saludumg.online responde" || revisar "saludumg.online responde $pagina"
+api="$(curl -s -m 20 https://saludumg.online/api/v1/salud/estado)"
+case "$api" in
+  *'"estado":"ok"'*|*'"estado": "ok"'*) ok "la API y la base de datos responden (/api/v1/salud/estado)" ;;
+  *) revisar "la API o la base de datos no responden: ${api:-sin respuesta}" ;;
+esac
 
 echo "=== $([ "$PROBLEMAS" = 0 ] && echo 'Todo bien' || echo "$PROBLEMAS punto(s) para revisar")"

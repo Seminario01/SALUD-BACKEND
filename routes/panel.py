@@ -1,8 +1,44 @@
+import logging
+
 from flask import Blueprint, jsonify, g
+from sqlalchemy import text
+
 from auth import validar_token, requiere_permiso, permisos_de, puede, PERMISOS
+from extensions import db
 from routes.externos import calcular_indicadores
 
 panel_bp = Blueprint("panel", __name__)
+log = logging.getLogger(__name__)
+
+
+@panel_bp.route("/api/v1/salud/estado", methods=["GET"])
+def estado_del_servicio():
+    """
+    ¿Está funcionando el módulo? (público, para el monitor externo)
+    ---
+    tags:
+      - Panel
+    description: >
+      Sin token. Responde 200 solo si el backend funciona Y la base de datos contesta.
+      Lo consulta un monitor externo (UptimeRobot) cada 5 minutos para avisar si el sitio se cae.
+      No da ningún dato del sistema ni de pacientes.
+    responses:
+      200:
+        description: '{"estado": "ok"}'
+      503:
+        description: La base de datos no responde
+    """
+    try:
+        db.session.execute(text("SELECT 1"))
+    except Exception as error:  # noqa: BLE001
+        log.error("Estado: la base de datos no responde: %s", error)
+        db.session.rollback()
+        respuesta = jsonify(success=False, estado="sin_base_de_datos", message="La base de datos no responde")
+        respuesta.headers["Cache-Control"] = "no-store"
+        return respuesta, 503
+    respuesta = jsonify(success=True, estado="ok")
+    respuesta.headers["Cache-Control"] = "no-store"
+    return respuesta, 200
 
 
 @panel_bp.route("/api/v1/salud/panel", methods=["GET"])

@@ -780,6 +780,12 @@ check("límite fuera de rango", "GET", "/reportes/diagnosticos?limite=0", T["jef
 vacio = check("un período sin atenciones", "GET", "/reportes/diagnosticos?desde=2001-01-01&hasta=2001-12-31", T["jefatura1"], 200).json()
 dato("da cero sin fallar", vacio["total_atenciones"] == 0 and vacio["data"] == [])
 
+print("--- Estado del servicio (monitor externo, sin token)")
+e = check("estado sin token", "GET", "/estado", None, 200)
+dato("dice ok y nada más (ni versión, ni datos)", e.json() == {"success": True, "estado": "ok"}
+     and e.headers.get("Cache-Control") == "no-store")
+check("estado no acepta POST", "POST", "/estado", None, 405)
+
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)
 check("indicadores con api key", "GET", "/indicadores", None, 200, headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")})
