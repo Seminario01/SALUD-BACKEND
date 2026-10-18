@@ -68,6 +68,9 @@ CAMBIOS = {
     ("POST", "/cuentas/<int:id>/movimientos/<int:mid>/anular"): ("anular", "Anuló un movimiento de la cuenta No. {id}"),
     ("POST", "/cuentas/<int:id>/cerrar"): ("modificar", "Cerró la cuenta No. {id}"),
     ("POST", "/cuentas/<int:id>/verificar-pago"): ("modificar", "Verificó el pago de la cuenta No. {id}"),
+    ("POST", "/medicamentos"): ("crear", "Agregó el medicamento No. {nuevo}"),
+    ("POST", "/medicamentos/<int:id>/movimientos"): ("modificar", "Registró un movimiento del medicamento No. {id}"),
+    ("POST", "/medicamentos/<int:id>/lotes/<int:lote_id>/baja"): ("anular", "Dio de baja un lote del medicamento No. {id}"),
 }
 
 # Para las rutas cuyo número no es el del paciente: de qué tabla se saca el paciente

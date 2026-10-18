@@ -89,6 +89,13 @@ Reglas de negocio: citas solo desde ahora hasta 366 días y sin repetir paciente
 un turno activo por paciente al día; el presupuesto ejecutado no supera al asignado.
 Las pruebas crean citas con `futuro(dias, hora)`, nunca con fechas fijas.
 
+## Lotes y vencimientos (Farmacia)
+
+`lotes.py`: una ENTRADA con `fecha_vencimiento` (y `numero_lote` opcional) crea un lote. La
+existencia total sigue en `medicamentos.existencia`; lo que no tiene lote es "sin lote" (como
+antes). Al despachar se descuenta primero el lote que vence antes y nunca uno vencido; las
+vencidas no cuentan como `disponible`. `pruebas/prueba_lotes.py` revisa esa regla sin servidor.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

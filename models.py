@@ -227,6 +227,21 @@ class DetalleReceta(db.Model):
     medicamento = db.relationship("Medicamento", lazy="joined")
 
 
+class LoteMedicamento(db.Model):
+    """Lote de un medicamento con su fecha de vencimiento (lo crea una ENTRADA con lote).
+    La existencia total sigue en medicamentos.existencia; la suma de los lotes nunca la supera
+    (lo que no tiene lote es existencia "sin lote", como antes de los lotes)."""
+    __tablename__ = "lotes_medicamento"
+    id = db.Column(db.Integer, primary_key=True)
+    medicamento_id = db.Column(db.Integer, db.ForeignKey("medicamentos.id_medicamento"), nullable=False, index=True)
+    numero_lote = db.Column(db.String(50))
+    fecha_vencimiento = db.Column(db.Date, nullable=False, index=True)
+    cantidad_inicial = db.Column(db.Integer, nullable=False)
+    cantidad = db.Column(db.Integer, nullable=False)          # lo que queda del lote
+    fecha_ingreso = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    usuario = db.Column(db.String(100))
+
+
 class MovimientoInventario(db.Model):
     __tablename__ = "movimientos_inventario"
     id = db.Column("id_movimiento", db.Integer, primary_key=True)

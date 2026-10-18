@@ -480,6 +480,51 @@ check("anular dos veces", "POST", f"/recetas/{otra}/anular", T["medico1"], 409)
 check("ajuste para dejar la existencia en 0", "POST", f"/medicamentos/{m['id']}/movimientos", T["farmacia1"], 201,
       json={"tipo": "AJUSTE", "cantidad": -2, "observacion": "Fin de la prueba"})
 
+print("--- Lotes y vencimientos de medicamentos")
+HF = {"Authorization": f"Bearer {T['farmacia1']}"}
+CL = "PRB-LOTE"
+requests.post(API + "/medicamentos", headers=HF, json={"codigo": CL, "nombre": "Medicamento con lotes", "presentacion": "Tableta"})
+ml = requests.get(API + f"/medicamentos?q={CL}", headers=HF).json()["data"][0]
+for l in requests.get(API + f"/medicamentos/{ml['id']}/lotes", headers=HF).json()["data"]:      # repetible: vacía los lotes
+    requests.post(API + f"/medicamentos/{ml['id']}/lotes/{l['id']}/baja", headers=HF, json={"motivo": "Inicio de la prueba"})
+ml = requests.get(API + f"/medicamentos?q={CL}", headers=HF).json()["data"][0]
+if ml["existencia"]:
+    requests.post(API + f"/medicamentos/{ml['id']}/movimientos", headers=HF, json={"tipo": "AJUSTE", "cantidad": -ml["existencia"]})
+MOV = f"/medicamentos/{ml['id']}/movimientos"
+pronto = (datetime.now() + timedelta(days=20)).strftime("%Y-%m-%d")
+tarde = (datetime.now() + timedelta(days=400)).strftime("%Y-%m-%d")
+check("entrada con lote que vence en 400 días", "POST", MOV, T["farmacia1"], 201,
+      json={"tipo": "ENTRADA", "cantidad": 10, "numero_lote": "TARDE", "fecha_vencimiento": tarde})
+r = check("entrada con lote que vence en 20 días", "POST", MOV, T["farmacia1"], 201,
+          json={"tipo": "ENTRADA", "cantidad": 5, "numero_lote": "PRONTO", "fecha_vencimiento": pronto}).json()["data"]
+dato("existencia 15, 5 por vencer, próximo vencimiento el del lote PRONTO",
+     r["existencia"] == 15 and r["por_vencer"] == 5 and r["vencidas"] == 0 and r["proximo_vencimiento"] == pronto)
+check("entrada sin lote (como antes)", "POST", MOV, T["farmacia1"], 201, json={"tipo": "ENTRADA", "cantidad": 3})
+check("lote ya vencido", "POST", MOV, T["farmacia1"], 400,
+      json={"tipo": "ENTRADA", "cantidad": 1, "fecha_vencimiento": "2020-01-01"})
+check("fecha de vencimiento con otro formato", "POST", MOV, T["farmacia1"], 400,
+      json={"tipo": "ENTRADA", "cantidad": 1, "fecha_vencimiento": "31/12/2027"})
+check("número de lote sin fecha de vencimiento", "POST", MOV, T["farmacia1"], 400,
+      json={"tipo": "ENTRADA", "cantidad": 1, "numero_lote": "X"})
+pv = check("lista de por vencer", "GET", "/medicamentos?por_vencer=1", T["farmacia1"], 200).json()["data"]
+dato("el medicamento aparece en por vencer", any(x["id"] == ml["id"] for x in pv))
+rl = check("medico1 receta 7 del medicamento con lotes", "POST", "/recetas", T["medico1"], 201,
+           json={"paciente_id": p2, "items": [{"medicamento_id": ml["id"], "cantidad": 7}]}).json()["data"]["id"]
+check("farmacia1 despacha la receta", "POST", f"/recetas/{rl}/despachar", T["farmacia1"], 200)
+lt = {l["numero_lote"]: l["cantidad"] for l in requests.get(API + f"/medicamentos/{ml['id']}/lotes", headers=HF).json()["data"]}
+dato("se despachó primero el lote que vence antes (PRONTO 5 -> 0, TARDE 10 -> 8)", lt.get("PRONTO") is None and lt.get("TARDE") == 8)
+kx = requests.get(API + MOV, headers=HF).json()["data"]
+dato("el kardex dice de qué lotes salió", any(x["receta_id"] == rl and "PRONTO" in (x["observacion"] or "") and "TARDE" in x["observacion"] for x in kx))
+check("medico1 ve los lotes (inventario.ver)", "GET", f"/medicamentos/{ml['id']}/lotes", T["medico1"], 200)
+check("recepcion1 NO ve lotes", "GET", f"/medicamentos/{ml['id']}/lotes", T["recepcion1"], 403)
+tarde_id = next(l["id"] for l in requests.get(API + f"/medicamentos/{ml['id']}/lotes", headers=HF).json()["data"] if l["numero_lote"] == "TARDE")
+check("medico1 NO da de baja un lote", "POST", f"/medicamentos/{ml['id']}/lotes/{tarde_id}/baja", T["medico1"], 403, json={})
+r = check("farmacia1 da de baja el lote TARDE", "POST", f"/medicamentos/{ml['id']}/lotes/{tarde_id}/baja", T["farmacia1"], 201,
+          json={"motivo": "Dañado"}).json()["data"]
+dato("queda solo lo sin lote (11 - 8 = 3)", r["existencia"] == 3 and r["sin_lote"] == 3)
+check("dar de baja otra vez el mismo lote", "POST", f"/medicamentos/{ml['id']}/lotes/{tarde_id}/baja", T["farmacia1"], 409, json={})
+check("lote de otro medicamento", "POST", f"/medicamentos/{m['id']}/lotes/{tarde_id}/baja", T["farmacia1"], 404, json={})
+
 print("--- Hospitalización y camas")
 camas = check("enfermera1 ve el censo de camas", "GET", "/camas?area=Medicina general&estado=DISPONIBLE", T["enfermera1"], 200).json()["data"]
 check("ciudadano1 NO ve el censo", "GET", "/camas", T["ciudadano1"], 403)

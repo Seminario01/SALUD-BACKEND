@@ -8,15 +8,16 @@ Reglas de la matriz de permisos:
   - inventario.gestionar (Farmacia): medicamentos nuevos, entradas y ajustes.
   - El ciudadano ve solo SUS recetas (BOLA).
 """
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Blueprint, g, jsonify, request
 
 import cuentas
+import lotes
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_JEFATURA
 from extensions import db
-from models import DetalleReceta, ExpedienteClinico, Medicamento, MovimientoInventario, Paciente, Receta
-from validacion import monto, texto
+from models import DetalleReceta, ExpedienteClinico, LoteMedicamento, Medicamento, MovimientoInventario, Paciente, Receta
+from validacion import DatoInvalido, monto, texto
 
 farmacia_bp = Blueprint("farmacia", __name__)
 
@@ -32,13 +33,45 @@ def _entero(valor):
         return None
 
 
-def _medicamento(m):
+def _medicamento(m, lotes_m=None):
+    if lotes_m is None:
+        lotes_m = lotes.lotes_con_saldo([m.id]).get(m.id, [])
     return {
         "id": m.id, "codigo": m.codigo, "nombre": m.nombre, "presentacion": m.presentacion,
         "descripcion": m.descripcion, "existencia": m.existencia, "stock_minimo": m.stock_minimo,
         "precio": float(m.precio) if m.precio is not None else None,
         "bajo_minimo": m.existencia <= (m.stock_minimo or 0),
+        # Lotes: vencidas, por vencer (DIAS_POR_VENCER), disponibles para despachar y sin lote
+        **lotes.resumen(m, lotes_m),
     }
+
+
+def _lote_de_entrada(data, m, cantidad):
+    """Si la entrada trae fecha_vencimiento, crea el lote. Devuelve el lote o None."""
+    vence = data.get("fecha_vencimiento")
+    numero = texto(data, "numero_lote", 50, etiqueta="El número de lote")
+    if vence in (None, ""):
+        if numero:
+            raise DatoInvalido("Si indica el número de lote, indique también la fecha de vencimiento")
+        return None
+    try:
+        vence = datetime.strptime(str(vence), "%Y-%m-%d").date()
+    except ValueError:
+        raise DatoInvalido("fecha_vencimiento va como AAAA-MM-DD") from None
+    if vence < date.today():
+        raise DatoInvalido("El lote ya está vencido: no se puede ingresar")
+    if vence.year > date.today().year + 15:
+        raise DatoInvalido("La fecha de vencimiento no es válida")
+    lote = LoteMedicamento(medicamento_id=m.id, numero_lote=numero, fecha_vencimiento=vence,
+                           cantidad_inicial=cantidad, cantidad=cantidad, usuario=g.usuario.get("usuario"))
+    db.session.add(lote)
+    return lote
+
+
+def _texto_lote(lote):
+    if not lote:
+        return ""
+    return f" · lote {lote.numero_lote or 'sin número'}, vence {lote.fecha_vencimiento.strftime('%d/%m/%Y')}"
 
 
 def _receta(r, nombres=None):
@@ -84,9 +117,13 @@ def listar_medicamentos():
         in: query
         type: boolean
         description: Solo los que están en o por debajo del stock mínimo
+      - name: por_vencer
+        in: query
+        type: boolean
+        description: Solo los que tienen unidades vencidas o que vencen en los próximos 60 días
     responses:
       200:
-        description: Medicamentos con existencia, stock mínimo y alerta bajo_minimo
+        description: "Medicamentos con existencia, stock mínimo, bajo_minimo, vencidas, por_vencer, disponible y proximo_vencimiento"
     """
     query = Medicamento.query
     q = (request.args.get("q") or "").strip()
@@ -94,7 +131,12 @@ def listar_medicamentos():
         query = query.filter(db.or_(Medicamento.nombre.ilike(f"%{q}%"), Medicamento.codigo.ilike(f"%{q}%")))
     if request.args.get("bajo_minimo") in ("1", "true"):
         query = query.filter(Medicamento.existencia <= Medicamento.stock_minimo)
-    return jsonify(success=True, data=[_medicamento(m) for m in query.order_by(Medicamento.nombre).all()]), 200
+    lista = query.order_by(Medicamento.nombre).all()
+    por_lote = lotes.lotes_con_saldo([m.id for m in lista]) if lista else {}
+    datos = [_medicamento(m, por_lote.get(m.id, [])) for m in lista]
+    if request.args.get("por_vencer") in ("1", "true"):
+        datos = [d for d in datos if d["vencidas"] or d["por_vencer"]]
+    return jsonify(success=True, data=datos), 200
 
 
 @farmacia_bp.route("/api/v1/salud/medicamentos", methods=["POST"])
@@ -147,8 +189,9 @@ def crear_medicamento():
     db.session.add(m)
     db.session.flush()
     if existencia:
+        lote = _lote_de_entrada(data, m, existencia)
         db.session.add(MovimientoInventario(medicamento_id=m.id, tipo_movimiento="ENTRADA", cantidad=existencia,
-                                            observacion="Existencia inicial", usuario=g.usuario.get("usuario")))
+                                            observacion="Existencia inicial" + _texto_lote(lote), usuario=g.usuario.get("usuario")))
     db.session.commit()
     return jsonify(success=True, data=_medicamento(m), message="Medicamento agregado"), 201
 
@@ -179,6 +222,8 @@ def registrar_movimiento(id):
             tipo: {type: string, enum: [ENTRADA, AJUSTE], example: ENTRADA}
             cantidad: {type: integer, example: 50, description: "ENTRADA: mayor a 0. AJUSTE: positivo o negativo"}
             observacion: {type: string, example: "Compra orden 2026-118"}
+            numero_lote: {type: string, example: "L2026-0815", description: "Solo ENTRADA (opcional)"}
+            fecha_vencimiento: {type: string, format: date, example: "2027-08-31", description: "Solo ENTRADA: crea el lote"}
     responses:
       201:
         description: Movimiento registrado; devuelve el medicamento con la nueva existencia
@@ -197,12 +242,91 @@ def registrar_movimiento(id):
         return _error(400, "datos_invalidos", "Una entrada debe ser mayor a 0")
     if m.existencia + cantidad < 0:
         return _error(400, "datos_invalidos", f"La existencia quedaría negativa (hay {m.existencia})")
+    observacion = texto(data, "observacion", 255, etiqueta="La observación") or ""
     m.existencia += cantidad
+    lote = None
+    if tipo == "ENTRADA":
+        lote = _lote_de_entrada(data, m, cantidad)
+    elif cantidad < 0:
+        db.session.flush()
+        lotes.ajustar_lotes_a_existencia(m)
     db.session.add(MovimientoInventario(medicamento_id=m.id, tipo_movimiento=tipo, cantidad=cantidad,
-                                        observacion=texto(data, "observacion", 255, etiqueta="La observación"),
+                                        observacion=(observacion + _texto_lote(lote)).strip(" ·") or None,
                                         usuario=g.usuario.get("usuario")))
     db.session.commit()
     return jsonify(success=True, data=_medicamento(m), message="Movimiento registrado"), 201
+
+
+@farmacia_bp.route("/api/v1/salud/medicamentos/<int:id>/lotes", methods=["GET"])
+@validar_token
+@requiere_permiso("inventario.ver")
+def listar_lotes(id):
+    """
+    Lotes de un medicamento con su vencimiento
+    ---
+    tags:
+      - Farmacia
+    security:
+      - BearerAuth: []
+    parameters:
+      - {name: id, in: path, type: integer, required: true}
+      - {name: todos, in: query, type: boolean, description: "Incluir los lotes ya agotados"}
+    responses:
+      200:
+        description: "Lotes del que vence antes al último, con estado VENCIDO, POR_VENCER o VIGENTE"
+    """
+    m = Medicamento.query.get(id)
+    if not m:
+        return _error(404, "no_encontrado", "Medicamento no existe")
+    q = LoteMedicamento.query.filter_by(medicamento_id=id)
+    if request.args.get("todos") not in ("1", "true"):
+        q = q.filter(LoteMedicamento.cantidad > 0)
+    lista = q.order_by(LoteMedicamento.fecha_vencimiento, LoteMedicamento.id).limit(200).all()
+    return jsonify(success=True, data=[lotes.serializar(l) for l in lista], resumen=_medicamento(m)), 200
+
+
+@farmacia_bp.route("/api/v1/salud/medicamentos/<int:id>/lotes/<int:lote_id>/baja", methods=["POST"])
+@validar_token
+@requiere_permiso("inventario.gestionar")
+def dar_baja_lote(id, lote_id):
+    """
+    Dar de baja lo que queda de un lote (vencido, dañado o retirado)
+    ---
+    tags:
+      - Farmacia
+    security:
+      - BearerAuth: []
+    parameters:
+      - {name: id, in: path, type: integer, required: true}
+      - {name: lote_id, in: path, type: integer, required: true}
+      - in: body
+        name: body
+        schema:
+          type: object
+          properties:
+            motivo: {type: string, example: "Vencido"}
+    responses:
+      201:
+        description: Ajuste negativo registrado; el lote queda en 0
+      409:
+        description: El lote ya no tiene unidades
+    """
+    m = Medicamento.query.filter_by(id=id).with_for_update().first()
+    lote = LoteMedicamento.query.filter_by(id=lote_id, medicamento_id=id).with_for_update().first() if m else None
+    if not lote:
+        return _error(404, "no_encontrado", "Lote no existe")
+    if lote.cantidad <= 0:
+        return _error(409, "sin_existencia", "El lote ya no tiene unidades")
+    data = request.get_json(silent=True) or {}
+    motivo = texto(data, "motivo", 200, etiqueta="El motivo") or ("Vencido" if lote.fecha_vencimiento < date.today() else "Baja del lote")
+    cantidad = min(lote.cantidad, m.existencia)
+    m.existencia -= cantidad
+    lote.cantidad = 0
+    db.session.add(MovimientoInventario(medicamento_id=m.id, tipo_movimiento="AJUSTE", cantidad=-cantidad,
+                                        observacion=f"Baja del lote {lote.numero_lote or lote.id}: {motivo}"[:255],
+                                        usuario=g.usuario.get("usuario")))
+    db.session.commit()
+    return jsonify(success=True, data=_medicamento(m), message=f"{cantidad} unidad(es) dadas de baja"), 201
 
 
 @farmacia_bp.route("/api/v1/salud/medicamentos/<int:id>/movimientos", methods=["GET"])
@@ -434,16 +558,22 @@ def despachar_receta(id):
     for d in receta.detalles:
         m = Medicamento.query.filter_by(id=d.medicamento_id).with_for_update().first()
         medicamentos[d.medicamento_id] = m
-        if m.existencia < d.cantidad:
-            faltantes.append(f"{m.nombre} (hay {m.existencia}, se necesitan {d.cantidad})")
+        libres = lotes.disponible(m)       # las unidades vencidas no se despachan
+        if libres < d.cantidad:
+            vencidas = m.existencia - libres
+            aviso = f" sin vencer; {vencidas} vencidas" if vencidas else ""
+            faltantes.append(f"{m.nombre} (hay {libres}{aviso}, se necesitan {d.cantidad})")
     if faltantes:
         db.session.rollback()
         return _error(409, "sin_existencia", "No hay existencia suficiente: " + "; ".join(faltantes))
     for d in receta.detalles:
-        medicamentos[d.medicamento_id].existencia -= d.cantidad
+        m = medicamentos[d.medicamento_id]
+        detalle_lotes = lotes.descontar(m, d.cantidad)
+        m.existencia -= d.cantidad
         db.session.add(MovimientoInventario(medicamento_id=d.medicamento_id, tipo_movimiento="SALIDA",
                                             cantidad=-d.cantidad, receta_id=receta.id,
-                                            observacion=f"Despacho de la receta {receta.id}",
+                                            observacion=f"Despacho de la receta {receta.id}"
+                                                        + (f" · {detalle_lotes}" if detalle_lotes else ""),
                                             usuario=g.usuario.get("usuario")))
     receta.estado = "DESPACHADA"
     receta.despachado_por = g.usuario["sub"]
