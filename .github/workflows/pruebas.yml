@@ -31,8 +31,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -63,14 +63,18 @@ jobs:
     env:
       DATABASE_URL: mysql+pymysql://root:@127.0.0.1/salud_db
       AUTH_ISSUER: http://localhost:8081/realms/rsd
+      # Los otros módulos son los simuladores (igual que el .env de la PC)
+      URL_EDUCACION: http://localhost:5055
+      URL_SEGURIDAD: http://localhost:5055
+      URL_TRIBUTARIO: http://localhost:5055
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+      - uses: actions/checkout@v5
         with:
           repository: Seminario01/SALUD-DATABASE
           ref: denilson-dev
           path: base-de-datos
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
