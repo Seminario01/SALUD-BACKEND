@@ -108,6 +108,14 @@ vencidas no cuentan como `disponible`. `pruebas/prueba_lotes.py` revisa esa regl
 - **Paciente duplicado**: `GET /pacientes/posibles-duplicados` (mismo CUI, mismo nombre, o nombre parecido
   con la misma fecha de nacimiento). Solo avisa; el registro no se bloquea.
 
+## Receta verificable con QR
+
+Cada receta tiene `codigo_verificacion` (12 caracteres al azar, `migraciones.codigo_receta`; las
+recetas viejas lo reciben al arrancar). La receta impresa trae un QR a `/verificar/<código>` (página
+pública del frontend) que consulta `GET /verificar/receta/<código>` **sin token**: número, fecha,
+médico, medicamentos y estado (vigente, despachada o anulada); del paciente solo iniciales y los
+últimos 4 del DPI. Límite: 30 consultas por minuto por visitante. El número de receta no sirve como código.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

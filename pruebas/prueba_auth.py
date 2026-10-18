@@ -721,6 +721,24 @@ for x in ultima:   # deja anuladas las recetas pendientes de amoxicilina de prue
     if x["estado"] == "PENDIENTE" and any(i["medicamento_id"] == amox["id"] for i in x["items"]):
         requests.post(API + f"/recetas/{x['id']}/anular", headers=H("medico1"), json={"motivo": "Prueba"})
 
+print("--- Receta verificable con QR (pública, sin token)")
+cod = ra["codigo_verificacion"] or ""
+dato("cada receta trae su código del QR (12 caracteres)", len(cod) == 12 and cod != rn["codigo_verificacion"])
+v = check("una farmacia verifica la receta sin token", "GET", f"/verificar/receta/{cod}", None, 200).json()["data"]
+dato("dice número, médico, medicamentos y que está ANULADA", v["numero"] == ra["id"] and v["estado"] == "ANULADA"
+     and v["medico"] and v["medicamentos"][0]["medicamento"] == "Amoxicilina")
+crudo = requests.get(API + f"/verificar/receta/{cod}").text
+dato("del paciente solo iniciales y DPI tapado (nada de nombre, teléfono ni alergias)",
+     v["paciente_iniciales"] == "C. P." and "Perez" not in crudo and "alergia" not in crudo.lower()
+     and "telefono" not in crudo and "paciente_id" not in crudo and (v["paciente_dpi"] or "").startswith("•••• "))
+alterado = cod[:-1] + ("A" if cod[-1] != "A" else "B")
+check("código alterado: no existe", "GET", f"/verificar/receta/{alterado}", None, 404)
+check("código con caracteres raros", "GET", "/verificar/receta/abc'%20OR%201=1", None, 404)
+check("el número de receta NO sirve como código", "GET", f"/verificar/receta/{ra['id']}", None, 404)
+desp = next(x for x in requests.get(API + "/recetas?estado=DESPACHADA", headers=H("medico1")).json()["data"])
+v = check("la receta ya despachada", "GET", f"/verificar/receta/{desp['codigo_verificacion']}", None, 200).json()["data"]
+dato("avisa que ya se despachó y cuándo", v["estado"] == "DESPACHADA" and bool(v["fecha_despacho"]))
+
 print("--- Paciente posiblemente duplicado")
 check("medico1 NO consulta duplicados (solo quien registra)", "GET", "/pacientes/posibles-duplicados?nombre_completo=Maria", T["medico1"], 403)
 check("sin nombre", "GET", "/pacientes/posibles-duplicados", T["recepcion1"], 400)

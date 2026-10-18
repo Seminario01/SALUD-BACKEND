@@ -216,6 +216,8 @@ class Receta(db.Model):
     fecha_despacho = db.Column(db.DateTime)
     motivo_anulacion = db.Column(db.String(255))
     alerta_alergia = db.Column(db.String(255))          # el médico recetó sabiendo de esta alergia
+    # Código secreto del QR de la receta impresa (otra farmacia la verifica en /verificar/<código>)
+    codigo_verificacion = db.Column(db.String(24), unique=True)
     detalles = db.relationship("DetalleReceta", backref="receta", lazy="joined", order_by="DetalleReceta.id")
 
 

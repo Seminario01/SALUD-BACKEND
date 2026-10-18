@@ -8,6 +8,9 @@ Reglas de la matriz de permisos:
   - inventario.gestionar (Farmacia): medicamentos nuevos, entradas y ajustes.
   - El ciudadano ve solo SUS recetas (BOLA).
 """
+import re
+import threading
+import time
 from datetime import date, datetime
 
 from flask import Blueprint, g, jsonify, request
@@ -18,6 +21,7 @@ from alertas_clinicas import alergias_en_conflicto
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_JEFATURA
 from extensions import db
 from models import DetalleReceta, ExpedienteClinico, LoteMedicamento, Medicamento, MovimientoInventario, Paciente, Receta
+from migraciones import codigo_receta
 from validacion import DatoInvalido, booleano, monto, texto
 
 farmacia_bp = Blueprint("farmacia", __name__)
@@ -84,6 +88,7 @@ def _receta(r, nombres=None):
         "indicaciones": r.indicaciones, "estado": r.estado,
         "fecha_despacho": r.fecha_despacho.isoformat(timespec="minutes") if r.fecha_despacho else None,
         "motivo_anulacion": r.motivo_anulacion, "alerta_alergia": r.alerta_alergia,
+        "codigo_verificacion": r.codigo_verificacion,
         "items": [{
             "medicamento_id": d.medicamento_id, "medicamento": d.medicamento.nombre if d.medicamento else None,
             "presentacion": d.medicamento.presentacion if d.medicamento else None,
@@ -448,6 +453,7 @@ def crear_receta():
     receta = Receta(paciente_id=paciente.id, medico_sub=g.usuario["sub"],
                     medico_nombre=g.usuario.get("nombre") or g.usuario.get("usuario"), expediente_id=expediente_id,
                     indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"), estado="PENDIENTE", detalles=detalles,
+                    codigo_verificacion=codigo_receta(),
                     alerta_alergia="; ".join(f"{c['medicamento']}: {', '.join(c['alergias'])}" for c in choques)[:255] or None)
     db.session.add(receta)
     db.session.commit()
@@ -499,6 +505,76 @@ def listar_recetas():
     # El CUI permite buscar en la lista por DPI (solo personal de Salud ve esta lista completa)
     return jsonify(success=True, data=[{**_receta(r, nombres), "paciente_cui": getattr(pacientes.get(r.paciente_id), "cui", None)}
                                        for r in recetas]), 200
+
+
+CODIGO_QR = re.compile(r"^[A-Za-z0-9_-]{12,24}$")
+_CONSULTAS = {}               # ip -> [momentos de sus últimas consultas]
+_CANDADO = threading.Lock()
+LIMITE_POR_MINUTO = 30
+
+
+def _demasiadas_consultas():
+    """Límite de la verificación pública: 30 por minuto por visitante (además del de nginx)."""
+    ip = (request.headers.get("CF-Connecting-IP") or request.headers.get("X-Real-IP") or request.remote_addr or "?")[:45]
+    ahora = time.monotonic()
+    with _CANDADO:
+        recientes = [t for t in _CONSULTAS.get(ip, []) if ahora - t < 60]
+        if len(recientes) >= LIMITE_POR_MINUTO:
+            _CONSULTAS[ip] = recientes
+            return True
+        recientes.append(ahora)
+        _CONSULTAS[ip] = recientes
+        if len(_CONSULTAS) > 5000:          # no crecer sin límite
+            for clave in [k for k, v in _CONSULTAS.items() if not v or ahora - v[-1] >= 60]:
+                del _CONSULTAS[clave]
+    return False
+
+
+def _iniciales(nombre):
+    return " ".join(f"{p[0].upper()}." for p in (nombre or "").split() if p)[:20] or None
+
+
+@farmacia_bp.route("/api/v1/salud/verificar/receta/<codigo>", methods=["GET"])
+def verificar_receta(codigo):
+    """
+    Verificar una receta impresa por su código QR (público, sin token)
+    ---
+    tags:
+      - Farmacia
+    description: >
+      Lo usa cualquier farmacia al escanear el QR de la receta. Solo da lo necesario para
+      comprobar que es auténtica: número, fecha, médico, medicamentos y si ya se despachó o se anuló.
+      Del paciente solo las iniciales y los últimos 4 dígitos del DPI. 30 consultas por minuto por visitante.
+    parameters:
+      - {name: codigo, in: path, type: string, required: true, description: "el código del QR (no es el número de receta)"}
+    responses:
+      200:
+        description: Receta auténtica
+      404:
+        description: El código no corresponde a ninguna receta
+      429:
+        description: Demasiadas consultas seguidas
+    """
+    if _demasiadas_consultas():
+        return _error(429, "demasiadas_peticiones", "Demasiadas consultas seguidas. Espere un minuto e intente de nuevo.")
+    receta = Receta.query.filter_by(codigo_verificacion=codigo).first() if CODIGO_QR.match(codigo) else None
+    if not receta:
+        return _error(404, "no_encontrado", "Esta receta no existe en el sistema del Módulo Salud. Puede ser falsa o el código estar alterado.")
+    paciente = Paciente.query.get(receta.paciente_id)
+    cui = (paciente.cui or "") if paciente else ""
+    return jsonify(success=True, data={
+        "numero": receta.id,
+        "fecha": receta.fecha.isoformat(timespec="minutes") if receta.fecha else None,
+        "estado": receta.estado,
+        "fecha_despacho": receta.fecha_despacho.isoformat(timespec="minutes") if receta.fecha_despacho else None,
+        "medico": receta.medico_nombre,
+        "paciente_iniciales": _iniciales(paciente.nombre_completo if paciente else None),
+        "paciente_dpi": f"•••• {cui[-4:]}" if len(cui) >= 4 else None,
+        "medicamentos": [{"medicamento": d.medicamento.nombre if d.medicamento else None,
+                          "presentacion": d.medicamento.presentacion if d.medicamento else None,
+                          "cantidad": d.cantidad, "dosis": d.dosis} for d in receta.detalles],
+        "establecimiento": "Módulo Salud — Red Inteligente de Servicios Digitales",
+    }), 200
 
 
 @farmacia_bp.route("/api/v1/salud/recetas/<int:id>", methods=["GET"])

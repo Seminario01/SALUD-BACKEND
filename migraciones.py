@@ -7,6 +7,7 @@ en uso (la del servidor y las locales), sin borrar datos. Es seguro correrlo
 en cada arranque: si la columna ya existe, no hace nada.
 """
 import logging
+import secrets
 
 from sqlalchemy import inspect, text
 
@@ -79,6 +80,8 @@ COLUMNAS = [
     # Seguridad del paciente: alergias (se revisan al recetar)
     ("pacientes", "alergias", "VARCHAR(500) NULL"),
     ("recetas", "alerta_alergia", "VARCHAR(255) NULL"),
+    # Receta verificable con QR
+    ("recetas", "codigo_verificacion", "VARCHAR(24) NULL UNIQUE"),
 ]
 
 # Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se
@@ -109,3 +112,24 @@ def aplicar(db):
             with db.engine.begin() as conexion:
                 conexion.execute(text(f"ALTER TABLE {tabla} MODIFY {columna} {definicion}"))
             log.warning("Migración: columna %s.%s ahora admite NULL", tabla, columna)
+
+    _codigos_de_recetas(db, tablas)
+
+
+def codigo_receta():
+    """Código del QR: 12 caracteres al azar (72 bits), imposible de adivinar."""
+    return secrets.token_urlsafe(9)
+
+
+def _codigos_de_recetas(db, tablas):
+    """Las recetas de antes del QR reciben su código (una sola vez; si dos procesos arrancan
+    a la vez, el WHERE ... IS NULL evita que una receta quede con dos códigos distintos)."""
+    if "recetas" not in tablas:
+        return
+    with db.engine.begin() as conexion:
+        ids = [fila[0] for fila in conexion.execute(text("SELECT id_receta FROM recetas WHERE codigo_verificacion IS NULL"))]
+        for id_receta in ids:
+            conexion.execute(text("UPDATE recetas SET codigo_verificacion = :c WHERE id_receta = :i AND codigo_verificacion IS NULL"),
+                             {"c": codigo_receta(), "i": id_receta})
+    if ids:
+        log.warning("Migración: %s receta(s) recibieron su código de verificación", len(ids))
