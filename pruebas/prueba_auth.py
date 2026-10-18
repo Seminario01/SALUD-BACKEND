@@ -15,10 +15,12 @@ from datetime import datetime, timedelta
 
 
 def futuro(dias, hora):
-    """Fecha de cita a `dias` días, a la `hora` y con el minuto actual: las citas no pueden
-    ir en el pasado ni repetirse a la misma hora, así cada corrida usa una hora distinta."""
-    momento = datetime.now() + timedelta(days=dias)
-    return momento.replace(hour=hora, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+    """Fecha de cita a `dias` días, a la `hora`, con el minuto actual y la hora actual como
+    segundos: las citas no pueden ir en el pasado ni repetirse, así dos corridas del mismo
+    día (aunque sea al mismo minuto de horas distintas) nunca chocan."""
+    ahora = datetime.now()
+    momento = ahora + timedelta(days=dias)
+    return momento.replace(hour=hora, second=ahora.hour, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
 TMP = tempfile.gettempdir()
 
@@ -556,6 +558,21 @@ check("enfermera1 registra nota con signos", "POST", f"/hospitalizaciones/{h['id
       json={"nota": "Estable", "presion": "120/80", "temperatura": 37.1, "frecuencia_cardiaca": 82, "saturacion": 96})
 check("saturación fuera de rango", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 400, json={"nota": "X", "saturacion": 120})
 check("caja1 NO registra notas", "POST", f"/hospitalizaciones/{h['id']}/notas", T["caja1"], 403, json={"nota": "X"})
+check("medico1 registra nota con peso", "POST", f"/hospitalizaciones/{h['id']}/notas", T["medico1"], 201,
+      json={"nota": "Evolución favorable", "presion": "118/76", "peso": 64.3})
+check("peso fuera de rango", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 400, json={"nota": "X", "peso": 900})
+check("peso que no es número", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 400, json={"nota": "X", "peso": "mucho"})
+check("nota sin signos (solo texto)", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 201, json={"nota": "Duerme tranquilo"})
+sv = check("medico1 ve el historial de signos de p2", "GET", f"/pacientes/{p2}/signos", T["medico1"], 200).json()["data"]
+ultimos = [x for x in sv if x["hospitalizacion_id"] == h["id"]]
+dato("trae las 2 mediciones (la nota sin signos no cuenta), en orden",
+     len(ultimos) == 2 and ultimos[0]["temperatura"] == 37.1 and ultimos[1]["peso"] == 64.3)
+dato("la presión viene separada en sistólica y diastólica", ultimos[1]["sistolica"] == 118 and ultimos[1]["diastolica"] == 76)
+check("ciudadano2 ve SUS signos", "GET", f"/pacientes/{p2}/signos", T["ciudadano2"], 200)
+check("ciudadano1 NO ve signos de otro", "GET", f"/pacientes/{p2}/signos", T["ciudadano1"], 403)
+check("recepcion1 NO ve signos (dato clínico)", "GET", f"/pacientes/{p2}/signos", T["recepcion1"], 403)
+check("caja1 NO ve signos (dato clínico)", "GET", f"/pacientes/{p2}/signos", T["caja1"], 403)
+check("signos de paciente que no existe", "GET", "/pacientes/999999/signos", T["medico1"], 404)
 lista = check("recepcion1 ve hospitalizados", "GET", "/hospitalizaciones?estado=ACTIVO", T["recepcion1"], 200).json()["data"]
 dato("Recepción ve la cama pero no el diagnóstico", any(x["id"] == h["id"] and x["cama"] for x in lista) and not any("diagnostico" in x for x in lista))
 check("ciudadano2 ve SU hospitalización", "GET", f"/hospitalizaciones/{h['id']}", T["ciudadano2"], 200)

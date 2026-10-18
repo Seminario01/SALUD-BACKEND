@@ -315,6 +315,7 @@ class NotaHospitalizacion(db.Model):
     temperatura = db.Column(db.Numeric(4, 1))       # °C
     frecuencia_cardiaca = db.Column(db.Integer)     # lpm
     saturacion = db.Column(db.Integer)              # % SpO2
+    peso = db.Column(db.Numeric(5, 1))              # kg
 
 
 # ============================ Caja y cuentas ============================

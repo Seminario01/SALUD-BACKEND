@@ -32,6 +32,7 @@ VER = {
     "/expedientes/<int:paciente_id>": "Vio el expediente clínico",
     "/vacunacion/<int:paciente_id>": "Vio el registro de vacunación",
     "/pacientes/<int:id>/antecedentes": "Consultó antecedentes en Seguridad",
+    "/pacientes/<int:id>/signos": "Vio el historial de signos vitales",
     "/recetas/<int:id>": "Vio la receta No. {id}",
     "/cuentas/<int:id>": "Vio la cuenta No. {id}",
     "/hospitalizaciones/<int:id>": "Vio la hospitalización No. {id}",

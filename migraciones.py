@@ -74,6 +74,8 @@ COLUMNAS = [
     # Citas: médico que atiende y quién la agendó (detalle de la cita)
     ("citas_medicas", "medico_nombre", "VARCHAR(150) NULL"),
     ("citas_medicas", "agendada_por", "VARCHAR(150) NULL"),
+    # Signos vitales: peso en las notas de hospitalización
+    ("notas_hospitalizacion", "peso", "DECIMAL(5,1) NULL"),
 ]
 
 # Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se

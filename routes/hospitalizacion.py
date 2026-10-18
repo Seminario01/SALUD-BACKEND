@@ -124,6 +124,7 @@ def _hospitalizacion(h, nombres=None, clinico=True, con_notas=False):
             "id": n.id, "fecha": _fecha(n.fecha), "autor": n.autor_nombre, "puesto": n.puesto, "nota": n.nota,
             "presion": n.presion, "temperatura": float(n.temperatura) if n.temperatura is not None else None,
             "frecuencia_cardiaca": n.frecuencia_cardiaca, "saturacion": n.saturacion,
+            "peso": float(n.peso) if n.peso is not None else None,
         } for n in h.notas]
     return dato
 
@@ -604,6 +605,7 @@ def agregar_nota(id):
             temperatura: {type: number, example: 36.8}
             frecuencia_cardiaca: {type: integer, example: 78}
             saturacion: {type: integer, example: 97}
+            peso: {type: number, example: 68.5, description: "kg"}
     responses:
       201:
         description: Nota registrada
@@ -636,12 +638,70 @@ def agregar_nota(id):
         return _error(400, "datos_invalidos", "Frecuencia cardiaca fuera de rango (20–250 lpm)")
     if data.get("saturacion") not in (None, "") and (sat is None or not 50 <= sat <= 100):
         return _error(400, "datos_invalidos", "Saturación fuera de rango (50–100 %)")
+    try:
+        peso = float(data["peso"]) if data.get("peso") not in (None, "") else None
+    except (TypeError, ValueError):
+        peso = -1
+    if peso is not None and not 0.5 <= peso <= 400:
+        return _error(400, "datos_invalidos", "Peso fuera de rango (0.5–400 kg)")
     n = NotaHospitalizacion(hospitalizacion_id=h.id, autor_sub=g.usuario["sub"], autor_nombre=_usuario(),
                             puesto="Médico" if tiene_rol(ROL_MEDICO) else "Enfermería", nota=nota,
-                            presion=presion, temperatura=temperatura, frecuencia_cardiaca=fc, saturacion=sat)
+                            presion=presion, temperatura=temperatura, frecuencia_cardiaca=fc, saturacion=sat,
+                            peso=round(peso, 1) if peso is not None else None)
     db.session.add(n)
     db.session.commit()
     return jsonify(success=True, data={"id": n.id}, message="Nota registrada"), 201
+
+
+@hospitalizacion_bp.route("/api/v1/salud/pacientes/<int:id>/signos", methods=["GET"])
+@validar_token
+def signos_vitales(id):
+    """
+    Historial de signos vitales del paciente (de las notas de hospitalización)
+    ---
+    tags:
+      - Hospitalización
+    security:
+      - BearerAuth: []
+    description: >
+      Datos clínicos: puestos con expediente.ver (médico, enfermería, jefatura, administración)
+      o el propio ciudadano. Una medición por nota que tenga al menos un signo, de la más
+      antigua a la más reciente, de todas las hospitalizaciones del paciente.
+    parameters:
+      - {name: id, in: path, type: integer, required: true}
+    responses:
+      200:
+        description: "[{fecha, hospitalizacion_id, presion, sistolica, diastolica, temperatura, frecuencia_cardiaca, saturacion, peso, autor}]"
+      403:
+        description: Sin permiso para ver datos clínicos
+      404:
+        description: El paciente no existe
+    """
+    paciente = Paciente.query.get(id)
+    es_dueno = paciente is not None and paciente.usuario_sub == g.usuario["sub"]
+    if not (puede("expediente.ver") or es_dueno):
+        return _error(403, "permiso_denegado", "Solo puede ver sus propios signos vitales")
+    if not paciente:
+        return _error(404, "no_encontrado", "Paciente no existe")
+    notas = NotaHospitalizacion.query.join(Hospitalizacion, NotaHospitalizacion.hospitalizacion_id == Hospitalizacion.id) \
+        .filter(Hospitalizacion.paciente_id == id) \
+        .filter(db.or_(NotaHospitalizacion.presion.isnot(None), NotaHospitalizacion.temperatura.isnot(None),
+                       NotaHospitalizacion.frecuencia_cardiaca.isnot(None), NotaHospitalizacion.saturacion.isnot(None),
+                       NotaHospitalizacion.peso.isnot(None))) \
+        .order_by(NotaHospitalizacion.fecha, NotaHospitalizacion.id).limit(500).all()
+    datos = []
+    for n in notas:
+        sistolica = diastolica = None
+        if n.presion and PRESION.match(n.presion):
+            sistolica, diastolica = (int(x) for x in n.presion.split("/"))
+        datos.append({
+            "fecha": _fecha(n.fecha), "hospitalizacion_id": n.hospitalizacion_id, "autor": n.autor_nombre, "puesto": n.puesto,
+            "presion": n.presion, "sistolica": sistolica, "diastolica": diastolica,
+            "temperatura": float(n.temperatura) if n.temperatura is not None else None,
+            "frecuencia_cardiaca": n.frecuencia_cardiaca, "saturacion": n.saturacion,
+            "peso": float(n.peso) if n.peso is not None else None,
+        })
+    return jsonify(success=True, data=datos), 200
 
 
 def resumen_hospitalizacion():
