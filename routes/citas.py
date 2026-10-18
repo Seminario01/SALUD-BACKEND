@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, g
 from extensions import db
-from models import BitacoraAcceso, CitaMedica, ExpedienteClinico, Hospitalizacion, Paciente, Receta
-from auth import ROL_MEDICO, validar_token, puede, tiene_rol
+from models import BitacoraAcceso, CitaMedica, ExpedienteClinico, Hospitalizacion, Paciente, PersonalSalud, Receta
+from auth import ROL_MEDICO, requiere_permiso, validar_token, puede, tiene_rol
 from bitacora_accesos import _puesto
-from validacion import entero, fecha_hora_futura, texto
+from validacion import DatoInvalido, entero, fecha_hora_futura, texto
 
 ESTADOS_CITA = ("pendiente", "confirmada", "atendida", "cancelada")
 
@@ -48,6 +48,30 @@ def _nombre_medico(sub, guardado=None):
         if fila:
             return fila.medico_nombre
     return None
+
+
+def medicos_conocidos():
+    """Médicos que han usado el módulo (personal_salud) y, para datos anteriores, los que
+    aparecen en citas, recetas u hospitalizaciones. {sub: nombre}"""
+    conocidos = {}
+    for modelo in (CitaMedica, Receta, Hospitalizacion):
+        for sub, nombre in db.session.query(modelo.medico_sub, modelo.medico_nombre).filter(
+                modelo.medico_sub.isnot(None), modelo.medico_nombre.isnot(None)).distinct():
+            conocidos.setdefault(sub, nombre)
+    for p in PersonalSalud.query.filter_by(es_medico=True).all():
+        conocidos[p.sub] = p.nombre or p.usuario or conocidos.get(p.sub)
+    return conocidos
+
+
+def _medico_elegido(data):
+    """medico_sub del cuerpo: debe ser un médico conocido. Devuelve (sub, nombre); (None, None) si no viene."""
+    sub = texto(data, "medico_sub", 36, etiqueta="medico_sub")
+    if not sub:
+        return None, None
+    nombre = medicos_conocidos().get(sub)
+    if nombre is None:
+        raise DatoInvalido("El médico elegido no está registrado en el módulo")
+    return sub, nombre
 
 
 def _asignarme_si_soy_medico(cita):
@@ -98,7 +122,7 @@ def crear_cita():
         return _sin_permiso()
     fecha_hora = fecha_hora_futura(data.get("fecha_hora"))
     motivo = texto(data, "motivo", 300, etiqueta="El motivo")
-    medico_sub = texto(data, "medico_sub", 36, etiqueta="medico_sub")
+    medico_sub, medico_nombre = _medico_elegido(data)
     if not Paciente.query.get(paciente_id):
         return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
     if _cita_repetida(paciente_id, fecha_hora):
@@ -106,7 +130,7 @@ def crear_cita():
                        message="El paciente ya tiene una cita a esa misma hora"), 409
 
     puesto = _puesto(g.usuario.get("roles", []))
-    cita = CitaMedica(paciente_id=paciente_id, medico_sub=medico_sub, medico_nombre=_nombre_medico(medico_sub),
+    cita = CitaMedica(paciente_id=paciente_id, medico_sub=medico_sub, medico_nombre=medico_nombre,
                       fecha_hora=fecha_hora, motivo=motivo,
                       agendada_por=f"{_yo() or ''}{f' ({puesto})' if puesto else ''}"[:150] or None)
     _asignarme_si_soy_medico(cita)
@@ -161,6 +185,11 @@ def reprogramar_cita(id):
             return jsonify(success=False, error="ya_existe",
                            message="El paciente ya tiene otra cita a esa misma hora"), 409
         cita.fecha_hora = fecha_hora
+    if "medico_sub" in data:
+        # Asignar o cambiar el médico (null o "" lo deja sin asignar): solo el personal que gestiona citas
+        if not puede("citas.gestionar"):
+            return jsonify(success=False, error="permiso_denegado", message="Solo el personal puede asignar el médico"), 403
+        cita.medico_sub, cita.medico_nombre = _medico_elegido(data) if data["medico_sub"] else (None, None)
     if "estado" in data:
         # El estado (confirmada, atendida...) solo lo cambia el personal que gestiona citas.
         if not puede("citas.gestionar"):
@@ -339,3 +368,26 @@ def ver_cita(id):
             "usuario": h.nombre or h.usuario, "puesto": h.puesto,
         } for h in cambios]
     return jsonify(success=True, data=dato), 200
+
+
+@citas_bp.route("/api/v1/salud/medicos", methods=["GET"])
+@validar_token
+@requiere_permiso("citas.ver")
+def listar_medicos():
+    """
+    Médicos para asignar a una cita
+    ---
+    tags:
+      - Citas
+    security:
+      - BearerAuth: []
+    description: >
+      El Login Único no entrega la lista de usuarios, así que el módulo anota a cada médico
+      la primera vez que entra (tabla personal_salud). También incluye a los médicos que ya
+      aparecen en citas, recetas u hospitalizaciones. Ordenados por nombre.
+    responses:
+      200:
+        description: "[{sub, nombre}]"
+    """
+    lista = sorted(({"sub": s, "nombre": n} for s, n in medicos_conocidos().items()), key=lambda m: (m["nombre"] or "").lower())
+    return jsonify(success=True, data=lista), 200

@@ -152,6 +152,25 @@ dato("la cita queda a nombre del médico que la atendió y muestra el diagnósti
      bool(r["medico_nombre"]) and any(a["diagnostico"] == "Control" for a in r["atenciones"]))
 dato("el historial muestra quién agendó la cita",
      any(h["descripcion"] == f"Agendó la cita No. {cita_p1}" and h["puesto"] == "Recepción" for h in r["historial"]))
+print("--- Médicos para asignar a una cita: GET /medicos")
+SUB_MED = sub(T["medico1"])
+r = check("recepcion1 lista los médicos", "GET", "/medicos", T["recepcion1"], 200).json()["data"]
+dato("medico1 aparece en la lista (se anotó solo al usar el módulo)", any(m["sub"] == SUB_MED and m["nombre"] for m in r))
+dato("la lista no incluye a quien no es médico", sub(T["recepcion1"]) not in {m["sub"] for m in r})
+check("ciudadano1 NO lista médicos", "GET", "/medicos", T["ciudadano1"], 403)
+cm = check("recepcion1 agenda con médico", "POST", "/citas", T["recepcion1"], 201,
+           json={"paciente_id": p2, "fecha_hora": futuro(19, 8), "medico_sub": SUB_MED}).json()["data"]["id"]
+r = requests.get(API + f"/citas/{cm}", headers={"Authorization": f"Bearer {T['recepcion1']}"}).json()["data"]
+dato("la cita queda con el nombre del médico elegido", r["medico_sub"] == SUB_MED and bool(r["medico_nombre"]))
+check("agendar con un médico que no existe", "POST", "/citas", T["recepcion1"], 400,
+      json={"paciente_id": p2, "fecha_hora": futuro(19, 9), "medico_sub": "00000000-0000-0000-0000-000000000000"})
+check("quitar el médico de la cita", "PUT", f"/citas/{cm}", T["recepcion1"], 200, json={"medico_sub": None})
+r = requests.get(API + f"/citas/{cm}", headers={"Authorization": f"Bearer {T['recepcion1']}"}).json()["data"]
+dato("la cita queda sin médico", r["medico_sub"] is None and r["medico_nombre"] is None)
+check("volver a asignar el médico", "PUT", f"/citas/{cm}", T["recepcion1"], 200, json={"medico_sub": SUB_MED})
+check("ciudadano2 NO cambia el médico de su cita", "PUT", f"/citas/{cm}", T["ciudadano2"], 403, json={"medico_sub": None})
+check("asignar un médico que no existe", "PUT", f"/citas/{cm}", T["recepcion1"], 400, json={"medico_sub": "x" * 36})
+check("recepcion1 cancela la cita de prueba", "DELETE", f"/citas/{cm}", T["recepcion1"], 200)
 check("recurso con tipo invalido -> 400", "POST", "/recursos", T["admin.salud"], 400, json={"tipo": "helicoptero", "total": 1})
 check("recurso con disponible > total -> 400", "POST", "/recursos", T["admin.salud"], 400,
       json={"tipo": "cama", "disponible": 15, "total": 10})

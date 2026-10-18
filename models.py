@@ -155,6 +155,18 @@ class BitacoraIntegracion(db.Model):
     detalle = db.Column(db.String(255))
 
 
+class PersonalSalud(db.Model):
+    """Personal que ha entrado al módulo (se anota solo, ver bitacora_accesos.py).
+    Sirve para elegir al médico de una cita: el Login Único no da la lista de usuarios."""
+    __tablename__ = "personal_salud"
+    sub = db.Column(db.String(SUB_LEN), primary_key=True)
+    usuario = db.Column(db.String(100))
+    nombre = db.Column(db.String(150))
+    es_medico = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    puesto = db.Column(db.String(60))
+    ultimo_acceso = db.Column(db.DateTime, default=datetime.now)
+
+
 class BitacoraAcceso(db.Model):
     """Quién vio o modificó datos de pacientes, y cuándo (bitácora para Administración).
     La escribe bitacora_accesos.py al terminar cada petición del personal o del ciudadano."""

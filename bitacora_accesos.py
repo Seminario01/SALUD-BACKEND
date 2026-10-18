@@ -16,10 +16,11 @@ import logging
 from datetime import datetime, timedelta
 
 from flask import g, request
+from sqlalchemy import select
 
 from bitacora import enmascarar
 from extensions import db
-from models import BitacoraAcceso, CitaMedica, CuentaPaciente, Hospitalizacion, Receta, Turno
+from models import BitacoraAcceso, CitaMedica, CuentaPaciente, Hospitalizacion, PersonalSalud, Receta, Turno
 
 log = logging.getLogger(__name__)
 PREFIJO = "/api/v1/salud"
@@ -110,6 +111,29 @@ def _paciente(regla, args, datos):
     return None
 
 
+_VISTOS = {}   # sub -> última vez que se actualizó personal_salud (en este proceso)
+
+
+def _anotar_personal(usuario, ahora):
+    """Guarda al personal de Salud que usa el módulo (a lo más una vez cada 10 minutos)."""
+    roles = usuario.get("roles", [])
+    if not any(r.startswith("salud:") for r in roles):
+        return
+    sub = usuario.get("sub")
+    if not sub or ahora - _VISTOS.get(sub, datetime.min) < timedelta(minutes=10):
+        return
+    _VISTOS[sub] = ahora
+    datos = {"usuario": (usuario.get("usuario") or "")[:100] or None, "nombre": (usuario.get("nombre") or "")[:150] or None,
+             "es_medico": "salud:medico" in roles, "puesto": _puesto(roles), "ultimo_acceso": ahora}
+    tabla = PersonalSalud.__table__
+    with db.engine.begin() as conexion:
+        existe = conexion.execute(select(tabla.c.sub).where(tabla.c.sub == sub)).first()
+        if existe:
+            conexion.execute(tabla.update().where(tabla.c.sub == sub).values(**datos))
+        else:
+            conexion.execute(tabla.insert().values(sub=sub, **datos))
+
+
 def registrar_acceso(respuesta):
     """after_request: anota la petición si fue de un usuario con token y terminó bien."""
     try:
@@ -117,6 +141,10 @@ def registrar_acceso(respuesta):
         if (not usuario or respuesta.status_code >= 400 or request.url_rule is None
                 or not request.path.startswith(PREFIJO)):
             return respuesta
+        try:
+            _anotar_personal(usuario, datetime.now())
+        except Exception as error:  # noqa: BLE001
+            log.warning("No se pudo anotar al personal: %s", error)
         regla = request.url_rule.rule[len(PREFIJO):]
         args = request.view_args or {}
         datos = _datos_respuesta(respuesta)
