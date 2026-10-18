@@ -19,6 +19,7 @@ class Paciente(db.Model):
     telefono = db.Column(db.String(20))
     tipo_seguro = db.Column(db.String(50))
     cuidador = db.Column(db.String(200))
+    alergias = db.Column(db.String(500))            # "Penicilina, AINE" (texto libre; se revisa al recetar)
     fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -214,6 +215,7 @@ class Receta(db.Model):
     despachado_por = db.Column(db.String(SUB_LEN))      # sub de quien despachó (Farmacia)
     fecha_despacho = db.Column(db.DateTime)
     motivo_anulacion = db.Column(db.String(255))
+    alerta_alergia = db.Column(db.String(255))          # el médico recetó sabiendo de esta alergia
     detalles = db.relationship("DetalleReceta", backref="receta", lazy="joined", order_by="DetalleReceta.id")
 
 

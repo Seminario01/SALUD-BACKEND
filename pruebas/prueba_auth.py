@@ -573,6 +573,15 @@ check("ciudadano1 NO ve signos de otro", "GET", f"/pacientes/{p2}/signos", T["ci
 check("recepcion1 NO ve signos (dato clínico)", "GET", f"/pacientes/{p2}/signos", T["recepcion1"], 403)
 check("caja1 NO ve signos (dato clínico)", "GET", f"/pacientes/{p2}/signos", T["caja1"], 403)
 check("signos de paciente que no existe", "GET", "/pacientes/999999/signos", T["medico1"], 404)
+r = check("nota con fiebre y saturación baja", "POST", f"/hospitalizaciones/{h['id']}/notas", T["enfermera1"], 201,
+          json={"nota": "Febril", "temperatura": 39.2, "saturacion": 91, "frecuencia_cardiaca": 80}).json()
+dato("avisa lo que está fuera de rango (y no el pulso normal)",
+     [x["signo"] for x in r["data"]["alertas"]] == ["temperatura", "saturacion"] and "Fiebre (39.2 °C)" in r["message"])
+notas_h = check("las notas traen sus alertas", "GET", f"/hospitalizaciones/{h['id']}", T["medico1"], 200).json()["data"]["notas"]
+dato("la nota con fiebre trae la alerta; la nota normal, ninguna",
+     any(n["alertas"] and n["nota"] == "Febril" for n in notas_h) and all(not n["alertas"] for n in notas_h if n["nota"] == "Duerme tranquilo"))
+sv = check("el historial de signos trae las alertas", "GET", f"/pacientes/{p2}/signos", T["medico1"], 200).json()["data"]
+dato("la última medición trae la fiebre", any(x["signo"] == "temperatura" and x["nivel"] == "alto" for x in sv[-1]["alertas"]))
 lista = check("recepcion1 ve hospitalizados", "GET", "/hospitalizaciones?estado=ACTIVO", T["recepcion1"], 200).json()["data"]
 dato("Recepción ve la cama pero no el diagnóstico", any(x["id"] == h["id"] and x["cama"] for x in lista) and not any("diagnostico" in x for x in lista))
 check("ciudadano2 ve SU hospitalización", "GET", f"/hospitalizaciones/{h['id']}", T["ciudadano2"], 200)
@@ -673,6 +682,63 @@ dato("la bitácora anota los cambios de caja1 en la cuenta (abrir, cargo, descue
      <= {x["descripcion"] for x in bit})
 dato("los intentos rechazados (409, 400) no quedan en la bitácora", all(x["metodo"] != "GET" or x["accion"] == "ver" for x in bit)
      and sum(1 for x in bit if x["descripcion"] == f"Cerró la cuenta No. {amb['id']}") == 1)
+
+print("--- Alergias al recetar")
+check("caja1 NO registra alergias", "PUT", f"/pacientes/{p1}/alergias", T["caja1"], 403, json={"alergias": "X"})
+check("farmacia1 NO registra alergias", "PUT", f"/pacientes/{p1}/alergias", T["farmacia1"], 403, json={"alergias": "X"})
+check("ciudadano1 NO cambia sus alergias (dato clínico)", "PUT", f"/pacientes/{p1}/alergias", T["ciudadano1"], 403, json={"alergias": ""})
+check("alergias de paciente que no existe", "PUT", "/pacientes/999999/alergias", T["medico1"], 404, json={"alergias": "X"})
+check("alergias que no son texto", "PUT", f"/pacientes/{p1}/alergias", T["medico1"], 400, json={"alergias": 5})
+check("alergias demasiado largas", "PUT", f"/pacientes/{p1}/alergias", T["medico1"], 400, json={"alergias": "x" * 501})
+check("recepcion1 registra la alergia de p1", "PUT", f"/pacientes/{p1}/alergias", T["recepcion1"], 200, json={"alergias": "Penicilina, látex"})
+dato("la ficha de p1 muestra la alergia",
+     requests.get(API + f"/pacientes/{p1}", headers=H("medico1")).json()["data"]["alergias"] == "Penicilina, látex")
+requests.post(API + "/medicamentos", headers=H("farmacia1"),
+              json={"codigo": "PRB-AMOX", "nombre": "Amoxicilina", "presentacion": "Cápsula 500 mg (prueba)", "existencia": 0})
+amox = requests.get(API + "/medicamentos?q=PRB-AMOX", headers=H("farmacia1")).json()["data"][0]
+item_amox = [{"medicamento_id": amox["id"], "cantidad": 1}]
+r = check("recetar amoxicilina a un alérgico a penicilina: avisa", "POST", "/recetas", T["medico1"], 409,
+          json={"paciente_id": p1, "items": item_amox}).json()
+dato("dice qué medicamento choca con qué alergia", r["error"] == "alergia" and r["alergias"][0]["medicamento_id"] == amox["id"]
+     and r["alergias"][0]["alergias"] == ["penicilina"] and "Amoxicilina" in r["message"])
+check("confirmar_alergia que no es true/false", "POST", "/recetas", T["medico1"], 400,
+      json={"paciente_id": p1, "items": item_amox, "confirmar_alergia": "si"})
+ra = check("el médico confirma y receta igual", "POST", "/recetas", T["medico1"], 201,
+           json={"paciente_id": p1, "items": item_amox, "confirmar_alergia": True}).json()["data"]
+dato("la receta queda marcada con la alergia (Farmacia la ve)", "penicilina" in (ra["alerta_alergia"] or ""))
+check("se anula la receta de prueba", "POST", f"/recetas/{ra['id']}/anular", T["medico1"], 200, json={"motivo": "Prueba de alergia"})
+rn = check("un medicamento sin conflicto se receta sin aviso", "POST", "/recetas", T["medico1"], 201,
+           json={"paciente_id": p1, "items": [{"medicamento_id": m["id"], "cantidad": 1}]}).json()["data"]
+dato("y no queda marcado", rn["alerta_alergia"] is None)
+check("se anula esa receta también", "POST", f"/recetas/{rn['id']}/anular", T["medico1"], 200, json={"motivo": "Prueba"})
+check("enfermera1 quita las alergias (texto vacío)", "PUT", f"/pacientes/{p1}/alergias", T["enfermera1"], 200, json={"alergias": ""})
+check("sin alergias, la amoxicilina ya no avisa", "POST", "/recetas", T["medico1"], 201,
+      json={"paciente_id": p1, "items": item_amox, "indicaciones": "Prueba"})
+bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&usuario=recepcion1&limite=50", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota quién cambió las alergias", any(x["descripcion"] == "Actualizó las alergias del paciente" for x in bit))
+ultima = requests.get(API + f"/recetas?paciente_id={p1}", headers=H("medico1")).json()["data"]
+for x in ultima:   # deja anuladas las recetas pendientes de amoxicilina de prueba
+    if x["estado"] == "PENDIENTE" and any(i["medicamento_id"] == amox["id"] for i in x["items"]):
+        requests.post(API + f"/recetas/{x['id']}/anular", headers=H("medico1"), json={"motivo": "Prueba"})
+
+print("--- Paciente posiblemente duplicado")
+check("medico1 NO consulta duplicados (solo quien registra)", "GET", "/pacientes/posibles-duplicados?nombre_completo=Maria", T["medico1"], 403)
+check("sin nombre", "GET", "/pacientes/posibles-duplicados", T["recepcion1"], 400)
+check("nombre muy corto", "GET", "/pacientes/posibles-duplicados?nombre_completo=ab", T["recepcion1"], 400)
+check("fecha con otro formato", "GET", "/pacientes/posibles-duplicados?nombre_completo=Maria&fecha_nacimiento=18/10/2000", T["recepcion1"], 400)
+d = check("mismo nombre sin tilde ni mayúsculas", "GET", "/pacientes/posibles-duplicados?nombre_completo=MARÍA garcía",
+          T["recepcion1"], 200).json()["data"]
+dato("encuentra a p2 como 'Mismo nombre'", any(x["id"] == p2 and x["motivo"].startswith("Mismo nombre") for x in d))
+con_cui = next((x for x in requests.get(API + "/pacientes", headers=H("recepcion1")).json()["data"]
+                if x["cui"] and len(x["cui"]) == 13), None)
+if con_cui:
+    d = check("por CUI", "GET", f"/pacientes/posibles-duplicados?nombre_completo=Otro%20Nombre&cui={con_cui['cui']}",
+              T["recepcion1"], 200).json()["data"]
+    dato("encuentra al paciente por 'Mismo CUI' (primero)", bool(d) and d[0]["id"] == con_cui["id"] and d[0]["motivo"] == "Mismo CUI")
+d = check("un nombre que no existe", "GET", "/pacientes/posibles-duplicados?nombre_completo=Zuxtyq%20Plorvan", T["recepcion1"], 200).json()["data"]
+dato("no encuentra a nadie", d == [])
+dato("como máximo 5 resultados", len(requests.get(API + "/pacientes/posibles-duplicados?nombre_completo=Maria%20Garcia",
+                                                    headers=H("recepcion1")).json()["data"]) <= 5)
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)

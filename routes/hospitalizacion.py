@@ -25,6 +25,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, g, jsonify, request
 
 import cuentas
+from alertas_clinicas import alertas_signos
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_MEDICO
 from extensions import db
 from validacion import texto
@@ -125,6 +126,7 @@ def _hospitalizacion(h, nombres=None, clinico=True, con_notas=False):
             "presion": n.presion, "temperatura": float(n.temperatura) if n.temperatura is not None else None,
             "frecuencia_cardiaca": n.frecuencia_cardiaca, "saturacion": n.saturacion,
             "peso": float(n.peso) if n.peso is not None else None,
+            "alertas": alertas_signos(n),
         } for n in h.notas]
     return dato
 
@@ -608,9 +610,9 @@ def agregar_nota(id):
             peso: {type: number, example: 68.5, description: "kg"}
     responses:
       201:
-        description: Nota registrada
+        description: "Nota registrada. data.alertas: signos fuera del rango normal [{signo, nivel: alto|bajo, texto}]"
       400:
-        description: Nota vacía o signos vitales fuera de rango
+        description: Nota vacía o signos vitales imposibles (fuera de los límites que acepta el sistema)
       409:
         description: El paciente no está ingresado
     """
@@ -650,7 +652,9 @@ def agregar_nota(id):
                             peso=round(peso, 1) if peso is not None else None)
     db.session.add(n)
     db.session.commit()
-    return jsonify(success=True, data={"id": n.id}, message="Nota registrada"), 201
+    alertas = alertas_signos(n)
+    mensaje = "Nota registrada" + (". Fuera de rango: " + ", ".join(a["texto"] for a in alertas) if alertas else "")
+    return jsonify(success=True, data={"id": n.id, "alertas": alertas}, message=mensaje), 201
 
 
 @hospitalizacion_bp.route("/api/v1/salud/pacientes/<int:id>/signos", methods=["GET"])
@@ -700,6 +704,7 @@ def signos_vitales(id):
             "temperatura": float(n.temperatura) if n.temperatura is not None else None,
             "frecuencia_cardiaca": n.frecuencia_cardiaca, "saturacion": n.saturacion,
             "peso": float(n.peso) if n.peso is not None else None,
+            "alertas": alertas_signos(n),
         })
     return jsonify(success=True, data=datos), 200
 

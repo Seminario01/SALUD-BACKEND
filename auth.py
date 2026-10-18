@@ -56,6 +56,7 @@ PERMISOS = {
     "pacientes.ver":          (MED, ENF, REC, FAR, CAJA, JEF, ADM),
     "pacientes.registrar":    (REC, ADM),            # crear, editar todo y vincular al ciudadano
     "pacientes.antecedentes": (MED, ENF, REC, JEF),  # consulta a Seguridad
+    "pacientes.alergias":     (MED, ENF, REC),       # registrar las alergias (se revisan al recetar)
     "citas.ver":              (MED, ENF, REC, CAJA, JEF, ADM),
     "citas.gestionar":        (MED, REC),            # agendar, reprogramar, confirmar, cancelar
     "turnos.generar":         (ENF, REC),            # generar y clasificar (triaje)

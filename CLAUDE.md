@@ -96,6 +96,18 @@ existencia total sigue en `medicamentos.existencia`; lo que no tiene lote es "si
 antes). Al despachar se descuenta primero el lote que vence antes y nunca uno vencido; las
 vencidas no cuentan como `disponible`. `pruebas/prueba_lotes.py` revisa esa regla sin servidor.
 
+## Alertas para la seguridad del paciente
+
+`alertas_clinicas.py` (sin base de datos; `pruebas/prueba_alertas.py` lo revisa sin servidor):
+- **Signos fuera de rango**: las notas de hospitalización y `GET /pacientes/{id}/signos` traen
+  `alertas` [{signo, nivel alto|bajo, texto}] con los rangos normales de un adulto (los mismos de las gráficas).
+- **Alergias**: `pacientes.alergias` (texto libre). Las cambian Médico, Enfermería y Recepción con
+  `PUT /pacientes/{id}/alergias` (permiso `pacientes.alergias`). Al recetar, si un medicamento choca
+  (por nombre o familia: penicilinas, sulfas, AINE...), `POST /recetas` responde 409 `alergia`; el
+  médico puede reenviar con `confirmar_alergia: true` y la receta queda con `alerta_alergia` para Farmacia.
+- **Paciente duplicado**: `GET /pacientes/posibles-duplicados` (mismo CUI, mismo nombre, o nombre parecido
+  con la misma fecha de nacimiento). Solo avisa; el registro no se bloquea.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

@@ -1,9 +1,10 @@
-from datetime import date
+from datetime import date, datetime
 from flask import Blueprint, request, jsonify, g
 from extensions import db
 from models import Paciente
 from auth import validar_token, requiere_permiso, puede
 from validacion import DatoInvalido, cui, fecha_pasada, opcion, telefono, texto
+from alertas_clinicas import parecido_nombre
 
 GENEROS = ("M", "F", "Otro")
 SEGUROS = ("IGSS", "Privado", "Ninguno")
@@ -32,6 +33,7 @@ def _validar(data, actual=None):
         "telefono": lambda: telefono(data),
         "tipo_seguro": lambda: opcion(data, "tipo_seguro", SEGUROS),
         "cuidador": lambda: texto(data, "cuidador", 200, etiqueta="cuidador"),
+        "alergias": lambda: texto(data, "alergias", 500, etiqueta="Las alergias"),
     }
     limpio = {}
     for campo, regla in reglas.items():
@@ -67,6 +69,7 @@ def serializar_paciente(p):
         "telefono": p.telefono,
         "tipo_seguro": p.tipo_seguro,
         "cuidador": p.cuidador,
+        "alergias": p.alergias,
         "tiene_cuenta": p.usuario_sub is not None,
     }
 
@@ -155,6 +158,7 @@ def crear_paciente():
             telefono: {type: string, description: "8 a 15 dígitos"}
             tipo_seguro: {type: string, enum: [IGSS, Privado, Ninguno]}
             cuidador: {type: string}
+            alergias: {type: string, example: "Penicilina, AINE", description: "texto libre, se revisa al recetar"}
             usuario_sub:
               type: string
               description: sub del ciudadano en el Login Único (opcional)
@@ -174,6 +178,104 @@ def crear_paciente():
     db.session.add(paciente)
     db.session.commit()
     return jsonify(success=True, data={"id": paciente.id}, message="Paciente registrado"), 201
+
+
+@pacientes_bp.route("/api/v1/salud/pacientes/posibles-duplicados", methods=["GET"])
+@validar_token
+@requiere_permiso("pacientes.registrar")
+def posibles_duplicados():
+    """
+    Pacientes parecidos al que se va a registrar (para no crearlo dos veces)
+    ---
+    tags:
+      - Pacientes
+    security:
+      - BearerAuth: []
+    description: >
+      Recepción lo consulta antes de registrar. Parecido = mismo CUI, o mismo nombre
+      (sin importar tildes, mayúsculas ni el orden), o nombre parecido con la misma fecha de nacimiento.
+    parameters:
+      - {name: nombre_completo, in: query, type: string, required: true}
+      - {name: fecha_nacimiento, in: query, type: string, required: false, description: "AAAA-MM-DD"}
+      - {name: cui, in: query, type: string, required: false}
+    responses:
+      200:
+        description: "Hasta 5 pacientes: [{id, nombre_completo, fecha_nacimiento, cui, motivo}]"
+      400:
+        description: Falta el nombre o la fecha no tiene formato AAAA-MM-DD
+    """
+    nombre = (request.args.get("nombre_completo") or "").strip()[:200]
+    if len(nombre) < 3:
+        return jsonify(success=False, error="datos_invalidos", message="Escriba el nombre (al menos 3 letras)"), 400
+    nacimiento = None
+    if request.args.get("fecha_nacimiento"):
+        try:
+            nacimiento = datetime.strptime(request.args["fecha_nacimiento"], "%Y-%m-%d").date()
+        except ValueError:
+            return jsonify(success=False, error="datos_invalidos", message="fecha_nacimiento con formato AAAA-MM-DD"), 400
+    cui_buscado = "".join(c for c in (request.args.get("cui") or "") if c.isdigit())[:13]
+
+    candidatos = {}
+    if len(cui_buscado) == 13:
+        for p in Paciente.query.filter(Paciente.cui == cui_buscado).limit(5):
+            candidatos[p.id] = (p, "Mismo CUI", 2.0)
+    filtro = [Paciente.fecha_nacimiento == nacimiento] if nacimiento else []
+    # Para el mismo nombre sin fecha basta con revisar los que comparten alguna palabra larga
+    palabras = sorted((w for w in nombre.split() if len(w) >= 3), key=len, reverse=True)[:3]
+    if palabras:
+        filtro.append(db.or_(*[Paciente.nombre_completo.like(f"%{w}%") for w in palabras]))
+    if not filtro and not candidatos:
+        return jsonify(success=True, data=[]), 200
+    for p in (Paciente.query.filter(db.or_(*filtro)).limit(500) if filtro else []):
+        if p.id in candidatos:
+            continue
+        parecido = parecido_nombre(nombre, p.nombre_completo)
+        misma_fecha = nacimiento is not None and p.fecha_nacimiento == nacimiento
+        if parecido == 1.0:
+            candidatos[p.id] = (p, "Mismo nombre y fecha de nacimiento" if misma_fecha else "Mismo nombre", 1.5 if misma_fecha else 1.0)
+        elif misma_fecha and parecido >= 0.85:
+            candidatos[p.id] = (p, "Nombre parecido y misma fecha de nacimiento", parecido)
+    mejores = sorted(candidatos.values(), key=lambda c: -c[2])[:5]
+    return jsonify(success=True, data=[{
+        "id": p.id, "nombre_completo": p.nombre_completo, "cui": p.cui,
+        "fecha_nacimiento": str(p.fecha_nacimiento) if p.fecha_nacimiento else None, "motivo": motivo,
+    } for p, motivo, _ in mejores]), 200
+
+
+@pacientes_bp.route("/api/v1/salud/pacientes/<int:id>/alergias", methods=["PUT"])
+@validar_token
+@requiere_permiso("pacientes.alergias")
+def actualizar_alergias(id):
+    """
+    Registrar o cambiar las alergias del paciente (Médico, Enfermería, Recepción)
+    ---
+    tags:
+      - Pacientes
+    security:
+      - BearerAuth: []
+    parameters:
+      - {name: id, in: path, type: integer, required: true}
+      - name: body
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            alergias: {type: string, example: "Penicilina, AINE", description: "vacío = sin alergias registradas"}
+    responses:
+      200:
+        description: Alergias guardadas
+      404:
+        description: Paciente no existe
+    """
+    paciente = Paciente.query.get(id)
+    if not paciente:
+        return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
+    data = request.get_json(silent=True) or {}
+    paciente.alergias = texto(data, "alergias", 500, etiqueta="Las alergias")
+    db.session.commit()
+    return jsonify(success=True, data={"id": paciente.id, "alergias": paciente.alergias},
+                   message="Alergias guardadas"), 200
 
 
 @pacientes_bp.route("/api/v1/salud/pacientes/<int:id>", methods=["GET"])

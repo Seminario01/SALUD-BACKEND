@@ -76,6 +76,9 @@ COLUMNAS = [
     ("citas_medicas", "agendada_por", "VARCHAR(150) NULL"),
     # Signos vitales: peso en las notas de hospitalización
     ("notas_hospitalizacion", "peso", "DECIMAL(5,1) NULL"),
+    # Seguridad del paciente: alergias (se revisan al recetar)
+    ("pacientes", "alergias", "VARCHAR(500) NULL"),
+    ("recetas", "alerta_alergia", "VARCHAR(255) NULL"),
 ]
 
 # Columnas que deben permitir NULL (ej. recetas.id_medico: el médico se

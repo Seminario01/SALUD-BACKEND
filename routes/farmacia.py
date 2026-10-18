@@ -14,10 +14,11 @@ from flask import Blueprint, g, jsonify, request
 
 import cuentas
 import lotes
+from alertas_clinicas import alergias_en_conflicto
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_JEFATURA
 from extensions import db
 from models import DetalleReceta, ExpedienteClinico, LoteMedicamento, Medicamento, MovimientoInventario, Paciente, Receta
-from validacion import DatoInvalido, monto, texto
+from validacion import DatoInvalido, booleano, monto, texto
 
 farmacia_bp = Blueprint("farmacia", __name__)
 
@@ -82,7 +83,7 @@ def _receta(r, nombres=None):
         "fecha": r.fecha.isoformat(timespec="minutes") if r.fecha else None,
         "indicaciones": r.indicaciones, "estado": r.estado,
         "fecha_despacho": r.fecha_despacho.isoformat(timespec="minutes") if r.fecha_despacho else None,
-        "motivo_anulacion": r.motivo_anulacion,
+        "motivo_anulacion": r.motivo_anulacion, "alerta_alergia": r.alerta_alergia,
         "items": [{
             "medicamento_id": d.medicamento_id, "medicamento": d.medicamento.nombre if d.medicamento else None,
             "presentacion": d.medicamento.presentacion if d.medicamento else None,
@@ -383,6 +384,9 @@ def crear_receta():
             paciente_id: {type: integer, example: 1}
             expediente_id: {type: integer, description: "Atención del expediente (opcional)"}
             indicaciones: {type: string, example: "Tomar con alimentos. Regresar si persiste la fiebre."}
+            confirmar_alergia:
+              type: boolean
+              description: "true si el médico ya vio la advertencia de alergia y decide recetar igual"
             items:
               type: array
               items:
@@ -399,15 +403,20 @@ def crear_receta():
         description: Datos inválidos
       404:
         description: El paciente o algún medicamento no existe
+      409:
+        description: >
+          alergia: algún medicamento choca con las alergias registradas del paciente.
+          Trae `alergias` [{medicamento_id, medicamento, alergias}]; se vuelve a enviar con confirmar_alergia=true.
     """
     data = request.get_json(silent=True) or {}
+    confirmar_alergia = booleano(data, "confirmar_alergia")
     paciente = Paciente.query.get(_entero(data.get("paciente_id")) or 0)
     if not paciente:
         return _error(404, "no_encontrado", "Paciente no existe")
     items = data.get("items") or []
     if not isinstance(items, list) or not items:
         return _error(400, "datos_incompletos", "La receta necesita al menos un medicamento")
-    detalles, vistos = [], set()
+    detalles, vistos, choques = [], set(), []
     if len(items) > 50:
         return _error(400, "datos_invalidos", "Una receta admite como máximo 50 medicamentos")
     for item in items:
@@ -419,10 +428,18 @@ def crear_receta():
         if mid in vistos:
             return _error(400, "datos_invalidos", "Un medicamento aparece dos veces en la receta")
         vistos.add(mid)
-        if not Medicamento.query.get(mid):
+        medicamento = Medicamento.query.get(mid)
+        if not medicamento:
             return _error(404, "no_encontrado", f"El medicamento {mid} no existe")
+        choque = alergias_en_conflicto(paciente.alergias, medicamento)
+        if choque:
+            choques.append({"medicamento_id": mid, "medicamento": medicamento.nombre, "alergias": choque})
         detalles.append(DetalleReceta(medicamento_id=mid, cantidad=cantidad,
                                       dosis=texto(item, "dosis", 200, etiqueta="La dosis")))
+    if choques and not confirmar_alergia:
+        lista = "; ".join(f"{c['medicamento']} (alergia: {', '.join(c['alergias'])})" for c in choques)
+        return jsonify(success=False, error="alergia", alergias=choques, alergias_paciente=paciente.alergias,
+                       message=f"El paciente tiene alergias registradas que chocan con: {lista}"), 409
     expediente_id = _entero(data.get("expediente_id"))
     if expediente_id:
         atencion = ExpedienteClinico.query.get(expediente_id)
@@ -430,7 +447,8 @@ def crear_receta():
             return _error(400, "datos_invalidos", "La atención no pertenece a este paciente")
     receta = Receta(paciente_id=paciente.id, medico_sub=g.usuario["sub"],
                     medico_nombre=g.usuario.get("nombre") or g.usuario.get("usuario"), expediente_id=expediente_id,
-                    indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"), estado="PENDIENTE", detalles=detalles)
+                    indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"), estado="PENDIENTE", detalles=detalles,
+                    alerta_alergia="; ".join(f"{c['medicamento']}: {', '.join(c['alergias'])}" for c in choques)[:255] or None)
     db.session.add(receta)
     db.session.commit()
     return jsonify(success=True, data=_receta(receta, {paciente.id: paciente.nombre_completo}),

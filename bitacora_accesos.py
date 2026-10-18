@@ -42,6 +42,7 @@ VER = {
 CAMBIOS = {
     ("POST", "/pacientes"): ("crear", "Registró al paciente"),
     ("PUT", "/pacientes/<int:id>"): ("modificar", "Modificó los datos del paciente"),
+    ("PUT", "/pacientes/<int:id>/alergias"): ("modificar", "Actualizó las alergias del paciente"),
     ("POST", "/citas"): ("crear", "Agendó la cita No. {nuevo}"),
     ("PUT", "/citas/<int:id>"): ("modificar", "Modificó la cita No. {id}"),
     ("DELETE", "/citas/<int:id>"): ("anular", "Canceló la cita No. {id}"),
