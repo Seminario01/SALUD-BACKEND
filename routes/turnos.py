@@ -1,14 +1,40 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, g, request, jsonify
 from datetime import date, datetime
 from extensions import db
 from models import Turno, Paciente
 from auth import validar_token, requiere_permiso, puede
-from validacion import entero
+from validacion import entero, opcion, texto
 
 turnos_bp = Blueprint("turnos", __name__)
 
 TIPOS_ATENCION = ("consulta_general", "emergencia", "especialidad")
 PRIORIDADES = ("normal", "urgente")
+
+# Triage de 5 niveles (como el sistema Manchester): color, nombre y tiempo máximo de espera
+# recomendado. La cola se ordena por nivel y, dentro del nivel, por orden de llegada.
+TRIAGE = {
+    "ROJO": {"orden": 0, "nombre": "Inmediato", "minutos": 0},
+    "NARANJA": {"orden": 1, "nombre": "Muy urgente", "minutos": 10},
+    "AMARILLO": {"orden": 2, "nombre": "Urgente", "minutos": 60},
+    "VERDE": {"orden": 3, "nombre": "Poco urgente", "minutos": 120},
+    "AZUL": {"orden": 4, "nombre": "No urgente", "minutos": 240},
+}
+
+
+def _orden_cola(t):
+    """Sin clasificar: urgente entre naranja y amarillo; normal como verde."""
+    nivel = TRIAGE[t.triage]["orden"] if t.triage in TRIAGE else (1.5 if t.prioridad == "urgente" else 3)
+    return (nivel, t.fecha_hora_ingreso or datetime.min)
+
+
+def _clasificar(turno, data):
+    """Aplica el triage del cuerpo (nivel y motivo) al turno; la prioridad sigue al nivel."""
+    nivel = opcion(data, "triage", tuple(TRIAGE), obligatorio=True, etiqueta="El nivel de triage")
+    turno.triage = nivel
+    turno.motivo_triage = texto(data, "motivo_triage", 255, etiqueta="El motivo")
+    turno.triage_por = (g.usuario.get("nombre") or g.usuario.get("usuario") or "")[:150] or None
+    turno.fecha_triage = datetime.now()
+    turno.prioridad = "urgente" if TRIAGE[nivel]["orden"] <= 1 else "normal"
 
 @turnos_bp.route("/api/v1/salud/turnos", methods=["POST"])
 @validar_token
@@ -50,6 +76,12 @@ def generar_turno():
         numero_turno=siguiente_numero,
         fecha_hora_ingreso=ahora,
     )
+    # El triage al generar el turno solo lo pone quien puede clasificar (Enfermería o Médico)
+    if data.get("triage") is not None:
+        if not puede("turnos.clasificar"):
+            return jsonify(success=False, error="permiso_denegado",
+                           message="Solo Enfermería o un médico pueden clasificar la urgencia (triage)"), 403
+        _clasificar(turno, data)
     db.session.add(turno)
     db.session.commit()
 
@@ -67,8 +99,9 @@ def turnos_activos():
     # Solo los de HOY: la numeración se reinicia cada día, así que un turno
     # olvidado de ayer mezclaría números repetidos en la sala de espera.
     turnos = Turno.query.filter(Turno.estado.in_(["en_espera", "llamado", "en_atencion"]),
-                                Turno.fecha_hora_ingreso >= datetime.combine(date.today(), datetime.min.time())) \
-        .order_by(Turno.prioridad.desc(), Turno.fecha_hora_ingreso.asc()).all()
+                                Turno.fecha_hora_ingreso >= datetime.combine(date.today(), datetime.min.time())).all()
+    turnos.sort(key=_orden_cola)
+    ahora = datetime.now()
 
     # El nombre del paciente es un dato personal: solo para el personal de Salud.
     personal = puede("turnos.ver_cola")
@@ -82,12 +115,71 @@ def turnos_activos():
                 "prioridad": t.prioridad, "tipo_atencion": t.tipo_atencion,
                 "modulo_asignado": t.modulo_asignado,
                 # La pantalla de la sala anuncia por voz cada llamado nuevo (o cuando se vuelve a llamar)
-                "llamado_en": t.fecha_hora_llamado.isoformat(timespec="seconds") if t.fecha_hora_llamado else None}
+                "llamado_en": t.fecha_hora_llamado.isoformat(timespec="seconds") if t.fecha_hora_llamado else None,
+                "triage": t.triage, "triage_nombre": TRIAGE[t.triage]["nombre"] if t.triage in TRIAGE else None}
         if personal:
-            dato.update(paciente_id=t.paciente_id, paciente=nombres.get(t.paciente_id))
+            espera = int((ahora - t.fecha_hora_ingreso).total_seconds() // 60) if t.fecha_hora_ingreso else None
+            objetivo = TRIAGE[t.triage]["minutos"] if t.triage in TRIAGE else None
+            dato.update(paciente_id=t.paciente_id, paciente=nombres.get(t.paciente_id),
+                        motivo_triage=t.motivo_triage, triage_por=t.triage_por,
+                        ingreso=t.fecha_hora_ingreso.isoformat(timespec="seconds") if t.fecha_hora_ingreso else None,
+                        espera_min=espera, objetivo_min=objetivo,
+                        # Esperando más de lo recomendado para su nivel (solo los que todavía no pasan)
+                        excede=bool(objetivo is not None and espera is not None and t.estado == "en_espera" and espera > objetivo))
         return dato
 
     return jsonify(success=True, data=[serializar(t) for t in turnos]), 200
+
+
+@turnos_bp.route("/api/v1/salud/turnos/triage", methods=["GET"])
+@validar_token
+def niveles_triage():
+    """Niveles de triage (color, nombre y minutos máximos de espera recomendados)."""
+    return jsonify(success=True, data=[{"nivel": k, **v} for k, v in TRIAGE.items()]), 200
+
+
+@turnos_bp.route("/api/v1/salud/turnos/<int:id>/triage", methods=["PUT"])
+@validar_token
+@requiere_permiso("turnos.clasificar")
+def clasificar_turno(id):
+    """
+    Clasificar la urgencia de un turno (triage de 5 niveles)
+    ---
+    tags:
+      - Turnos
+    security:
+      - BearerAuth: []
+    description: >
+      Enfermería o un médico. La cola se ordena por nivel (ROJO inmediato, NARANJA 10 min,
+      AMARILLO 60, VERDE 120, AZUL 240) y dentro del nivel por llegada. ROJO y NARANJA quedan urgentes.
+    parameters:
+      - {name: id, in: path, type: integer, required: true}
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [triage]
+          properties:
+            triage: {type: string, enum: [ROJO, NARANJA, AMARILLO, VERDE, AZUL]}
+            motivo_triage: {type: string, example: "Dolor torácico de 30 minutos"}
+    responses:
+      200:
+        description: Clasificado
+      404:
+        description: El turno no existe
+      409:
+        description: El turno ya fue atendido o no se presentó
+    """
+    turno = Turno.query.get(id)
+    if not turno:
+        return jsonify(success=False, error="no_encontrado", message="Turno no existe"), 404
+    if turno.estado not in ("en_espera", "llamado", "en_atencion"):
+        return jsonify(success=False, error="estado_invalido", message="El turno ya terminó: no se puede clasificar"), 409
+    _clasificar(turno, request.get_json(silent=True) or {})
+    db.session.commit()
+    return jsonify(success=True, data={"id": turno.id, "triage": turno.triage, "prioridad": turno.prioridad},
+                   message=f"Turno {turno.numero_turno} clasificado: {TRIAGE[turno.triage]['nombre'].lower()}"), 200
 
 
 @turnos_bp.route("/api/v1/salud/turnos/<int:id>/llamar", methods=["PUT"])

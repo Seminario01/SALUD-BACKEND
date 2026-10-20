@@ -62,6 +62,7 @@ PERMISOS = {
     "turnos.generar":         (ENF, REC),            # generar y clasificar (triaje)
     "turnos.atender":         (MED, ENF),            # llamar, atender, finalizar
     "turnos.ver_cola":        (MED, ENF, REC, JEF, ADM),
+    "turnos.clasificar":      (MED, ENF),            # triage de 5 niveles (criterio clínico)
     "expediente.ver":         (MED, ENF, JEF, ADM),  # Administración: solo lectura
     "expediente.registrar":   (MED,),
     "vacunacion.ver":         (MED, ENF, JEF, ADM),

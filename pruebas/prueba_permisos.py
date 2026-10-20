@@ -39,6 +39,7 @@ MATRIZ = {
     "turnos.generar":         {"ENF", "REC"},
     "turnos.atender":         {"MED", "ENF"},
     "turnos.ver_cola":        {"MED", "ENF", "REC", "JEF", "ADM"},
+    "turnos.clasificar":      {"MED", "ENF"},
     "expediente.ver":         {"MED", "ENF", "JEF", "ADM"},
     "expediente.registrar":   {"MED"},
     "vacunacion.ver":         {"MED", "ENF", "JEF", "ADM"},
@@ -113,6 +114,7 @@ PRUEBAS = {
     "citas.gestionar":        lambda u: not denegado(pedir(u, "POST", "/citas", json={"paciente_id": paciente, "fecha_hora": "no-es-fecha"})),
     "turnos.generar":         lambda u: not denegado(pedir(u, "POST", "/turnos", json={})),
     "turnos.atender":         lambda u: not denegado(pedir(u, "PUT", "/turnos/999999/llamar")),
+    "turnos.clasificar":      lambda u: not denegado(pedir(u, "PUT", "/turnos/999999/triage", json={})),
     # Sin el permiso, la cola se ve sin nombres de pacientes.
     "turnos.ver_cola":        lambda u: any("paciente" in t for t in pedir(u, "GET", "/turnos/activos").json()["data"]),
     "expediente.ver":         lambda u: not denegado(pedir(u, "GET", f"/expedientes/{paciente}")),

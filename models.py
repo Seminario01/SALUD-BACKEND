@@ -81,6 +81,11 @@ class Turno(db.Model):
     fecha_hora_llamado = db.Column(db.DateTime, nullable=True)
     fecha_hora_atencion = db.Column(db.DateTime, nullable=True)
     modulo_asignado = db.Column(db.String(50), nullable=True)
+    # Clasificación de urgencia (triage de 5 niveles, routes/turnos.py TRIAGE)
+    triage = db.Column(db.String(10))                 # ROJO, NARANJA, AMARILLO, VERDE, AZUL
+    motivo_triage = db.Column(db.String(255))
+    triage_por = db.Column(db.String(150))
+    fecha_triage = db.Column(db.DateTime)
 
 
 class PresupuestoHospitalario(db.Model):

@@ -883,6 +883,44 @@ check("ciudadano2 NO ve la constancia de otro (404)", "GET", f"{CON}/{ci['id']}"
 bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&usuario=medico1&limite=100", headers=H("admin.salud")).json()["data"]
 dato("la bitácora anota la constancia emitida", any(x["descripcion"] == f"Emitió la constancia No. {ci['id']}" for x in bit))
 
+print("--- Triage de 5 niveles en la cola de turnos")
+niveles = check("niveles de triage", "GET", "/turnos/triage", T["recepcion1"], 200).json()["data"]
+dato("son 5, de ROJO (inmediato) a AZUL (240 min)", [n["nivel"] for n in niveles] == ["ROJO", "NARANJA", "AMARILLO", "VERDE", "AZUL"]
+     and niveles[0]["minutos"] == 0 and niveles[-1]["minutos"] == 240)
+nuevo = lambda nombre: requests.post(API + "/pacientes", headers=H("recepcion1"),  # noqa: E731
+                                     json={"nombre_completo": nombre}).json()["data"]["id"]
+sufijo = "".join(random.choice("abcdefghijklmnopqrstuvwxyz") for _ in range(6))
+pa, pb = nuevo(f"Triage Azul {sufijo}"), nuevo(f"Triage Rojo {sufijo}")
+check("recepcion1 NO pone triage al generar el turno", "POST", "/turnos", T["recepcion1"], 403,
+      json={"paciente_id": pa, "tipo_atencion": "emergencia", "triage": "AZUL"})
+check("enfermera1 genera el turno ya clasificado AZUL", "POST", "/turnos", T["enfermera1"], 201,
+      json={"paciente_id": pa, "tipo_atencion": "emergencia", "triage": "AZUL", "motivo_triage": "Control de herida"})
+check("recepcion1 genera el turno sin clasificar", "POST", "/turnos", T["recepcion1"], 201,
+      json={"paciente_id": pb, "tipo_atencion": "emergencia"})
+cola = requests.get(API + "/turnos/activos", headers=H("enfermera1")).json()["data"]
+tb = next(t for t in cola if t["paciente_id"] == pb)
+check("recepcion1 NO clasifica", "PUT", f"/turnos/{tb['id']}/triage", T["recepcion1"], 403, json={"triage": "ROJO"})
+check("nivel que no existe", "PUT", f"/turnos/{tb['id']}/triage", T["enfermera1"], 400, json={"triage": "MORADO"})
+check("sin nivel", "PUT", f"/turnos/{tb['id']}/triage", T["enfermera1"], 400, json={})
+check("turno que no existe", "PUT", "/turnos/999999/triage", T["enfermera1"], 404, json={"triage": "ROJO"})
+r = check("enfermera1 lo clasifica ROJO", "PUT", f"/turnos/{tb['id']}/triage", T["enfermera1"], 200,
+          json={"triage": "ROJO", "motivo_triage": "Dificultad respiratoria severa"}).json()["data"]
+dato("ROJO queda urgente", r["prioridad"] == "urgente")
+cola = requests.get(API + "/turnos/activos", headers=H("enfermera1")).json()["data"]
+pos = {t["paciente_id"]: i for i, t in enumerate(cola)}
+dato("en la cola, el ROJO pasa antes que el AZUL que llegó primero", pos[pb] < pos[pa])
+dato("la cola está ordenada por nivel", [t["triage"] for t in cola if t["triage"]] == sorted(
+    [t["triage"] for t in cola if t["triage"]], key=["ROJO", "NARANJA", "AMARILLO", "VERDE", "AZUL"].index))
+rojo = cola[pos[pb]]
+dato("el personal ve motivo, quién clasificó, espera y objetivo", rojo["motivo_triage"] == "Dificultad respiratoria severa"
+     and rojo["triage_por"] and rojo["objetivo_min"] == 0 and rojo["espera_min"] is not None)
+publica = requests.get(API + "/turnos/activos", headers=H("ciudadano1")).json()["data"]
+dato("la pantalla pública ve el color pero no el motivo ni el nombre",
+     any(t["triage"] == "ROJO" for t in publica) and all("motivo_triage" not in t and "paciente" not in t for t in publica))
+for t in (tb["id"], next(t["id"] for t in cola if t["paciente_id"] == pa)):
+    requests.put(API + f"/turnos/{t}/finalizar", headers=H("enfermera1"))
+check("un turno ya atendido no se clasifica", "PUT", f"/turnos/{tb['id']}/triage", T["enfermera1"], 409, json={"triage": "VERDE"})
+
 print("--- Laboratorio clínico: orden, muestra, resultados e interpretación")
 LAB = "/laboratorio/ordenes"
 cat = check("enfermera1 ve el catálogo de exámenes", "GET", "/laboratorio/examenes", T["enfermera1"], 200).json()["data"]

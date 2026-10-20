@@ -135,6 +135,14 @@ Administración) o el ciudadano las suyas; se anulan con motivo (el médico las 
 Igual que las recetas llevan `codigo_verificacion` y QR a `/verificar/constancia/<código>`, que consulta
 `GET /verificar/constancia/<código>` sin token y **sin diagnóstico**.
 
+## Triage en la cola de turnos
+
+`routes/turnos.py` `TRIAGE`: 5 niveles (ROJO inmediato, NARANJA 10 min, AMARILLO 60, VERDE 120,
+AZUL 240). Clasifican Enfermería y Médico (`turnos.clasificar`) con `PUT /turnos/{id}/triage` o al
+generar el turno. La cola (`/turnos/activos`) se ordena por nivel y luego por llegada (sin clasificar:
+urgente entre naranja y amarillo, normal como verde); el personal ve motivo, espera y si `excede` el
+tiempo recomendado. La pantalla pública solo ve el color.
+
 ## Laboratorio clínico
 
 `laboratorio.py` (sin base de datos; `pruebas/prueba_laboratorio.py`): catálogo de exámenes

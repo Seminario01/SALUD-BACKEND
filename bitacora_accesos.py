@@ -59,6 +59,7 @@ CAMBIOS = {
     ("PUT", "/turnos/<int:id>/llamar"): ("modificar", "Llamó al turno No. {id}"),
     ("PUT", "/turnos/<int:id>/atender"): ("modificar", "Atendió el turno No. {id}"),
     ("PUT", "/turnos/<int:id>/finalizar"): ("modificar", "Finalizó el turno No. {id}"),
+    ("PUT", "/turnos/<int:id>/triage"): ("modificar", "Clasificó (triage) el turno No. {id}"),
     ("POST", "/recetas"): ("crear", "Emitió la receta No. {nuevo}"),
     ("POST", "/recetas/<int:id>/despachar"): ("modificar", "Despachó la receta No. {id}"),
     ("POST", "/recetas/<int:id>/anular"): ("anular", "Anuló la receta No. {id}"),
