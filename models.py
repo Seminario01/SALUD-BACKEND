@@ -222,6 +222,27 @@ class Receta(db.Model):
     detalles = db.relationship("DetalleReceta", backref="receta", lazy="joined", order_by="DetalleReceta.id")
 
 
+class ConstanciaMedica(db.Model):
+    """Constancia de consulta o incapacidad (reposo) que firma el médico; lleva QR verificable."""
+    __tablename__ = "constancias_medicas"
+    id = db.Column(db.Integer, primary_key=True)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False, index=True)
+    tipo = db.Column(db.String(12), nullable=False)          # CONSULTA, INCAPACIDAD
+    expediente_id = db.Column(db.Integer)                    # atención del expediente (opcional)
+    medico_sub = db.Column(db.String(SUB_LEN))
+    medico_nombre = db.Column(db.String(150))
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)   # emisión
+    fecha_atencion = db.Column(db.Date, nullable=False)
+    diagnostico = db.Column(db.String(300))                  # se imprime solo si el médico lo decide
+    dias_reposo = db.Column(db.Integer)                      # solo INCAPACIDAD
+    desde = db.Column(db.Date)
+    hasta = db.Column(db.Date)
+    observaciones = db.Column(db.String(500))
+    estado = db.Column(db.String(10), nullable=False, default="VIGENTE")   # VIGENTE, ANULADA
+    motivo_anulacion = db.Column(db.String(255))
+    codigo_verificacion = db.Column(db.String(24), unique=True, nullable=False)
+
+
 class DetalleReceta(db.Model):
     __tablename__ = "detalle_receta"
     id = db.Column("id_detalle", db.Integer, primary_key=True)

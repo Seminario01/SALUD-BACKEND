@@ -20,7 +20,8 @@ from sqlalchemy import select
 
 from bitacora import enmascarar
 from extensions import db
-from models import BitacoraAcceso, CitaMedica, CuentaPaciente, Hospitalizacion, PersonalSalud, Receta, Turno
+from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, PersonalSalud,
+                    Receta, Turno)
 
 log = logging.getLogger(__name__)
 PREFIJO = "/api/v1/salud"
@@ -37,6 +38,7 @@ VER = {
     "/cuentas/<int:id>": "Vio la cuenta No. {id}",
     "/hospitalizaciones/<int:id>": "Vio la hospitalización No. {id}",
     "/citas/<int:id>": "Vio la cita No. {id}",
+    "/constancias/<int:id>": "Vio la constancia No. {id}",
 }
 
 CAMBIOS = {
@@ -59,6 +61,8 @@ CAMBIOS = {
     ("POST", "/recetas"): ("crear", "Emitió la receta No. {nuevo}"),
     ("POST", "/recetas/<int:id>/despachar"): ("modificar", "Despachó la receta No. {id}"),
     ("POST", "/recetas/<int:id>/anular"): ("anular", "Anuló la receta No. {id}"),
+    ("POST", "/constancias"): ("crear", "Emitió la constancia No. {nuevo}"),
+    ("POST", "/constancias/<int:id>/anular"): ("anular", "Anuló la constancia No. {id}"),
     ("POST", "/hospitalizaciones"): ("crear", "Ordenó el ingreso No. {nuevo}"),
     ("POST", "/hospitalizaciones/<int:id>/asignar-cama"): ("modificar", "Asignó cama en la hospitalización No. {id}"),
     ("POST", "/hospitalizaciones/<int:id>/egreso"): ("modificar", "Dio egreso en la hospitalización No. {id}"),
@@ -76,7 +80,7 @@ CAMBIOS = {
 }
 
 # Para las rutas cuyo número no es el del paciente: de qué tabla se saca el paciente
-DUENO = {"/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta,
+DUENO = {"/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta, "/constancias": ConstanciaMedica,
          "/hospitalizaciones": Hospitalizacion, "/cuentas": CuentaPaciente}
 
 PUESTOS = [("salud:jefatura", "Jefatura médica"), ("salud:admin", "Administración"), ("salud:medico", "Médico"),

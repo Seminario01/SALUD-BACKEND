@@ -68,6 +68,9 @@ MATRIZ = {
     "bitacora.ver":           {"ADM"},
     "pacientes.alergias":     {"MED", "ENF", "REC"},
     "reportes.ver":           {"MED", "JEF", "ADM", "AUD"},
+    "constancias.ver":        {"MED", "ENF", "JEF", "ADM"},
+    "constancias.emitir":     {"MED"},
+    "constancias.anular":     {"MED", "JEF"},
 }
 
 
@@ -141,6 +144,10 @@ PRUEBAS = {
                                   not denegado(pedir(u, "GET", "/bitacora/inusuales?dias=1"))),
     "pacientes.alergias":     lambda u: not denegado(pedir(u, "PUT", "/pacientes/999999/alergias", json={})),
     "reportes.ver":           lambda u: not denegado(pedir(u, "GET", "/reportes/diagnosticos")),
+    # Con el permiso se valida el filtro (400); el ciudadano solo ve las suyas y no filtra (200); sin nada, 403
+    "constancias.ver":        lambda u: pedir(u, "GET", "/constancias?paciente_id=abc").status_code == 400,
+    "constancias.emitir":     lambda u: not denegado(pedir(u, "POST", "/constancias", json={})),
+    "constancias.anular":     lambda u: not denegado(pedir(u, "POST", "/constancias/999999/anular", json={})),
 }
 
 assert set(PRUEBAS) == set(MATRIZ), "La prueba debe cubrir todos los permisos de la matriz"

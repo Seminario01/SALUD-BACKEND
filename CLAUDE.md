@@ -126,6 +126,15 @@ pública del frontend) que consulta `GET /verificar/receta/<código>` **sin toke
 médico, medicamentos y estado (vigente, despachada o anulada); del paciente solo iniciales y los
 últimos 4 del DPI. Límite: 30 consultas por minuto por visitante. El número de receta no sirve como código.
 
+## Constancias de consulta e incapacidad
+
+`routes/constancias.py` (tabla `constancias_medicas`): el médico emite (`constancias.emitir`) una
+CONSULTA o una INCAPACIDAD (1 a 60 días de reposo, `hasta` = desde + días - 1). El diagnóstico solo
+se guarda si el médico decide imprimirlo. Se ven con `constancias.ver` (Médico, Enfermería, Jefatura,
+Administración) o el ciudadano las suyas; se anulan con motivo (el médico las suyas, Jefatura cualquiera).
+Igual que las recetas llevan `codigo_verificacion` y QR a `/verificar/constancia/<código>`, que consulta
+`GET /verificar/constancia/<código>` sin token y **sin diagnóstico**.
+
 ## Reporte de diagnósticos
 
 `GET /reportes/diagnosticos` (`routes/reportes.py`, permiso `reportes.ver`: Médico, Jefatura,

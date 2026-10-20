@@ -9,18 +9,23 @@ Uso (desde la carpeta SALUD-BACKEND):
 Variables opcionales: AUTH_ISSUER (por defecto la réplica local) y MODULOS_API_KEY.
 Es repetible: si los pacientes de prueba ya existen, los reutiliza.
 """
-import json, os, sys, base64, tempfile, requests
+import json, os, sys, base64, random, tempfile, requests
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+
+
+# Cada corrida agenda sus citas corridas un número de días al azar (el backend guarda la hora
+# sin segundos, así que dos corridas al mismo minuto de distintos días podían chocar).
+DESFASE = random.randint(0, 300)
 
 
 def futuro(dias, hora):
-    """Fecha de cita a `dias` días, a la `hora`, con el minuto actual y la hora actual como
-    segundos: las citas no pueden ir en el pasado ni repetirse, así dos corridas del mismo
-    día (aunque sea al mismo minuto de horas distintas) nunca chocan."""
+    """Fecha de cita a unos `dias` días (más el desfase de esta corrida), a la `hora` y con el
+    minuto actual: las citas no pueden ir en el pasado ni repetirse. A partir de 366 días
+    (para probar el límite de un año) no se agrega el desfase."""
     ahora = datetime.now()
-    momento = ahora + timedelta(days=dias)
-    return momento.replace(hour=hora, second=ahora.hour, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+    momento = ahora + timedelta(days=dias + (DESFASE if dias < 366 else 0))
+    return momento.replace(hour=hora, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
 
 TMP = tempfile.gettempdir()
 
@@ -809,6 +814,50 @@ check("período de más de 3 años", "GET", "/reportes/diagnosticos?desde=2020-0
 check("límite fuera de rango", "GET", "/reportes/diagnosticos?limite=0", T["jefatura1"], 400)
 vacio = check("un período sin atenciones", "GET", "/reportes/diagnosticos?desde=2001-01-01&hasta=2001-12-31", T["jefatura1"], 200).json()
 dato("da cero sin fallar", vacio["total_atenciones"] == 0 and vacio["data"] == [])
+
+print("--- Constancias de consulta e incapacidad (con QR verificable)")
+CON = "/constancias"
+hoy = date.today().isoformat()
+check("enfermera1 NO emite constancias", "POST", CON, T["enfermera1"], 403, json={"paciente_id": p1, "tipo": "CONSULTA"})
+check("recepcion1 NO ve constancias", "GET", CON, T["recepcion1"], 403)
+check("tipo inválido", "POST", CON, T["medico1"], 400, json={"paciente_id": p1, "tipo": "PERMISO"})
+check("incapacidad sin días", "POST", CON, T["medico1"], 400, json={"paciente_id": p1, "tipo": "INCAPACIDAD"})
+check("incapacidad de 61 días", "POST", CON, T["medico1"], 400, json={"paciente_id": p1, "tipo": "INCAPACIDAD", "dias_reposo": 61})
+check("consulta con días de reposo", "POST", CON, T["medico1"], 400, json={"paciente_id": p1, "tipo": "CONSULTA", "dias_reposo": 2})
+check("reposo que empieza antes de la atención", "POST", CON, T["medico1"], 400,
+      json={"paciente_id": p1, "tipo": "INCAPACIDAD", "dias_reposo": 2, "desde": "2020-01-01"})
+check("fecha de atención en el futuro", "POST", CON, T["medico1"], 400,
+      json={"paciente_id": p1, "tipo": "CONSULTA", "fecha_atencion": "2099-01-01"})
+check("paciente que no existe", "POST", CON, T["medico1"], 404, json={"paciente_id": 999999, "tipo": "CONSULTA"})
+ci = check("medico1 emite una incapacidad de 3 días", "POST", CON, T["medico1"], 201,
+           json={"paciente_id": p1, "tipo": "INCAPACIDAD", "dias_reposo": 3, "desde": hoy,
+                 "diagnostico": "Faringitis aguda", "observaciones": "Reposo en casa."}).json()["data"]
+dato("calcula hasta qué día es el reposo (3 días contando el primero)",
+     ci["hasta"] == (date.today() + timedelta(days=2)).isoformat() and ci["estado"] == "VIGENTE")
+dato("trae su código del QR (12 caracteres)", len(ci["codigo_verificacion"] or "") == 12)
+cc = check("medico1 emite una constancia de consulta", "POST", CON, T["medico1"], 201,
+           json={"paciente_id": p1, "tipo": "CONSULTA"}).json()["data"]
+dato("la constancia de consulta no lleva reposo", cc["dias_reposo"] is None and cc["desde"] is None)
+check("enfermera1 ve la constancia para imprimirla", "GET", f"{CON}/{ci['id']}", T["enfermera1"], 200)
+lista = check("constancias del paciente", "GET", f"{CON}?paciente_id={p1}", T["jefatura1"], 200).json()["data"]
+dato("aparecen las dos", {ci["id"], cc["id"]} <= {x["id"] for x in lista})
+v = check("verificar la incapacidad sin token", "GET", f"/verificar/constancia/{ci['codigo_verificacion']}", None, 200).json()["data"]
+crudo = requests.get(API + f"/verificar/constancia/{ci['codigo_verificacion']}").text
+dato("dice tipo, días y fechas, pero NO el diagnóstico ni el nombre", v["tipo"] == "INCAPACIDAD" and v["dias_reposo"] == 3
+     and v["hasta"] == ci["hasta"] and "Faringitis" not in crudo and "Perez" not in crudo and bool(v["paciente_iniciales"]))
+check("un código alterado no existe", "GET", "/verificar/constancia/" + ci["codigo_verificacion"][:-1] + "Z", None, 404)
+check("el código de una receta no sirve para constancias", "GET", f"/verificar/constancia/{cod}", None, 404)
+check("anular sin motivo", "POST", f"{CON}/{cc['id']}/anular", T["medico1"], 400, json={})
+check("enfermera1 NO anula", "POST", f"{CON}/{cc['id']}/anular", T["enfermera1"], 403, json={"motivo": "Prueba de anulación"})
+check("medico1 anula su constancia", "POST", f"{CON}/{cc['id']}/anular", T["medico1"], 200, json={"motivo": "Prueba de anulación"})
+check("no se anula dos veces", "POST", f"{CON}/{cc['id']}/anular", T["medico1"], 409, json={"motivo": "Prueba de anulación"})
+dato("al verificarla sale ANULADA", requests.get(API + f"/verificar/constancia/{cc['codigo_verificacion']}").json()["data"]["estado"] == "ANULADA")
+mias = check("ciudadano1 (dueño de p1) ve sus constancias", "GET", CON, T["ciudadano1"], 200).json()["data"]
+dato("y solo las suyas", bool(mias) and all(x["paciente_id"] == p1 for x in mias))
+check("ciudadano1 abre su incapacidad para imprimirla", "GET", f"{CON}/{ci['id']}", T["ciudadano1"], 200)
+check("ciudadano2 NO ve la constancia de otro (404)", "GET", f"{CON}/{ci['id']}", T["ciudadano2"], 404)
+bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&usuario=medico1&limite=100", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota la constancia emitida", any(x["descripcion"] == f"Emitió la constancia No. {ci['id']}" for x in bit))
 
 print("--- Accesos inusuales en la bitácora (solo Administración)")
 INU = "/bitacora/inusuales"

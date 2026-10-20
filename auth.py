@@ -75,6 +75,9 @@ PERMISOS = {
     "recetas.crear":          (MED,),                # recetar y anular sus propias recetas pendientes
     "recetas.anular":         (MED, JEF),            # el médico, solo las suyas pendientes; Jefatura, cualquiera
     "recetas.despachar":      (FAR,),                # quien receta no despacha
+    "constancias.ver":        (MED, ENF, JEF, ADM),  # constancias de consulta e incapacidades
+    "constancias.emitir":     (MED,),                # el médico las firma
+    "constancias.anular":     (MED, JEF),            # el médico, solo las suyas; Jefatura, cualquiera
     "inventario.ver":         (MED, ENF, FAR, JEF, ADM),
     "inventario.gestionar":   (FAR,),                # medicamentos nuevos, entradas y ajustes
     "hospitalizacion.ver":    (MED, ENF, REC, CAJA, JEF, ADM),   # Recepción y Caja: sin datos clínicos
