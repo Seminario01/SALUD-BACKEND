@@ -4,8 +4,10 @@
 #    vulnerabilidades conocidas.
 # 2) "completas": arma un ambiente igual al de la PC (MySQL, Login Único de prueba con
 #    keycloak-local/import, simuladores, datos de SALUD-DATABASE) y corre prueba_auth,
-#    prueba_permisos y prueba_qa. Todo es temporal y de prueba: no toca producción ni usa
-#    claves reales (las cuentas de prueba son las del realm de keycloak-local).
+#    prueba_permisos y prueba_qa. Después, con ese mismo ambiente, las pruebas de pantallas de
+#    SALUD-FRONTEND (e2e/, Playwright con Chromium): cada puesto abre todo su menú en celular y
+#    computadora, y el recorrido Recepción -> Médico -> Farmacia. Todo es temporal y de prueba: no
+#    toca producción ni usa claves reales (las cuentas de prueba son las del realm de keycloak-local).
 name: Pruebas
 
 on:
@@ -49,7 +51,7 @@ jobs:
   completas:
     name: Pruebas completas (API, permisos y datos basura)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     services:
       mysql:
         image: mysql:8.0
@@ -121,6 +123,36 @@ jobs:
         run: bash .github/correr_prueba.sh pruebas/prueba_permisos.py
       - name: Datos basura (prueba_qa)
         run: bash .github/correr_prueba.sh pruebas/prueba_qa.py
+
+      # --- Pantallas: el frontend de verdad, en un navegador de verdad, contra este mismo backend
+      - uses: actions/checkout@v5
+        with:
+          repository: Seminario01/SALUD-FRONTEND
+          ref: denilson-dev
+          path: frontend
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Preparar el frontend y el navegador
+        working-directory: frontend
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Pruebas de pantallas (Playwright)
+        working-directory: frontend
+        env:
+          VITE_AUTH_URL: http://localhost:8081/realms/rsd     # el Login Único de prueba de arriba
+        run: npx playwright test
+      - name: Guardar el rastro de las pantallas que fallaron
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pantallas-que-fallaron
+          path: frontend/test-results
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Registro del backend (si algo falló)
         if: failure()
