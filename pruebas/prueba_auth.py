@@ -1041,7 +1041,15 @@ check("estado no acepta POST", "POST", "/estado", None, 405)
 
 print("--- API key (entre modulos) sigue igual")
 check("indicadores sin api key", "GET", "/indicadores", None, 401)
-check("indicadores con api key", "GET", "/indicadores", None, 200, headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")})
+ind = check("indicadores con api key", "GET", "/indicadores", None, 200, headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")}).json()
+dato("el contrato con Auditoría no cambia: /indicadores no trae la atención de hoy", "atencion_hoy" not in json.dumps(ind))
+hoy_jef = requests.get(API + "/panel", headers=H("jefatura1")).json()["data"]["atencion_hoy"]
+dato("Jefatura ve en el inicio urgencias, laboratorio y lista de espera", set(hoy_jef) == {"triage", "laboratorio", "lista_espera"}
+     and {"urgentes_en_espera", "excedidos"} <= set(hoy_jef["triage"]) and "por_atender" in hoy_jef["laboratorio"])
+dato("Farmacia no ve nada de eso (no es su pantalla)", requests.get(API + "/panel", headers=H("farmacia1")).json()["data"]["atencion_hoy"] == {})
+dato("Auditoría tampoco (sin datos clínicos)", requests.get(API + "/panel", headers=H("analista1")).json()["data"]["atencion_hoy"] == {})
+dato("Recepción ve urgencias y lista de espera, no laboratorio",
+     set(requests.get(API + "/panel", headers=H("recepcion1")).json()["data"]["atencion_hoy"]) == {"triage", "lista_espera"})
 check("WS-SALUD-02 con tipoAtencion inválido", "GET", "/establecimientos/disponibilidad?tipoAtencion=CARDIOLOGIA", None, 400,
       headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")})
 if os.getenv("CLAVE_ENTRADA_SEGURIDAD"):     # clave propia de Seguridad (la misma que tiene el backend)

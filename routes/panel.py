@@ -1,7 +1,11 @@
+import json
 import logging
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify, g
 from sqlalchemy import text
+
+import laboratorio
 
 from auth import validar_token, requiere_permiso, permisos_de, puede, PERMISOS
 from extensions import db
@@ -67,7 +71,53 @@ def panel():
     datos = calcular_indicadores()
     if not puede("presupuesto.ver"):          # matriz: solo Jefatura, Administración y Auditoría
         datos.pop("presupuesto_servicio_social", None)
+    # Solo para la pantalla de inicio (no va en /indicadores, el contrato con Auditoría no cambia)
+    datos["atencion_hoy"] = _atencion_hoy()
     return jsonify(success=True, data=datos), 200
+
+
+def _atencion_hoy():
+    """Lo que hay que atender ya: urgencias en la cola, laboratorio, resultados fuera de rango y
+    lista de espera. Cada parte solo para quien puede ver esa pantalla."""
+    from models import ListaEspera, OrdenLaboratorio, Turno
+    from routes.turnos import TRIAGE
+    hoy = datetime.combine(date.today(), datetime.min.time())
+    ahora = datetime.now()
+    resumen = {}
+    if puede("turnos.ver_cola"):
+        espera = Turno.query.filter(Turno.estado == "en_espera", Turno.fecha_hora_ingreso >= hoy).all()
+        urgentes = [t for t in espera if t.triage in ("ROJO", "NARANJA")]
+        resumen["triage"] = {
+            "urgentes_en_espera": len(urgentes),
+            "rojos_en_espera": sum(1 for t in urgentes if t.triage == "ROJO"),
+            "sin_clasificar": sum(1 for t in espera if not t.triage),
+            # esperando más de lo recomendado para su nivel
+            "excedidos": sum(1 for t in espera if t.triage in TRIAGE and t.fecha_hora_ingreso
+                             and (ahora - t.fecha_hora_ingreso).total_seconds() / 60 > TRIAGE[t.triage]["minutos"]),
+        }
+    if puede("laboratorio.ver"):
+        activas = OrdenLaboratorio.query.filter(OrdenLaboratorio.estado.in_(("PENDIENTE", "EN_PROCESO"))).all()
+        semana = OrdenLaboratorio.query.filter(OrdenLaboratorio.estado == "COMPLETADA",
+                                               OrdenLaboratorio.fecha_resultado >= ahora - timedelta(days=7)).all()
+
+        def fuera(o):
+            return any(r["nivel"] in ("alto", "bajo", "anormal")
+                       for e in o.examenes
+                       for r in laboratorio.resultados_interpretados(e.codigo, json.loads(e.resultados) if e.resultados else {}))
+        resumen["laboratorio"] = {
+            "por_atender": len(activas),
+            "urgentes": sum(1 for o in activas if o.prioridad == "URGENTE"),
+            "muestras_tomadas": sum(1 for o in activas if o.estado == "EN_PROCESO"),
+            "completadas_7_dias": len(semana),
+            "con_valores_fuera_de_rango_7_dias": sum(1 for o in semana if fuera(o)),
+        }
+    if puede("citas.ver"):
+        activos = ListaEspera.query.filter(ListaEspera.estado.in_(("ESPERANDO", "AVISADO"))).all()
+        resumen["lista_espera"] = {
+            "esperando": len(activos),
+            "dias_el_mas_antiguo": max([max(0, (ahora - e.fecha_registro).days) for e in activos], default=0),
+        }
+    return resumen
 
 
 @panel_bp.route("/api/v1/salud/mis-permisos", methods=["GET"])
