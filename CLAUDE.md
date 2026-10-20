@@ -111,6 +111,12 @@ vencidas no cuentan como `disponible`. `pruebas/prueba_lotes.py` revisa esa regl
   médico puede reenviar con `confirmar_alergia: true` y la receta queda con `alerta_alergia` para Farmacia.
 - **Paciente duplicado**: `GET /pacientes/posibles-duplicados` (mismo CUI, mismo nombre, o nombre parecido
   con la misma fecha de nacimiento). Solo avisa; el registro no se bloquea.
+- **Interacciones entre medicamentos**: `interacciones()` revisa los medicamentos de la receta entre sí
+  y contra los de las recetas no anuladas del paciente de los últimos 30 días (`DIAS_RECETA_ACTIVA`).
+  Grupos por nombre (`GRUPOS`: anticoagulantes, AINE, IECA, ARA II, ISRS...), pares en `INTERACCIONES`
+  (grave/moderada) y duplicidad del mismo grupo. Si hay alguna, `POST /recetas` responde 409
+  `interaccion` con `interacciones` [{medicamento, con, origen, severidad, texto}]; se reenvía con
+  `confirmar_interaccion: true` y la receta queda con `alerta_interaccion`. Es apoyo: no prohíbe.
 
 ## Receta verificable con QR
 

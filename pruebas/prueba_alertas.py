@@ -1,5 +1,5 @@
 """
-Pruebas de alertas_clinicas.py (signos fuera de rango, alergias al recetar y nombres parecidos),
+Pruebas de alertas_clinicas.py (signos fuera de rango, alergias e interacciones al recetar y nombres parecidos),
 sin servidor ni base de datos.
 Uso (desde SALUD-BACKEND):  venv/Scripts/python.exe pruebas/prueba_alertas.py
 """
@@ -7,7 +7,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from alertas_clinicas import alergias_en_conflicto, alertas_signos, parecido_nombre, terminos_alergia  # noqa: E402
+from alertas_clinicas import alergias_en_conflicto, alertas_signos, interacciones, parecido_nombre, terminos_alergia  # noqa: E402
 
 resultados = []
 
@@ -62,6 +62,28 @@ dato("palabras en otro orden", parecido_nombre("García López María", "María 
 dato("un error de letra", parecido_nombre("Jose Perez Lopez", "Jose Peres Lopez") >= 0.85)
 dato("nombres distintos no se parecen", parecido_nombre("María García", "Pedro Ramírez") < 0.6)
 dato("un solo nombre en común no basta", parecido_nombre("María García", "María") < 0.85)
+
+
+# --- Interacciones entre medicamentos ---
+def pares(nuevos, activos=()):
+    return [(h["medicamento"], h["con"], h["severidad"]) for h in interacciones(nuevos, activos)]
+
+
+dato("acetaminofén + amoxicilina: sin interacción", interacciones(["Acetaminofén", "Amoxicilina"]) == [])
+dato("ibuprofeno + naproxeno: duplicidad de AINE", pares(["Ibuprofeno", "Naproxeno"]) == [("Ibuprofeno", "Naproxeno", "moderada")]
+     and "Duplicidad" in interacciones(["Ibuprofeno", "Naproxeno"])[0]["texto"])
+dato("warfarina + ibuprofeno: grave (sangrado)", pares(["Warfarina", "Ibuprofeno"]) == [("Warfarina", "Ibuprofeno", "grave")])
+dato("con un medicamento de otra receta activa", pares(["Ibuprofeno"], [("Losartán", "receta #3")]) == [("Ibuprofeno", "Losartán", "moderada")]
+     and interacciones(["Ibuprofeno"], [("Losartán", "receta #3")])[0]["origen"] == "receta #3")
+dato("enalapril + espironolactona: grave (potasio alto)", pares(["Enalapril"], [("Espironolactona", "x")])[0][2] == "grave")
+dato("ciprofloxacina + sulfato ferroso: separar tomas", "horas" in interacciones(["Ciprofloxacina"], [("Sulfato ferroso", "x")])[0]["texto"])
+dato("simvastatina + azitromicina: no avisa (solo claritro/eritro)", interacciones(["Simvastatina", "Azitromicina"]) == []
+     and pares(["Simvastatina", "Claritromicina"])[0][2] == "grave")
+dato("losartán potásico no se confunde con potasio", interacciones(["Losartán potásico", "Enalapril"])[0]["texto"].startswith("Doble"))
+dato("el mismo medicamento en otra receta no es interacción", interacciones(["Ibuprofeno"], [("Ibuprofeno", "receta #9")]) == [])
+dato("aspirina + ibuprofeno: un solo aviso", len(interacciones(["Aspirina", "Ibuprofeno"])) == 1)
+dato("primero las graves", [h["severidad"] for h in interacciones(["Ibuprofeno", "Enalapril", "Warfarina"])][0] == "grave")
+dato("nombres con tildes y mayúsculas (TRAMADOL + Sertralina)", pares(["TRAMADOL", "Sertralina"])[0][2] == "grave")
 
 print(f"\n{sum(resultados)}/{len(resultados)} pruebas OK")
 sys.exit(0 if all(resultados) else 1)

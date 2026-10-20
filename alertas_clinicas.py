@@ -5,6 +5,7 @@ Alertas para la seguridad del paciente (sin base de datos: se prueban en pruebas
   - alergias_en_conflicto(alergias, medicamento): si un medicamento choca con las alergias
     registradas del paciente (por nombre o por familia: penicilinas, sulfas, AINE...).
   - parecido_nombre(a, b): para avisar de un paciente posiblemente duplicado.
+  - interacciones(nuevos, activos): medicamentos que no conviene combinar (sangrado, potasio alto...).
 """
 import re
 import unicodedata
@@ -135,3 +136,102 @@ def parecido_nombre(a, b):
         return 0.9
     return max(SequenceMatcher(None, na, nb).ratio(),
                SequenceMatcher(None, " ".join(sorted(pa)), " ".join(sorted(pb))).ratio())
+
+
+# ---------------------------------------------------------------------------
+# Interacciones entre medicamentos (apoyo al médico: avisa, no prohíbe)
+#
+# Grupos de principios activos (minúsculas y sin tildes). Se busca solo en el NOMBRE del
+# medicamento (la descripción puede mencionar otros fármacos, como "no combinar con warfarina").
+GRUPOS = {
+    "aine": [m for m in FAMILIAS["aine"] if m not in FAMILIAS["aspirina"]],
+    "aspirina": FAMILIAS["aspirina"],
+    "anticoagulante": ["warfarina", "acenocumarol", "rivaroxaban", "apixaban", "dabigatran", "heparina",
+                       "enoxaparina"],
+    "clopidogrel": ["clopidogrel"],
+    "ieca": ["enalapril", "captopril", "lisinopril", "ramipril"],
+    "ara2": ["losartan", "valsartan", "irbesartan", "telmisartan", "candesartan"],
+    "ahorrador_potasio": ["espironolactona", "eplerenona", "amilorida", "triamtereno"],
+    "potasio": ["cloruro de potasio", "potasio"],
+    "isrs": ["fluoxetina", "sertralina", "paroxetina", "citalopram", "escitalopram"],
+    "tramadol": ["tramadol"],
+    "opioide": FAMILIAS["opioide"],
+    "benzodiacepina": ["diazepam", "clonazepam", "alprazolam", "lorazepam", "midazolam", "bromazepam"],
+    "estatina": ["simvastatina", "lovastatina", "atorvastatina"],
+    "macrolido_inhibidor": ["claritromicina", "eritromicina"],
+    "quinolona": FAMILIAS["quinolona"],
+    "quelante": ["sulfato ferroso", "hierro", "hidroxido de aluminio", "hidroxido de magnesio",
+                 "carbonato de calcio", "calcio", "antiacido"],
+    "nitrato": ["nitroglicerina", "dinitrato de isosorbida", "mononitrato de isosorbida", "isosorbida"],
+    "sildenafil": ["sildenafil", "tadalafil", "vardenafil"],
+    "digoxina": ["digoxina"],
+    "amiodarona": ["amiodarona"],
+    "metronidazol": ["metronidazol"],
+    "corticoide": ["prednisona", "prednisolona", "dexametasona", "hidrocortisona", "metilprednisolona",
+                   "betametasona"],
+    "omeprazol": ["omeprazol", "esomeprazol"],
+}
+GRAVE, MODERADA = "grave", "moderada"
+# (grupo, grupo) -> (severidad, qué puede pasar)
+INTERACCIONES = {
+    ("anticoagulante", "aine"): (GRAVE, "Riesgo alto de sangrado"),
+    ("anticoagulante", "aspirina"): (GRAVE, "Riesgo alto de sangrado"),
+    ("anticoagulante", "clopidogrel"): (GRAVE, "Riesgo alto de sangrado"),
+    ("anticoagulante", "metronidazol"): (GRAVE, "Aumenta el efecto del anticoagulante (sangrado)"),
+    ("anticoagulante", "isrs"): (MODERADA, "Aumenta el riesgo de sangrado"),
+    ("isrs", "tramadol"): (GRAVE, "Riesgo de síndrome serotoninérgico y convulsiones"),
+    ("opioide", "benzodiacepina"): (GRAVE, "Depresión respiratoria y sedación profunda"),
+    ("sildenafil", "nitrato"): (GRAVE, "Caída grave de la presión arterial"),
+    ("digoxina", "amiodarona"): (GRAVE, "Sube la digoxina en sangre (toxicidad, arritmias)"),
+    ("estatina", "macrolido_inhibidor"): (GRAVE, "Riesgo de daño muscular (rabdomiólisis)"),
+    ("ieca", "ahorrador_potasio"): (GRAVE, "Riesgo de potasio alto (hiperpotasemia)"),
+    ("ara2", "ahorrador_potasio"): (GRAVE, "Riesgo de potasio alto (hiperpotasemia)"),
+    ("ieca", "potasio"): (GRAVE, "Riesgo de potasio alto (hiperpotasemia)"),
+    ("ara2", "potasio"): (GRAVE, "Riesgo de potasio alto (hiperpotasemia)"),
+    ("ieca", "ara2"): (MODERADA, "Doble bloqueo: potasio alto, presión baja y daño renal"),
+    ("aine", "ieca"): (MODERADA, "Menos efecto contra la presión y riesgo para el riñón"),
+    ("aine", "ara2"): (MODERADA, "Menos efecto contra la presión y riesgo para el riñón"),
+    ("aine", "aspirina"): (MODERADA, "Más riesgo de sangrado o úlcera en el estómago"),
+    ("aine", "corticoide"): (MODERADA, "Más riesgo de úlcera y sangrado en el estómago"),
+    ("aine", "isrs"): (MODERADA, "Más riesgo de sangrado digestivo"),
+    ("clopidogrel", "omeprazol"): (MODERADA, "El omeprazol reduce el efecto del clopidogrel"),
+    ("quinolona", "quelante"): (MODERADA, "Se absorbe menos el antibiótico: tomarlos con 2 a 4 horas de diferencia"),
+}
+# Dos medicamentos del mismo grupo en el paciente = duplicidad
+DUPLICIDAD = {"aine": "dos antiinflamatorios (AINE)", "ieca": "dos IECA", "ara2": "dos ARA II",
+              "isrs": "dos antidepresivos ISRS", "benzodiacepina": "dos benzodiacepinas",
+              "anticoagulante": "dos anticoagulantes", "estatina": "dos estatinas", "opioide": "dos opioides"}
+
+
+def grupos_de(nombre):
+    """Grupos de interacción a los que pertenece un medicamento (por su nombre)."""
+    texto = normalizar(nombre)
+    return {g for g, miembros in GRUPOS.items() if any(_contiene(texto, m) for m in miembros)}
+
+
+def interacciones(nuevos, activos=()):
+    """Interacciones de los medicamentos `nuevos` (nombres) entre sí y con los `activos`
+    (pares (nombre, origen), p. ej. ("Ibuprofeno", "receta #12 del 03/10")).
+    Devuelve [{medicamento, con, origen, severidad, texto}], primero las graves."""
+    nuevos = list(dict.fromkeys(nuevos))
+    otros = [(n, "esta receta") for n in nuevos] + list(activos)
+    hallados, vistos = [], set()
+    for i, nombre in enumerate(nuevos):
+        g1 = grupos_de(nombre)
+        for j, (otro, origen) in enumerate(otros):
+            if origen == "esta receta" and j <= i:      # cada par de la misma receta una sola vez
+                continue
+            if normalizar(otro) == normalizar(nombre):
+                continue                                 # el mismo medicamento: no es interacción
+            g2 = grupos_de(otro)
+            for a in g1:
+                for b in g2:
+                    regla = INTERACCIONES.get((a, b)) or INTERACCIONES.get((b, a))
+                    if not regla and a == b and a in DUPLICIDAD:
+                        regla = (MODERADA, f"Duplicidad: {DUPLICIDAD[a]} a la vez")
+                    clave = (normalizar(nombre), normalizar(otro), regla and regla[1])
+                    if regla and clave not in vistos:
+                        vistos.add(clave)
+                        hallados.append({"medicamento": nombre, "con": otro, "origen": origen,
+                                         "severidad": regla[0], "texto": regla[1]})
+    return sorted(hallados, key=lambda h: h["severidad"] != GRAVE)

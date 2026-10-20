@@ -11,13 +11,13 @@ Reglas de la matriz de permisos:
 import re
 import threading
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
 import cuentas
 import lotes
-from alertas_clinicas import alergias_en_conflicto
+from alertas_clinicas import alergias_en_conflicto, interacciones
 from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_JEFATURA
 from extensions import db
 from models import DetalleReceta, ExpedienteClinico, LoteMedicamento, Medicamento, MovimientoInventario, Paciente, Receta
@@ -88,6 +88,7 @@ def _receta(r, nombres=None):
         "indicaciones": r.indicaciones, "estado": r.estado,
         "fecha_despacho": r.fecha_despacho.isoformat(timespec="minutes") if r.fecha_despacho else None,
         "motivo_anulacion": r.motivo_anulacion, "alerta_alergia": r.alerta_alergia,
+        "alerta_interaccion": r.alerta_interaccion,
         "codigo_verificacion": r.codigo_verificacion,
         "items": [{
             "medicamento_id": d.medicamento_id, "medicamento": d.medicamento.nombre if d.medicamento else None,
@@ -96,6 +97,19 @@ def _receta(r, nombres=None):
             "existencia": d.medicamento.existencia if d.medicamento else None,
         } for d in r.detalles],
     }
+
+
+# Una receta cuenta como "activa" para las interacciones si no está anulada y es de los últimos 30 días
+DIAS_RECETA_ACTIVA = 30
+
+
+def _medicamentos_activos(paciente_id):
+    """[(nombre del medicamento, "receta #id del dd/mm")] de las recetas activas del paciente."""
+    desde = datetime.now() - timedelta(days=DIAS_RECETA_ACTIVA)
+    recetas = (Receta.query.filter(Receta.paciente_id == paciente_id, Receta.estado != "ANULADA",
+                                   Receta.fecha >= desde).order_by(Receta.fecha.desc()).limit(50).all())
+    return [(d.medicamento.nombre, f"receta #{r.id} del {r.fecha:%d/%m}")
+            for r in recetas for d in r.detalles if d.medicamento]
 
 
 def _paciente_propio():
@@ -392,6 +406,9 @@ def crear_receta():
             confirmar_alergia:
               type: boolean
               description: "true si el médico ya vio la advertencia de alergia y decide recetar igual"
+            confirmar_interaccion:
+              type: boolean
+              description: "true si el médico ya vio la advertencia de interacción y decide recetar igual"
             items:
               type: array
               items:
@@ -412,16 +429,20 @@ def crear_receta():
         description: >
           alergia: algún medicamento choca con las alergias registradas del paciente.
           Trae `alergias` [{medicamento_id, medicamento, alergias}]; se vuelve a enviar con confirmar_alergia=true.
+          interaccion: algún medicamento interactúa con otro de la receta o de las recetas activas del
+          paciente (últimos 30 días). Trae `interacciones` [{medicamento, con, origen, severidad, texto}];
+          se vuelve a enviar con confirmar_interaccion=true.
     """
     data = request.get_json(silent=True) or {}
     confirmar_alergia = booleano(data, "confirmar_alergia")
+    confirmar_interaccion = booleano(data, "confirmar_interaccion")
     paciente = Paciente.query.get(_entero(data.get("paciente_id")) or 0)
     if not paciente:
         return _error(404, "no_encontrado", "Paciente no existe")
     items = data.get("items") or []
     if not isinstance(items, list) or not items:
         return _error(400, "datos_incompletos", "La receta necesita al menos un medicamento")
-    detalles, vistos, choques = [], set(), []
+    detalles, vistos, choques, nombres = [], set(), [], []
     if len(items) > 50:
         return _error(400, "datos_invalidos", "Una receta admite como máximo 50 medicamentos")
     for item in items:
@@ -436,6 +457,7 @@ def crear_receta():
         medicamento = Medicamento.query.get(mid)
         if not medicamento:
             return _error(404, "no_encontrado", f"El medicamento {mid} no existe")
+        nombres.append(medicamento.nombre)
         choque = alergias_en_conflicto(paciente.alergias, medicamento)
         if choque:
             choques.append({"medicamento_id": mid, "medicamento": medicamento.nombre, "alergias": choque})
@@ -445,6 +467,11 @@ def crear_receta():
         lista = "; ".join(f"{c['medicamento']} (alergia: {', '.join(c['alergias'])})" for c in choques)
         return jsonify(success=False, error="alergia", alergias=choques, alergias_paciente=paciente.alergias,
                        message=f"El paciente tiene alergias registradas que chocan con: {lista}"), 409
+    avisos = interacciones(nombres, _medicamentos_activos(paciente.id))
+    if avisos and not confirmar_interaccion:
+        lista = "; ".join(f"{a['medicamento']} + {a['con']}: {a['texto']}" for a in avisos)
+        return jsonify(success=False, error="interaccion", interacciones=avisos,
+                       message=f"Posible interacción entre medicamentos: {lista}"), 409
     expediente_id = _entero(data.get("expediente_id"))
     if expediente_id:
         atencion = ExpedienteClinico.query.get(expediente_id)
@@ -454,7 +481,8 @@ def crear_receta():
                     medico_nombre=g.usuario.get("nombre") or g.usuario.get("usuario"), expediente_id=expediente_id,
                     indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"), estado="PENDIENTE", detalles=detalles,
                     codigo_verificacion=codigo_receta(),
-                    alerta_alergia="; ".join(f"{c['medicamento']}: {', '.join(c['alergias'])}" for c in choques)[:255] or None)
+                    alerta_alergia="; ".join(f"{c['medicamento']}: {', '.join(c['alergias'])}" for c in choques)[:255] or None,
+                    alerta_interaccion="; ".join(f"{a['medicamento']} + {a['con']} ({a['severidad']})" for a in avisos)[:255] or None)
     db.session.add(receta)
     db.session.commit()
     return jsonify(success=True, data=_receta(receta, {paciente.id: paciente.nombre_completo}),

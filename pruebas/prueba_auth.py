@@ -721,6 +721,36 @@ for x in ultima:   # deja anuladas las recetas pendientes de amoxicilina de prue
     if x["estado"] == "PENDIENTE" and any(i["medicamento_id"] == amox["id"] for i in x["items"]):
         requests.post(API + f"/recetas/{x['id']}/anular", headers=H("medico1"), json={"motivo": "Prueba"})
 
+print("--- Interacciones entre medicamentos al recetar")
+for codigo, nombre in (("PRB-WARF", "Warfarina"), ("PRB-IBUP", "Ibuprofeno")):
+    requests.post(API + "/medicamentos", headers=H("farmacia1"),
+                  json={"codigo": codigo, "nombre": nombre, "presentacion": "Tableta (prueba)", "existencia": 0})
+warf = requests.get(API + "/medicamentos?q=PRB-WARF", headers=H("farmacia1")).json()["data"][0]
+ibup = requests.get(API + "/medicamentos?q=PRB-IBUP", headers=H("farmacia1")).json()["data"][0]
+ambos = [{"medicamento_id": warf["id"], "cantidad": 1}, {"medicamento_id": ibup["id"], "cantidad": 1}]
+r = check("warfarina + ibuprofeno en la misma receta: avisa", "POST", "/recetas", T["medico1"], 409,
+          json={"paciente_id": p1, "items": ambos}).json()
+grave = [a for a in r.get("interacciones", []) if {a["medicamento"], a["con"]} == {"Warfarina", "Ibuprofeno"}]
+dato("dice qué medicamentos, que es grave y por qué", r.get("error") == "interaccion" and grave
+     and grave[0]["severidad"] == "grave" and "sangrado" in grave[0]["texto"] and grave[0]["origen"] == "esta receta")
+check("confirmar_interaccion que no es true/false", "POST", "/recetas", T["medico1"], 400,
+      json={"paciente_id": p1, "items": ambos, "confirmar_interaccion": "si"})
+rw = check("el médico confirma y receta igual", "POST", "/recetas", T["medico1"], 201,
+           json={"paciente_id": p1, "items": ambos, "confirmar_interaccion": True}).json()["data"]
+dato("la receta queda marcada con la interacción (Farmacia la ve)", "Warfarina" in (rw["alerta_interaccion"] or "")
+     and any(x["id"] == rw["id"] and x["alerta_interaccion"] for x in
+             requests.get(API + "/recetas?estado=PENDIENTE", headers=H("farmacia1")).json()["data"]))
+r = check("después, ibuprofeno solo: avisa por la warfarina de la receta activa", "POST", "/recetas", T["medico1"], 409,
+          json={"paciente_id": p1, "items": [ambos[1]]}).json()
+dato("dice de qué receta viene", any(a["con"] == "Warfarina" and a["origen"].startswith(f"receta #{rw['id']} ")
+                                     for a in r.get("interacciones", [])))
+check("se anula la receta de prueba", "POST", f"/recetas/{rw['id']}/anular", T["medico1"], 200, json={"motivo": "Prueba de interacción"})
+r = requests.post(API + "/recetas", headers=H("medico1"), json={"paciente_id": p1, "items": [ambos[1]]})
+dato("una receta anulada ya no cuenta", r.status_code == 201
+     or not any(a["con"] == "Warfarina" for a in r.json().get("interacciones", [])))
+if r.status_code == 201:
+    requests.post(API + f"/recetas/{r.json()['data']['id']}/anular", headers=H("medico1"), json={"motivo": "Prueba"})
+
 print("--- Receta verificable con QR (pública, sin token)")
 cod = ra["codigo_verificacion"] or ""
 dato("cada receta trae su código del QR (12 caracteres)", len(cod) == 12 and cod != rn["codigo_verificacion"])
