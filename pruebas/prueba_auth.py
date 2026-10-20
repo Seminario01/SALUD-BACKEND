@@ -869,7 +869,8 @@ v = check("verificar la incapacidad sin token", "GET", f"/verificar/constancia/{
 crudo = requests.get(API + f"/verificar/constancia/{ci['codigo_verificacion']}").text
 dato("dice tipo, días y fechas, pero NO el diagnóstico ni el nombre", v["tipo"] == "INCAPACIDAD" and v["dias_reposo"] == 3
      and v["hasta"] == ci["hasta"] and "Faringitis" not in crudo and "Perez" not in crudo and bool(v["paciente_iniciales"]))
-check("un código alterado no existe", "GET", "/verificar/constancia/" + ci["codigo_verificacion"][:-1] + "Z", None, 404)
+otro = ci["codigo_verificacion"][:-1] + ("Z" if ci["codigo_verificacion"][-1] != "Z" else "Y")   # siempre distinto
+check("un código alterado no existe", "GET", f"/verificar/constancia/{otro}", None, 404)
 check("el código de una receta no sirve para constancias", "GET", f"/verificar/constancia/{cod}", None, 404)
 check("anular sin motivo", "POST", f"{CON}/{cc['id']}/anular", T["medico1"], 400, json={})
 check("enfermera1 NO anula", "POST", f"{CON}/{cc['id']}/anular", T["enfermera1"], 403, json={"motivo": "Prueba de anulación"})

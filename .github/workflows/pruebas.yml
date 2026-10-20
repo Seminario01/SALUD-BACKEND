@@ -151,7 +151,7 @@ jobs:
         run: npx playwright test
       - name: Guardar el rastro de las pantallas que fallaron
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pantallas-que-fallaron
           path: frontend/test-results
