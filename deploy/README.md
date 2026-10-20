@@ -71,6 +71,14 @@ docker compose exec db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" < /demo/demo
 
 (Si los turnos demo de ese día ya están, no hace nada; si alguien ya generó turnos, numera después de ellos.)
 
+**Completar los datos demo en una base que ya existe** (por ejemplo, para que laboratorio, constancias,
+lista de espera, CIE-10 y triage tengan ejemplos): `deploy/cargar_demo.sh` actualiza SALUD-DATABASE y
+vuelve a correr `datos_demo.sql`, que solo agrega lo que falta. Con `--turnos` también carga los de hoy:
+
+```bash
+ssh denis@100.70.58.32 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/cargar_demo.sh --turnos'
+```
+
 **Integración con otros módulos (simuladores):** el servicio `simuladores` del compose imita a Educación, Seguridad y Tributario con datos ficticios (ver `docs/INTEGRACIONES.md` y `docs/CONTRATOS.md`). Con `URL_EDUCACION`, `URL_SEGURIDAD` y `URL_TRIBUTARIO` vacías en `.env`, el backend los usa. Cuando un equipo publique su servicio, se pone su URL en `.env` y se corre `docker compose up -d`.
 
 Comprobación local en el servidor:
