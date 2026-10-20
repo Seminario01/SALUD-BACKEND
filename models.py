@@ -244,6 +244,37 @@ class ConstanciaMedica(db.Model):
     codigo_verificacion = db.Column(db.String(24), unique=True, nullable=False)
 
 
+class OrdenLaboratorio(db.Model):
+    """Orden de exámenes de laboratorio: el médico la pide, Enfermería toma la muestra y registra
+    los resultados (PENDIENTE -> EN_PROCESO -> COMPLETADA; o ANULADA)."""
+    __tablename__ = "ordenes_laboratorio"
+    id = db.Column(db.Integer, primary_key=True)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False, index=True)
+    expediente_id = db.Column(db.Integer)
+    medico_sub = db.Column(db.String(SUB_LEN))
+    medico_nombre = db.Column(db.String(150))
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    prioridad = db.Column(db.String(10), nullable=False, default="RUTINA")      # RUTINA, URGENTE
+    indicaciones = db.Column(db.String(500))
+    estado = db.Column(db.String(12), nullable=False, default="PENDIENTE", index=True)
+    fecha_muestra = db.Column(db.DateTime)
+    muestra_por = db.Column(db.String(150))
+    fecha_resultado = db.Column(db.DateTime)
+    resultado_por = db.Column(db.String(150))
+    observaciones = db.Column(db.Text)
+    motivo_anulacion = db.Column(db.String(255))
+    examenes = db.relationship("ExamenOrdenLaboratorio", backref="orden", lazy="joined",
+                               order_by="ExamenOrdenLaboratorio.id", cascade="all, delete-orphan")
+
+
+class ExamenOrdenLaboratorio(db.Model):
+    __tablename__ = "examenes_orden_laboratorio"
+    id = db.Column(db.Integer, primary_key=True)
+    orden_id = db.Column(db.Integer, db.ForeignKey("ordenes_laboratorio.id"), nullable=False, index=True)
+    codigo = db.Column(db.String(20), nullable=False)         # clave de laboratorio.EXAMENES
+    resultados = db.Column(db.Text)                           # JSON {parametro: valor}
+
+
 class DetalleReceta(db.Model):
     __tablename__ = "detalle_receta"
     id = db.Column("id_detalle", db.Integer, primary_key=True)

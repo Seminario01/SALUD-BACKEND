@@ -71,6 +71,10 @@ MATRIZ = {
     "constancias.ver":        {"MED", "ENF", "JEF", "ADM"},
     "constancias.emitir":     {"MED"},
     "constancias.anular":     {"MED", "JEF"},
+    "laboratorio.ver":        {"MED", "ENF", "JEF", "ADM"},
+    "laboratorio.ordenar":    {"MED"},
+    "laboratorio.procesar":   {"ENF"},
+    "laboratorio.anular":     {"MED", "JEF"},
 }
 
 
@@ -148,6 +152,10 @@ PRUEBAS = {
     "constancias.ver":        lambda u: pedir(u, "GET", "/constancias?paciente_id=abc").status_code == 400,
     "constancias.emitir":     lambda u: not denegado(pedir(u, "POST", "/constancias", json={})),
     "constancias.anular":     lambda u: not denegado(pedir(u, "POST", "/constancias/999999/anular", json={})),
+    "laboratorio.ver":        lambda u: not denegado(pedir(u, "GET", "/laboratorio/examenes")),
+    "laboratorio.ordenar":    lambda u: not denegado(pedir(u, "POST", "/laboratorio/ordenes", json={})),
+    "laboratorio.procesar":   lambda u: not denegado(pedir(u, "POST", "/laboratorio/ordenes/999999/muestra")),
+    "laboratorio.anular":     lambda u: not denegado(pedir(u, "POST", "/laboratorio/ordenes/999999/anular", json={})),
 }
 
 assert set(PRUEBAS) == set(MATRIZ), "La prueba debe cubrir todos los permisos de la matriz"

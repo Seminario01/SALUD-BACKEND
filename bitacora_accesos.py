@@ -20,8 +20,8 @@ from sqlalchemy import select
 
 from bitacora import enmascarar
 from extensions import db
-from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, PersonalSalud,
-                    Receta, Turno)
+from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, OrdenLaboratorio,
+                    PersonalSalud, Receta, Turno)
 
 log = logging.getLogger(__name__)
 PREFIJO = "/api/v1/salud"
@@ -39,6 +39,7 @@ VER = {
     "/hospitalizaciones/<int:id>": "Vio la hospitalización No. {id}",
     "/citas/<int:id>": "Vio la cita No. {id}",
     "/constancias/<int:id>": "Vio la constancia No. {id}",
+    "/laboratorio/ordenes/<int:id>": "Vio la orden de laboratorio No. {id}",
 }
 
 CAMBIOS = {
@@ -63,6 +64,10 @@ CAMBIOS = {
     ("POST", "/recetas/<int:id>/anular"): ("anular", "Anuló la receta No. {id}"),
     ("POST", "/constancias"): ("crear", "Emitió la constancia No. {nuevo}"),
     ("POST", "/constancias/<int:id>/anular"): ("anular", "Anuló la constancia No. {id}"),
+    ("POST", "/laboratorio/ordenes"): ("crear", "Ordenó los exámenes de laboratorio No. {nuevo}"),
+    ("POST", "/laboratorio/ordenes/<int:id>/muestra"): ("modificar", "Tomó la muestra de la orden de laboratorio No. {id}"),
+    ("PUT", "/laboratorio/ordenes/<int:id>/resultados"): ("modificar", "Registró resultados de la orden de laboratorio No. {id}"),
+    ("POST", "/laboratorio/ordenes/<int:id>/anular"): ("anular", "Anuló la orden de laboratorio No. {id}"),
     ("POST", "/hospitalizaciones"): ("crear", "Ordenó el ingreso No. {nuevo}"),
     ("POST", "/hospitalizaciones/<int:id>/asignar-cama"): ("modificar", "Asignó cama en la hospitalización No. {id}"),
     ("POST", "/hospitalizaciones/<int:id>/egreso"): ("modificar", "Dio egreso en la hospitalización No. {id}"),
@@ -81,6 +86,7 @@ CAMBIOS = {
 
 # Para las rutas cuyo número no es el del paciente: de qué tabla se saca el paciente
 DUENO = {"/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta, "/constancias": ConstanciaMedica,
+         "/laboratorio/ordenes": OrdenLaboratorio,
          "/hospitalizaciones": Hospitalizacion, "/cuentas": CuentaPaciente}
 
 PUESTOS = [("salud:jefatura", "Jefatura médica"), ("salud:admin", "Administración"), ("salud:medico", "Médico"),

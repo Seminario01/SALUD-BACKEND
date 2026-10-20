@@ -47,6 +47,8 @@ jobs:
         run: python pruebas/prueba_alertas.py
       - name: Catálogo CIE-10
         run: python pruebas/prueba_cie10.py
+      - name: Laboratorio (rangos e interpretación de resultados)
+        run: python pruebas/prueba_laboratorio.py
       - name: Librerías sin vulnerabilidades conocidas
         run: pipx run pip-audit -r requirements.txt
 

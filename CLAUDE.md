@@ -135,6 +135,17 @@ Administración) o el ciudadano las suyas; se anulan con motivo (el médico las 
 Igual que las recetas llevan `codigo_verificacion` y QR a `/verificar/constancia/<código>`, que consulta
 `GET /verificar/constancia/<código>` sin token y **sin diagnóstico**.
 
+## Laboratorio clínico
+
+`laboratorio.py` (sin base de datos; `pruebas/prueba_laboratorio.py`): catálogo de exámenes
+(hematología, química, orina y heces, inmunología) con parámetros numéricos (unidad, rango normal de
+un adulto y límites de lo posible para rechazar errores de digitación) o cualitativos (opciones y
+cuáles son normales); `interpretar()` da normal, alto, bajo o anormal. `routes/laboratorio.py`:
+el médico ordena (`laboratorio.ordenar`), Enfermería toma la muestra y registra resultados
+(`laboratorio.procesar`; no hay puesto "Laboratorio" en el Login Único), PENDIENTE -> EN_PROCESO
+-> COMPLETADA (ya no se edita) o ANULADA. Resultados en JSON por examen. El ciudadano ve sus órdenes
+y los resultados solo cuando están completos.
+
 ## Reporte de diagnósticos
 
 `GET /reportes/diagnosticos` (`routes/reportes.py`, permiso `reportes.ver`: Médico, Jefatura,

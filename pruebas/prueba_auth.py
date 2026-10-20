@@ -52,7 +52,7 @@ def check(nombre, metodo, ruta, tok, esperado, **kw):
     return r
 
 def dato(nombre, ok):
-    resultados.append(ok)
+    resultados.append(bool(ok))
     print(f"{'OK ' if ok else 'FALLA'}      {nombre}")
 
 
@@ -882,6 +882,63 @@ check("ciudadano1 abre su incapacidad para imprimirla", "GET", f"{CON}/{ci['id']
 check("ciudadano2 NO ve la constancia de otro (404)", "GET", f"{CON}/{ci['id']}", T["ciudadano2"], 404)
 bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&usuario=medico1&limite=100", headers=H("admin.salud")).json()["data"]
 dato("la bitácora anota la constancia emitida", any(x["descripcion"] == f"Emitió la constancia No. {ci['id']}" for x in bit))
+
+print("--- Laboratorio clínico: orden, muestra, resultados e interpretación")
+LAB = "/laboratorio/ordenes"
+cat = check("enfermera1 ve el catálogo de exámenes", "GET", "/laboratorio/examenes", T["enfermera1"], 200).json()["data"]
+dato("el catálogo trae parámetros con su rango de referencia",
+     any(e["codigo"] == "GLUCOSA" and e["parametros"][0]["referencia"] == "70 – 100 mg/dL" for e in cat))
+check("recepcion1 NO ve el laboratorio", "GET", "/laboratorio/examenes", T["recepcion1"], 403)
+check("enfermera1 NO ordena exámenes", "POST", LAB, T["enfermera1"], 403, json={"paciente_id": p1, "examenes": ["GLUCOSA"]})
+check("orden sin exámenes", "POST", LAB, T["medico1"], 400, json={"paciente_id": p1, "examenes": []})
+check("examen que no existe", "POST", LAB, T["medico1"], 400, json={"paciente_id": p1, "examenes": ["RAYOS_X"]})
+check("examen repetido", "POST", LAB, T["medico1"], 400, json={"paciente_id": p1, "examenes": ["GLUCOSA", "GLUCOSA"]})
+check("examenes que no son texto", "POST", LAB, T["medico1"], 400, json={"paciente_id": p1, "examenes": [1, 2]})
+check("prioridad inválida", "POST", LAB, T["medico1"], 400, json={"paciente_id": p1, "examenes": ["GLUCOSA"], "prioridad": "YA"})
+check("paciente que no existe", "POST", LAB, T["medico1"], 404, json={"paciente_id": 999999, "examenes": ["GLUCOSA"]})
+orden = check("medico1 pide glucosa y orina, urgente", "POST", LAB, T["medico1"], 201,
+              json={"paciente_id": p1, "examenes": ["GLUCOSA", "ORINA"], "prioridad": "URGENTE",
+                    "indicaciones": "Ayuno de 8 horas"}).json()["data"]
+dato("queda PENDIENTE, a nombre del médico", orden["estado"] == "PENDIENTE" and orden["medico"] and len(orden["examenes"]) == 2)
+cola = check("la cola de pendientes", "GET", f"{LAB}?estado=PENDIENTE", T["enfermera1"], 200).json()["data"]
+dato("la orden urgente sale en la cola", any(x["id"] == orden["id"] for x in cola)
+     and [x["prioridad"] for x in cola] == sorted([x["prioridad"] for x in cola], key=lambda pr: pr != "URGENTE"))
+check("estado inválido en el filtro", "GET", f"{LAB}?estado=LISTA", T["enfermera1"], 400)
+check("resultados antes de tomar la muestra", "PUT", f"{LAB}/{orden['id']}/resultados", T["enfermera1"], 409,
+      json={"resultados": {"GLUCOSA": {"glucosa": 90}}})
+check("medico1 NO toma muestras", "POST", f"{LAB}/{orden['id']}/muestra", T["medico1"], 403)
+check("enfermera1 toma la muestra", "POST", f"{LAB}/{orden['id']}/muestra", T["enfermera1"], 200)
+check("no se toma la muestra dos veces", "POST", f"{LAB}/{orden['id']}/muestra", T["enfermera1"], 409)
+R = f"{LAB}/{orden['id']}/resultados"
+check("valor imposible (glucosa 99999)", "PUT", R, T["enfermera1"], 400, json={"resultados": {"GLUCOSA": {"glucosa": 99999}}})
+check("parámetro que no existe", "PUT", R, T["enfermera1"], 400, json={"resultados": {"GLUCOSA": {"azucar": 90}}})
+check("examen que no está en la orden", "PUT", R, T["enfermera1"], 400, json={"resultados": {"HEMATO": {"hemoglobina": 13}}})
+check("opción que no existe (nitritos)", "PUT", R, T["enfermera1"], 400, json={"resultados": {"ORINA": {"nitritos": "Mucho"}}})
+check("resultados que no son objeto", "PUT", R, T["enfermera1"], 400, json={"resultados": [1, 2]})
+parcial = check("guarda la glucosa (parcial)", "PUT", R, T["enfermera1"], 200,
+                json={"resultados": {"GLUCOSA": {"glucosa": "182"}}}).json()
+glu = parcial["data"]["examenes"][0]["resultados"][0]
+dato("la glucosa 182 sale ALTA y el mensaje lo avisa", glu["valor"] == 182 and glu["nivel"] == "alto" and "fuera de rango" in parcial["message"])
+check("completar sin todos los resultados", "PUT", R, T["enfermera1"], 400, json={"resultados": {}, "completar": True})
+orina = {"ph": 6, "densidad": 1.02, "proteinas": "Negativo", "glucosa_orina": "Negativo", "nitritos": "Positivo",
+         "leucocitos_campo": 25, "eritrocitos_campo": 1, "bacterias": "Abundantes"}
+fin = check("completa la orina y la orden", "PUT", R, T["enfermera1"], 200,
+            json={"resultados": {"ORINA": orina}, "observaciones": "Muestra de chorro medio", "completar": True}).json()["data"]
+dato("queda COMPLETADA con quién y cuándo", fin["estado"] == "COMPLETADA" and fin["resultado_por"] and fin["fecha_resultado"])
+dato("cuenta 4 resultados fuera de rango (glucosa, nitritos, leucocitos, bacterias)", fin["fuera_de_rango"] == 4)
+check("una orden completada ya no se edita", "PUT", R, T["enfermera1"], 409, json={"resultados": {"GLUCOSA": {"glucosa": 90}}})
+check("ni se anula", "POST", f"{LAB}/{orden['id']}/anular", T["medico1"], 409, json={"motivo": "Prueba de anulación"})
+mia = check("ciudadano1 (dueño) ve su resultado completado", "GET", f"{LAB}/{orden['id']}", T["ciudadano1"], 200).json()["data"]
+dato("con los resultados", mia["examenes"][0]["resultados"][0]["valor"] == 182)
+check("ciudadano2 NO ve la orden de otro (404)", "GET", f"{LAB}/{orden['id']}", T["ciudadano2"], 404)
+otra = check("otra orden para anular", "POST", LAB, T["medico1"], 201, json={"paciente_id": p1, "examenes": ["HEMATO"]}).json()["data"]
+pend = check("ciudadano1 ve su orden pendiente", "GET", f"{LAB}/{otra['id']}", T["ciudadano1"], 200).json()["data"]
+dato("pero sin resultados mientras no esté completa", "resultados" not in pend["examenes"][0])
+check("anular sin motivo", "POST", f"{LAB}/{otra['id']}/anular", T["medico1"], 400, json={})
+check("medico1 anula su orden", "POST", f"{LAB}/{otra['id']}/anular", T["medico1"], 200, json={"motivo": "Se pidió por error"})
+bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&limite=200", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota la orden y los resultados", any(x["descripcion"] == f"Ordenó los exámenes de laboratorio No. {orden['id']}" for x in bit)
+     and any(x["descripcion"] == f"Registró resultados de la orden de laboratorio No. {orden['id']}" for x in bit))
 
 print("--- Accesos inusuales en la bitácora (solo Administración)")
 INU = "/bitacora/inusuales"
