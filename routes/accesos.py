@@ -87,3 +87,111 @@ def bitacora_accesos():
         "puesto": r.puesto, "accion": r.accion, "descripcion": r.descripcion, "paciente_id": r.paciente_id,
         "paciente": nombres.get(r.paciente_id), "metodo": r.metodo, "ruta": r.ruta, "ip": r.ip,
     } for r in registros]), 200
+
+
+# ------------------------------------------------------------------------------------------
+# Accesos inusuales: patrones que conviene que Administración revise (no bloquean a nadie)
+NOCHE = (22, 6)                                       # de 22:00 a 5:59
+PUESTOS_DE_DIA = ("Recepción", "Caja", "Administración", "Jefatura médica")   # enfermería y médicos hacen turnos de noche
+
+
+def _umbral(nombre, defecto, minimo, maximo):
+    valor = request.args.get(nombre, "")
+    if not valor:
+        return defecto
+    if not valor.isdigit() or not minimo <= int(valor) <= maximo:
+        raise ValueError(f"{nombre} debe ser un número entre {minimo} y {maximo}")
+    return int(valor)
+
+
+@accesos_bp.route("/api/v1/salud/bitacora/inusuales", methods=["GET"])
+@validar_token
+@requiere_permiso("bitacora.ver")
+def accesos_inusuales():
+    """
+    Accesos inusuales en la bitácora (para revisar)
+    ---
+    tags:
+      - Bitácora
+    security:
+      - BearerAuth: []
+    description: >
+      Solo Administración. Busca en los últimos `dias` (sin contar a los ciudadanos):
+      muchos pacientes distintos vistos por una persona en una misma hora (posible consulta masiva),
+      muchas anulaciones de una persona en un día, accesos de noche (22:00 a 5:59) de puestos
+      que trabajan de día (Recepción, Caja, Administración, Jefatura) y una persona entrando desde
+      muchas direcciones IP en un día. Solo avisa: no bloquea a nadie.
+    parameters:
+      - {name: dias, in: query, type: integer, default: 7, description: "1 a 31"}
+      - {name: pacientes_por_hora, in: query, type: integer, default: 25, description: "2 a 500"}
+      - {name: anulaciones_por_dia, in: query, type: integer, default: 5, description: "2 a 200"}
+      - {name: ips_por_dia, in: query, type: integer, default: 4, description: "2 a 50"}
+    responses:
+      200:
+        description: "[{tipo, nivel alto|medio, usuario, nombre, puesto, desde, hasta, cantidad, texto}], primero los de nivel alto"
+      400:
+        description: Algún número fuera de rango
+    """
+    try:
+        dias = _umbral("dias", 7, 1, 31)
+        por_hora = _umbral("pacientes_por_hora", 25, 2, 500)
+        por_dia = _umbral("anulaciones_por_dia", 5, 2, 200)
+        ips_dia = _umbral("ips_por_dia", 4, 2, 50)
+    except ValueError as error:
+        return jsonify(success=False, error="datos_invalidos", message=str(error)), 400
+
+    B = BitacoraAcceso
+    inicio = datetime.combine(datetime.now().date() - timedelta(days=dias - 1), datetime.min.time())
+    personal = db.and_(B.fecha >= inicio, db.or_(B.puesto.is_(None), B.puesto != "Ciudadano"))
+    dia, hora = db.func.date(B.fecha), db.func.hour(B.fecha)
+    alertas = []
+
+    def agregar(tipo, nivel, fila, desde, hasta, texto):
+        alertas.append({"tipo": tipo, "nivel": nivel, "usuario": fila.usuario, "nombre": fila.nombre,
+                        "puesto": fila.puesto, "desde": desde.isoformat(timespec="minutes"),
+                        "hasta": hasta.isoformat(timespec="minutes"), "cantidad": int(fila.cantidad), "texto": texto})
+
+    def columnas(*extra, contar):
+        return [B.usuario, db.func.max(B.nombre).label("nombre"), db.func.max(B.puesto).label("puesto"),
+                *extra, contar.label("cantidad")]
+
+    # 1) Muchos pacientes distintos en una misma hora
+    filas = (db.session.query(*columnas(dia.label("dia"), hora.label("hora"), contar=db.func.count(db.distinct(B.paciente_id))))
+             .filter(personal, B.accion == "ver", B.paciente_id.isnot(None))
+             .group_by(B.usuario, dia, hora).having(db.func.count(db.distinct(B.paciente_id)) >= por_hora).all())
+    for f in filas:
+        desde = datetime.combine(f.dia, datetime.min.time()) + timedelta(hours=int(f.hora))
+        agregar("muchos_pacientes", "alto", f, desde, desde + timedelta(minutes=59),
+                f"Vio los datos de {f.cantidad} pacientes distintos en una hora")
+
+    # 2) Muchas anulaciones en un día
+    filas = (db.session.query(*columnas(dia.label("dia"), contar=db.func.count()))
+             .filter(personal, B.accion == "anular").group_by(B.usuario, dia).having(db.func.count() >= por_dia).all())
+    for f in filas:
+        desde = datetime.combine(f.dia, datetime.min.time())
+        agregar("muchas_anulaciones", "alto", f, desde, desde + timedelta(hours=23, minutes=59),
+                f"Anuló {f.cantidad} registros en un día (recetas, cobros, citas...)")
+
+    # 3) De noche, solo puestos que trabajan de día
+    filas = (db.session.query(*columnas(dia.label("dia"), db.func.min(B.fecha).label("primero"),
+                                        db.func.max(B.fecha).label("ultimo"), contar=db.func.count()))
+             .filter(personal, B.puesto.in_(PUESTOS_DE_DIA), db.or_(hora >= NOCHE[0], hora < NOCHE[1]))
+             .group_by(B.usuario, dia).all())
+    for f in filas:
+        agregar("noche", "medio", f, f.primero, f.ultimo,
+                f"{f.cantidad} acceso(s) de noche, entre las 22:00 y las 6:00 ({f.puesto} normalmente trabaja de día)")
+
+    # 4) Muchas direcciones IP en un día
+    filas = (db.session.query(*columnas(dia.label("dia"), contar=db.func.count(db.distinct(B.ip))))
+             .filter(personal, B.ip.isnot(None)).group_by(B.usuario, dia)
+             .having(db.func.count(db.distinct(B.ip)) >= ips_dia).all())
+    for f in filas:
+        desde = datetime.combine(f.dia, datetime.min.time())
+        agregar("muchas_ips", "medio", f, desde, desde + timedelta(hours=23, minutes=59),
+                f"Entró desde {f.cantidad} direcciones IP distintas en un día (¿cuenta compartida?)")
+
+    alertas.sort(key=lambda a: a["desde"], reverse=True)       # lo más reciente primero...
+    alertas.sort(key=lambda a: a["nivel"] != "alto")          # ...y los de nivel alto arriba
+    return jsonify(success=True, desde=inicio.date().isoformat(), data=alertas,
+                   umbrales={"dias": dias, "pacientes_por_hora": por_hora, "anulaciones_por_dia": por_dia,
+                             "ips_por_dia": ips_dia}), 200

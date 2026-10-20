@@ -141,6 +141,11 @@ Lo rechazado (4xx) no se anota. Se consulta en `GET /bitacora/accesos` (permiso 
 solo Administración) y en la pantalla `/bitacora` del frontend. Al agregar una ruta nueva que
 toque pacientes, poner su descripción en `VER` o `CAMBIOS` de ese archivo.
 
+`GET /bitacora/inusuales` (mismo permiso, `routes/accesos.py`) revisa los últimos `dias` (sin
+ciudadanos) y avisa de: muchos pacientes distintos vistos en una hora, muchas anulaciones en un día
+(nivel alto), accesos de noche (22:00 a 6:00) de Recepción, Caja, Administración o Jefatura, y muchas
+IP en un día (nivel medio). Los umbrales se pueden cambiar por parámetro. Solo avisa; no bloquea.
+
 ## Integraciones con otros módulos
 
 - Todas las llamadas salientes pasan por `_llamar` en `services_externos.py` y quedan en

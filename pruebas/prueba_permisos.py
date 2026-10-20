@@ -135,7 +135,10 @@ PRUEBAS = {
     "presupuesto.editar":     lambda u: not denegado(pedir(u, "PUT", "/presupuesto", json={})),
     "integraciones.ver":      lambda u: not denegado(pedir(u, "GET", "/integraciones/bitacora")),
     "integraciones.demo":     lambda u: not denegado(pedir(u, "POST", "/integraciones/simular/no-existe")),
-    "bitacora.ver":           lambda u: not denegado(pedir(u, "GET", "/bitacora/accesos?limite=1")),
+    # las dos rutas de la bitácora deben dar lo mismo (si no, "distintas" no es True ni False y falla)
+    "bitacora.ver":           lambda u: (lambda a, b: a if a == b else "distintas")(
+                                  not denegado(pedir(u, "GET", "/bitacora/accesos?limite=1")),
+                                  not denegado(pedir(u, "GET", "/bitacora/inusuales?dias=1"))),
     "pacientes.alergias":     lambda u: not denegado(pedir(u, "PUT", "/pacientes/999999/alergias", json={})),
     "reportes.ver":           lambda u: not denegado(pedir(u, "GET", "/reportes/diagnosticos")),
 }

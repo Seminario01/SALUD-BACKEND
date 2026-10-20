@@ -810,6 +810,27 @@ check("límite fuera de rango", "GET", "/reportes/diagnosticos?limite=0", T["jef
 vacio = check("un período sin atenciones", "GET", "/reportes/diagnosticos?desde=2001-01-01&hasta=2001-12-31", T["jefatura1"], 200).json()
 dato("da cero sin fallar", vacio["total_atenciones"] == 0 and vacio["data"] == [])
 
+print("--- Accesos inusuales en la bitácora (solo Administración)")
+INU = "/bitacora/inusuales"
+check("accesos inusuales sin token", "GET", INU, None, 401)
+check("medico1 NO ve los accesos inusuales", "GET", INU, T["medico1"], 403)
+check("jefatura1 NO ve los accesos inusuales", "GET", INU, T["jefatura1"], 403)
+for x in requests.get(API + "/pacientes", headers=H("medico1")).json()["data"][:3]:
+    requests.get(API + f"/pacientes/{x['id']}", headers=H("medico1"))      # 3 pacientes distintos ahora mismo
+r = check("admin.salud ve los accesos inusuales (umbrales bajos)", "GET",
+          f"{INU}?pacientes_por_hora=2&anulaciones_por_dia=2", T["admin.salud"], 200).json()
+dato("medico1 aparece por ver muchos pacientes en una hora", any(
+    a["tipo"] == "muchos_pacientes" and a["usuario"] == "medico1" and a["cantidad"] >= 3 for a in r["data"]))
+dato("medico1 aparece por las anulaciones de hoy (recetas de prueba)", any(
+    a["tipo"] == "muchas_anulaciones" and a["usuario"] == "medico1" and a["nivel"] == "alto" for a in r["data"]))
+dato("los ciudadanos no cuentan", all(a["puesto"] != "Ciudadano" for a in r["data"]))
+niveles = [a["nivel"] for a in r["data"]]
+dato("primero los de nivel alto", niveles == sorted(niveles, key=lambda n: n != "alto"))
+dato("devuelve los umbrales usados", r["umbrales"]["pacientes_por_hora"] == 2 and r["umbrales"]["dias"] == 7)
+check("dias fuera de rango", "GET", f"{INU}?dias=0", T["admin.salud"], 400)
+check("dias que no es número", "GET", f"{INU}?dias=siete", T["admin.salud"], 400)
+check("umbral de pacientes demasiado bajo", "GET", f"{INU}?pacientes_por_hora=1", T["admin.salud"], 400)
+
 print("--- Estado del servicio (monitor externo, sin token)")
 e = check("estado sin token", "GET", "/estado", None, 200)
 dato("dice ok y nada más (ni versión, ni datos)", e.json() == {"success": True, "estado": "ok"}
