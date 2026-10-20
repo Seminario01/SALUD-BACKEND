@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 
 from flask import Blueprint, jsonify, request
 
+import cie10
 from alertas_clinicas import normalizar
 from auth import puede, requiere_permiso, validar_token
 from models import ExpedienteClinico
@@ -76,19 +77,27 @@ def diagnosticos_frecuentes():
         return _error(400, "datos_invalidos", "limite debe ser un número de 1 a 50")
     limite = int(limite)
 
-    filas = ExpedienteClinico.query.with_entities(ExpedienteClinico.diagnostico, ExpedienteClinico.paciente_id) \
+    filas = ExpedienteClinico.query.with_entities(ExpedienteClinico.diagnostico, ExpedienteClinico.paciente_id,
+                                                  ExpedienteClinico.codigo_cie10) \
         .filter(ExpedienteClinico.fecha_atencion >= datetime.combine(desde, datetime.min.time()),
                 ExpedienteClinico.fecha_atencion < datetime.combine(hasta + timedelta(days=1), datetime.min.time())) \
         .all()
 
-    atenciones, pacientes, escrituras = Counter(), defaultdict(set), defaultdict(Counter)
-    for diagnostico, paciente_id in filas:
-        clave = clave_diagnostico(diagnostico)
+    atenciones, pacientes, escrituras, codigos = Counter(), defaultdict(set), defaultdict(Counter), {}
+    for diagnostico, paciente_id, codigo in filas:
+        # Con código CIE-10 se agrupa por el código (aunque cada médico lo escriba distinto)
+        if codigo and cie10.descripcion(codigo):
+            clave = f"cie10:{codigo}"
+            codigos[clave] = codigo
+            nombre = f"{codigo} · {cie10.descripcion(codigo)}"
+        else:
+            clave = clave_diagnostico(diagnostico)
+            nombre = (diagnostico or "").strip().splitlines()[0].rstrip(" .")[:80] if clave else ""
         if not clave:
             continue
         atenciones[clave] += 1
         pacientes[clave].add(paciente_id)
-        escrituras[clave][(diagnostico or "").strip().splitlines()[0].rstrip(" .")[:80]] += 1
+        escrituras[clave][nombre] += 1
 
     # Para Auditoría (sin acceso al expediente), los grupos pequeños se suman en "Otros"
     if not puede("expediente.ver"):
@@ -102,6 +111,7 @@ def diagnosticos_frecuentes():
     datos = [{
         # Se muestra como lo escribieron más veces ("Gripe común" y no "gripe comun")
         "diagnostico": escrituras[c].most_common(1)[0][0] or c,
+        "codigo_cie10": codigos.get(c),
         "atenciones": atenciones[c],
         "pacientes": len(pacientes[c]),
         "porcentaje": round(100 * atenciones[c] / total, 1) if total else 0,
@@ -111,4 +121,4 @@ def diagnosticos_frecuentes():
         datos.append({"diagnostico": OTROS, "atenciones": resto, "otros": True,
                       "pacientes": None, "porcentaje": round(100 * resto / total, 1)})
     return jsonify(success=True, desde=str(desde), hasta=str(hasta), total_atenciones=total,
-                   total_pacientes=len({p for _, p in filas}), data=datos), 200
+                   total_pacientes=len({p for _, p, _ in filas}), data=datos), 200

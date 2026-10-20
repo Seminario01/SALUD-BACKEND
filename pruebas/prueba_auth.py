@@ -815,6 +815,30 @@ check("límite fuera de rango", "GET", "/reportes/diagnosticos?limite=0", T["jef
 vacio = check("un período sin atenciones", "GET", "/reportes/diagnosticos?desde=2001-01-01&hasta=2001-12-31", T["jefatura1"], 200).json()
 dato("da cero sin fallar", vacio["total_atenciones"] == 0 and vacio["data"] == [])
 
+print("--- Diagnósticos con código CIE-10")
+r = check("medico1 busca 'hiper arter' en la CIE-10", "GET", "/cie10?q=hiper%20arter", T["medico1"], 200).json()
+dato("encuentra I10 Hipertensión esencial", bool(r["data"]) and r["data"][0]["codigo"] == "I10" and r["total_catalogo"] > 200)
+check("analista1 (Auditoría) también busca", "GET", "/cie10?q=J00", T["analista1"], 200)
+check("recepcion1 NO busca diagnósticos", "GET", "/cie10?q=gripe", T["recepcion1"], 403)
+check("ciudadano1 NO busca diagnósticos", "GET", "/cie10?q=gripe", T["ciudadano1"], 403)
+check("búsqueda vacía", "GET", "/cie10?q=", T["medico1"], 400)
+check("límite fuera de rango", "GET", "/cie10?q=a&limite=0", T["medico1"], 400)
+check("código que no está en el catálogo", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400,
+      json={"codigo_cie10": "X99.9"})
+check("código que no es texto", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 400, json={"codigo_cie10": 10})
+check("atención solo con el código (sin escribir el diagnóstico)", "POST", f"/expedientes/{p2}/atenciones", T["medico1"], 201,
+      json={"codigo_cie10": "z02.7"})
+ultima = max(requests.get(API + f"/expedientes/{p2}", headers=H("medico1")).json()["data"], key=lambda x: x["id"])
+dato("se guarda el código en mayúsculas y el diagnóstico es su nombre oficial",
+     ultima["codigo_cie10"] == "Z02.7" and ultima["diagnostico"] == "Extensión de certificado médico" and ultima["cie10"] == ultima["diagnostico"])
+check("otra atención con el mismo código pero escrito distinto", "POST", f"/expedientes/{p1}/atenciones", T["medico1"], 201,
+      json={"codigo_cie10": "Z02.7", "diagnostico": "Constancia para el trabajo"})
+rep = check("el reporte agrupa por código CIE-10", "GET", "/reportes/diagnosticos?limite=50", T["jefatura1"], 200).json()
+fila = next((x for x in rep["data"] if x.get("codigo_cie10") == "Z02.7"), None)
+dato("una sola fila 'Z02.7 · Extensión de certificado médico' con las dos atenciones",
+     fila is not None and fila["diagnostico"] == "Z02.7 · Extensión de certificado médico" and fila["atenciones"] >= 2
+     and fila["pacientes"] >= 2)
+
 print("--- Constancias de consulta e incapacidad (con QR verificable)")
 CON = "/constancias"
 hoy = date.today().isoformat()

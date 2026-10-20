@@ -43,8 +43,10 @@ jobs:
         run: python -m compileall -q . -x "(venv|\.git)"
       - name: Regla de vencimientos (lotes)
         run: python pruebas/prueba_lotes.py
-      - name: Alertas clínicas (signos, alergias, duplicados)
+      - name: Alertas clínicas (signos, alergias, interacciones, duplicados)
         run: python pruebas/prueba_alertas.py
+      - name: Catálogo CIE-10
+        run: python pruebas/prueba_cie10.py
       - name: Librerías sin vulnerabilidades conocidas
         run: pipx run pip-audit -r requirements.txt
 

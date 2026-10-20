@@ -140,6 +140,15 @@ Igual que las recetas llevan `codigo_verificacion` y QR a `/verificar/constancia
 `GET /reportes/diagnosticos` (`routes/reportes.py`, permiso `reportes.ver`: Médico, Jefatura,
 Administración y Auditoría): diagnósticos más frecuentes en un período, agrupados sin tildes,
 mayúsculas ni el punto final. Solo cifras. Para Auditoría, los de menos de 3 pacientes van en "Otros".
+Las atenciones con código CIE-10 se agrupan por el código ("J00 · Rinofaringitis aguda...").
+
+## Catálogo CIE-10
+
+`cie10.py`: ~260 diagnósticos frecuentes (no la CIE-10 completa) con capítulo y sinónimos de uso
+común ("gripe", "ivu", "presión alta"); `pruebas/prueba_cie10.py` lo revisa sin servidor.
+`GET /cie10?q=` busca por código o palabras (Médico, Enfermería, Jefatura, Administración, Auditoría).
+`POST /expedientes/{id}/atenciones` acepta `codigo_cie10` (solo códigos del catálogo; si no se escribe
+diagnóstico, se usa su nombre oficial) y queda en `expedientes_clinicos.codigo_cie10`.
 
 ## Bitácora de accesos
 

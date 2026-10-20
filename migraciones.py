@@ -81,6 +81,7 @@ COLUMNAS = [
     ("pacientes", "alergias", "VARCHAR(500) NULL"),
     ("recetas", "alerta_alergia", "VARCHAR(255) NULL"),
     ("recetas", "alerta_interaccion", "VARCHAR(255) NULL"),
+    ("expedientes_clinicos", "codigo_cie10", "VARCHAR(8) NULL"),
     # Receta verificable con QR
     ("recetas", "codigo_verificacion", "VARCHAR(24) NULL UNIQUE"),
 ]

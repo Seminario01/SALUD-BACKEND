@@ -52,6 +52,7 @@ class ExpedienteClinico(db.Model):
     cita_id = db.Column(db.Integer, db.ForeignKey("citas_medicas.id"), nullable=True)
     medico_sub = db.Column(db.String(SUB_LEN))  # `sub` del médico en el Login Único
     diagnostico = db.Column(db.Text)
+    codigo_cie10 = db.Column(db.String(8), index=True)   # del catálogo de cie10.py (opcional)
     tratamiento = db.Column(db.Text)
     notas = db.Column(db.Text)
     # Hora local del servidor (TZ=America/Guatemala), igual que los turnos.
