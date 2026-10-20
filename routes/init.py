@@ -16,6 +16,7 @@ from routes.accesos import accesos_bp
 from routes.reportes import reportes_bp
 from routes.constancias import constancias_bp
 from routes.laboratorio import laboratorio_bp
+from routes.lista_espera import lista_espera_bp
 
 def registrar_rutas(app):
     app.register_blueprint(pacientes_bp)
@@ -36,3 +37,4 @@ def registrar_rutas(app):
     app.register_blueprint(reportes_bp)
     app.register_blueprint(constancias_bp)
     app.register_blueprint(laboratorio_bp)
+    app.register_blueprint(lista_espera_bp)

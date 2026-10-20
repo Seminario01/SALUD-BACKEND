@@ -921,6 +921,40 @@ for t in (tb["id"], next(t["id"] for t in cola if t["paciente_id"] == pa)):
     requests.put(API + f"/turnos/{t}/finalizar", headers=H("enfermera1"))
 check("un turno ya atendido no se clasifica", "PUT", f"/turnos/{tb['id']}/triage", T["enfermera1"], 409, json={"triage": "VERDE"})
 
+print("--- Lista de espera de citas")
+LE = "/citas/lista-espera"
+pe1, pe2 = nuevo(f"Espera Uno {sufijo}"), nuevo(f"Espera Dos {sufijo}")
+check("caja1 NO agrega a la lista de espera", "POST", LE, T["caja1"], 403, json={"paciente_id": pe1, "motivo": "Control"})
+check("ciudadano1 NO ve la lista de espera", "GET", LE, T["ciudadano1"], 403)
+check("sin motivo", "POST", LE, T["recepcion1"], 400, json={"paciente_id": pe1})
+check("paciente que no existe", "POST", LE, T["recepcion1"], 404, json={"paciente_id": 999999, "motivo": "Control"})
+e1 = check("recepcion1 agrega a un paciente", "POST", LE, T["recepcion1"], 201,
+           json={"paciente_id": pe1, "motivo": "Control de presión", "preferencia": "Por las mañanas"}).json()["data"]
+check("no se agrega dos veces al mismo paciente", "POST", LE, T["recepcion1"], 409, json={"paciente_id": pe1, "motivo": "Otra vez"})
+e2 = check("y a otro después", "POST", LE, T["recepcion1"], 201, json={"paciente_id": pe2, "motivo": "Primera consulta"}).json()["data"]
+lista = check("caja1 ve la lista (citas.ver)", "GET", LE, T["caja1"], 200).json()["data"]
+ids = [x["id"] for x in lista]
+dato("primero el que lleva más tiempo esperando, con su teléfono y preferencia", ids.index(e1["id"]) < ids.index(e2["id"])
+     and lista[ids.index(e1["id"])]["preferencia"] == "Por las mañanas" and "telefono" in lista[0])
+check("estado inválido en el filtro", "GET", f"{LE}?estado=LISTO", T["recepcion1"], 400)
+cita_e = check("se agenda una cita para el primero", "POST", "/citas", T["recepcion1"], 201,
+               json={"paciente_id": pe1, "fecha_hora": futuro(25, 10)}).json()["data"]["id"]
+cancelada = requests.delete(API + f"/citas/{cita_e}", headers=H("recepcion1")).json()
+dato("al cancelar una cita, avisa cuántos esperan un espacio", cancelada["data"]["en_lista_espera"] >= 2 and "lista de espera" in cancelada["message"])
+cita_e = check("se le da otra cita", "POST", "/citas", T["recepcion1"], 201,
+               json={"paciente_id": pe1, "fecha_hora": futuro(26, 10)}).json()["data"]["id"]
+check("avisado (le llamaron)", "PUT", f"{LE}/{e1['id']}", T["recepcion1"], 200, json={"estado": "AVISADO", "nota": "Contestó"})
+check("agendar sin la cita", "PUT", f"{LE}/{e1['id']}", T["recepcion1"], 400, json={"estado": "AGENDADO"})
+check("agendar con la cita de otro paciente", "PUT", f"{LE}/{e1['id']}", T["recepcion1"], 400, json={"estado": "AGENDADO", "cita_id": c2})
+check("estado que no se puede poner", "PUT", f"{LE}/{e1['id']}", T["recepcion1"], 400, json={"estado": "ESPERANDO"})
+r = check("agendado con su cita", "PUT", f"{LE}/{e1['id']}", T["recepcion1"], 200, json={"estado": "AGENDADO", "cita_id": cita_e}).json()["data"]
+dato("queda con la cita y la fecha del aviso", r["cita_id"] == cita_e and r["fecha_aviso"] and r["nota"] == "Contestó")
+check("ya salió de la lista: no se cambia", "PUT", f"{LE}/{e1['id']}", T["recepcion1"], 409, json={"estado": "CANCELADA"})
+check("el otro se saca de la lista", "PUT", f"{LE}/{e2['id']}", T["recepcion1"], 200, json={"estado": "CANCELADA", "nota": "Ya no necesita"})
+activos = requests.get(API + LE, headers=H("recepcion1")).json()["data"]
+dato("ninguno de los dos sigue en la lista activa", not {e1["id"], e2["id"]} & {x["id"] for x in activos})
+requests.delete(API + f"/citas/{cita_e}", headers=H("recepcion1"))
+
 print("--- Laboratorio clínico: orden, muestra, resultados e interpretación")
 LAB = "/laboratorio/ordenes"
 cat = check("enfermera1 ve el catálogo de exámenes", "GET", "/laboratorio/examenes", T["enfermera1"], 200).json()["data"]

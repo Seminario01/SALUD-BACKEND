@@ -228,6 +228,21 @@ class Receta(db.Model):
     detalles = db.relationship("DetalleReceta", backref="receta", lazy="joined", order_by="DetalleReceta.id")
 
 
+class ListaEspera(db.Model):
+    """Paciente que espera un espacio para cita (routes/lista_espera.py)."""
+    __tablename__ = "lista_espera_citas"
+    id = db.Column(db.Integer, primary_key=True)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False, index=True)
+    motivo = db.Column(db.String(255), nullable=False)
+    preferencia = db.Column(db.String(150))                  # "por las mañanas", "cualquier día"
+    estado = db.Column(db.String(10), nullable=False, default="ESPERANDO", index=True)  # ESPERANDO, AVISADO, AGENDADO, CANCELADA
+    nota = db.Column(db.String(255))
+    fecha_registro = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    registrado_por = db.Column(db.String(150))
+    fecha_aviso = db.Column(db.DateTime)
+    cita_id = db.Column(db.Integer)
+
+
 class ConstanciaMedica(db.Model):
     """Constancia de consulta o incapacidad (reposo) que firma el médico; lleva QR verificable."""
     __tablename__ = "constancias_medicas"

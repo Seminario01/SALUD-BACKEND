@@ -20,8 +20,8 @@ from sqlalchemy import select
 
 from bitacora import enmascarar
 from extensions import db
-from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, OrdenLaboratorio,
-                    PersonalSalud, Receta, Turno)
+from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, ListaEspera,
+                    OrdenLaboratorio, PersonalSalud, Receta, Turno)
 
 log = logging.getLogger(__name__)
 PREFIJO = "/api/v1/salud"
@@ -49,6 +49,8 @@ CAMBIOS = {
     ("POST", "/citas"): ("crear", "Agendó la cita No. {nuevo}"),
     ("PUT", "/citas/<int:id>"): ("modificar", "Modificó la cita No. {id}"),
     ("DELETE", "/citas/<int:id>"): ("anular", "Canceló la cita No. {id}"),
+    ("POST", "/citas/lista-espera"): ("crear", "Agregó al paciente a la lista de espera"),
+    ("PUT", "/citas/lista-espera/<int:id>"): ("modificar", "Actualizó la lista de espera No. {id}"),
     ("POST", "/citas/<int:id>/cobro"): ("modificar", "Generó el cobro de la cita No. {id}"),
     ("POST", "/citas/<int:id>/verificar-pago"): ("modificar", "Verificó el pago de la cita No. {id}"),
     ("POST", "/expedientes/<int:paciente_id>/atenciones"): ("crear", "Registró una atención en el expediente"),
@@ -86,7 +88,7 @@ CAMBIOS = {
 }
 
 # Para las rutas cuyo número no es el del paciente: de qué tabla se saca el paciente
-DUENO = {"/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta, "/constancias": ConstanciaMedica,
+DUENO = {"/citas/lista-espera": ListaEspera, "/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta, "/constancias": ConstanciaMedica,
          "/laboratorio/ordenes": OrdenLaboratorio,
          "/hospitalizaciones": Hospitalizacion, "/cuentas": CuentaPaciente}
 

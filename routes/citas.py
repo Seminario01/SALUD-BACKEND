@@ -236,7 +236,11 @@ def cancelar_cita(id):
 
     cita.estado = "cancelada"
     db.session.commit()
-    return jsonify(success=True, data=None, message="Cita cancelada"), 200
+    # Se liberó un espacio: Recepción ve cuántos pacientes esperan uno
+    from routes.lista_espera import en_espera
+    esperan = en_espera()
+    mensaje = "Cita cancelada" + (f". Hay {esperan} paciente(s) en lista de espera" if esperan else "")
+    return jsonify(success=True, data={"en_lista_espera": esperan}, message=mensaje), 200
 
 
 @citas_bp.route("/api/v1/salud/citas", methods=["GET"])

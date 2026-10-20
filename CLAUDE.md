@@ -135,6 +135,13 @@ Administración) o el ciudadano las suyas; se anulan con motivo (el médico las 
 Igual que las recetas llevan `codigo_verificacion` y QR a `/verificar/constancia/<código>`, que consulta
 `GET /verificar/constancia/<código>` sin token y **sin diagnóstico**.
 
+## Lista de espera de citas
+
+`routes/lista_espera.py` (tabla `lista_espera_citas`): con `citas.gestionar` se agrega a un paciente
+(uno activo por paciente) con motivo y preferencia; se ve con `citas.ver`, primero el que lleva más
+tiempo. Estados ESPERANDO -> AVISADO -> AGENDADO (con una `cita_id` del mismo paciente) o CANCELADA.
+Al cancelar una cita, `DELETE /citas/{id}` devuelve `en_lista_espera` (cuántos esperan un espacio).
+
 ## Triage en la cola de turnos
 
 `routes/turnos.py` `TRIAGE`: 5 niveles (ROJO inmediato, NARANJA 10 min, AMARILLO 60, VERDE 120,
