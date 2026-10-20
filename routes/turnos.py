@@ -118,7 +118,7 @@ def turnos_activos():
                 "llamado_en": t.fecha_hora_llamado.isoformat(timespec="seconds") if t.fecha_hora_llamado else None,
                 "triage": t.triage, "triage_nombre": TRIAGE[t.triage]["nombre"] if t.triage in TRIAGE else None}
         if personal:
-            espera = int((ahora - t.fecha_hora_ingreso).total_seconds() // 60) if t.fecha_hora_ingreso else None
+            espera = max(0, int((ahora - t.fecha_hora_ingreso).total_seconds() // 60)) if t.fecha_hora_ingreso else None
             objetivo = TRIAGE[t.triage]["minutos"] if t.triage in TRIAGE else None
             dato.update(paciente_id=t.paciente_id, paciente=nombres.get(t.paciente_id),
                         motivo_triage=t.motivo_triage, triage_por=t.triage_por,

@@ -37,7 +37,7 @@ def _dato(e, paciente=None):
         "telefono": paciente.telefono if paciente else None,
         "motivo": e.motivo, "preferencia": e.preferencia, "estado": e.estado, "nota": e.nota,
         "fecha_registro": e.fecha_registro.isoformat(timespec="minutes"),
-        "dias_esperando": (ahora - e.fecha_registro).days,
+        "dias_esperando": max(0, (ahora - e.fecha_registro).days),   # MySQL redondea al segundo: nunca -1
         "registrado_por": e.registrado_por,
         "fecha_aviso": e.fecha_aviso.isoformat(timespec="minutes") if e.fecha_aviso else None,
         "cita_id": e.cita_id,
