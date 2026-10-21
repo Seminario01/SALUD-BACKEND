@@ -1037,6 +1037,48 @@ dato("con filtro de enfermedad no se repiten", requests.get(API + "/vigilancia/c
 pv = requests.get(API + "/panel", headers=H("jefatura1")).json()["data"]["atencion_hoy"]["vigilancia"]
 dato("el inicio cuenta los posibles brotes y dice cuáles", pv["posibles_brotes"] >= 1 and any("Huehuetenango" in d for d in pv["detalle"]))
 
+print("--- Curvas de crecimiento infantil (OMS, 0 a 5 años)")
+nacio = (date.today() - timedelta(days=365)).isoformat()
+nina = requests.post(API + "/pacientes", headers=H("recepcion1"), json={
+    "nombre_completo": f"Crecimiento Niña {sufijo}", "genero": "F", "fecha_nacimiento": nacio}).json()["data"]["id"]
+sin_sexo = requests.post(API + "/pacientes", headers=H("recepcion1"), json={
+    "nombre_completo": f"Crecimiento Sin Sexo {sufijo}", "fecha_nacimiento": nacio}).json()["data"]["id"]
+CREC = f"/pacientes/{nina}/crecimiento"
+check("recepcion1 NO registra mediciones", "POST", CREC, T["recepcion1"], 403, json={"peso_kg": 9})
+check("sin peso ni talla", "POST", CREC, T["enfermera1"], 400, json={})
+check("peso imposible (250 kg)", "POST", CREC, T["enfermera1"], 400, json={"peso_kg": 250})
+check("talla que no es número", "POST", CREC, T["enfermera1"], 400, json={"talla_cm": "alta"})
+check("fecha antes del nacimiento", "POST", CREC, T["enfermera1"], 400, json={"peso_kg": 8, "fecha": "2001-01-01"})
+check("fecha en el futuro", "POST", CREC, T["enfermera1"], 400, json={"peso_kg": 8, "fecha": "2099-01-01"})
+check("paciente sin sexo registrado", "POST", f"/pacientes/{sin_sexo}/crecimiento", T["enfermera1"], 400, json={"peso_kg": 8})
+check("un adulto no entra en estas curvas", "POST", f"/pacientes/{p1}/crecimiento", T["enfermera1"], 400, json={"peso_kg": 70})
+check("paciente que no existe", "POST", "/pacientes/999999/crecimiento", T["enfermera1"], 404, json={"peso_kg": 8})
+hace6 = (date.today() - timedelta(days=183)).isoformat()
+check("enfermera1 registra a los 6 meses (peso y talla normales)", "POST", CREC, T["enfermera1"], 201,
+      json={"fecha": hace6, "peso_kg": 7.3, "talla_cm": 65.7})
+r = check("medico1 registra hoy, al año: 7 kg y 67 cm", "POST", CREC, T["medico1"], 201,
+          json={"peso_kg": "7,0", "talla_cm": 67, "nota": "Control de niño sano"}).json()
+ind = r["data"]["indicadores"]
+dato("al año: bajo peso y retardo del crecimiento, y el mensaje lo avisa",
+     ind["peso_edad"]["z"] < -2 and ind["talla_edad"]["texto"].startswith("Retardo") and "⚠" in r["message"]
+     and "peso_longitud" in ind)
+v = check("medico1 ve las curvas", "GET", CREC, T["medico1"], 200).json()
+dato("trae 2 mediciones en orden, la última y las curvas de la OMS (-3 a +3)", len(v["mediciones"]) == 2
+     and v["mediciones"][0]["edad_meses"] < v["mediciones"][1]["edad_meses"] and v["ultima"]["peso_kg"] == 7.0
+     and set(v["curvas"]["peso_edad"]["lineas"]) == {"-3", "-2", "0", "2", "3"} and v["paciente"]["aplica"] and "OMS" in v["fuente"])
+dato("a los 6 meses estaba bien", all(i["nivel"] == "normal" for i in v["mediciones"][0]["indicadores"].values()))
+check("recepcion1 NO ve las curvas (dato clínico)", "GET", CREC, T["recepcion1"], 403)
+check("ciudadano1 NO ve las curvas de otro", "GET", CREC, T["ciudadano1"], 403)
+sin = check("sin sexo: avisa qué falta", "GET", f"/pacientes/{sin_sexo}/crecimiento", T["medico1"], 200).json()
+dato("dice que falta el sexo y no trae curvas", not sin["paciente"]["aplica"] and "sexo" in sin["paciente"]["motivo"] and sin["curvas"] is None)
+mid = v["mediciones"][0]["id"]
+check("medición de otro paciente: no existe", "DELETE", f"/pacientes/{sin_sexo}/crecimiento/{mid}", T["medico1"], 404)
+check("enfermera1 anula una medición por error", "DELETE", f"{CREC}/{mid}", T["enfermera1"], 200)
+dato("queda una", len(requests.get(API + CREC, headers=H("medico1")).json()["mediciones"]) == 1)
+bit = requests.get(API + f"/bitacora/accesos?paciente_id={nina}&limite=50", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota mediciones y quién vio las curvas", any(x["descripcion"] == "Registró una medición de crecimiento" for x in bit)
+     and any(x["descripcion"] == "Vio las curvas de crecimiento" for x in bit))
+
 print("--- Laboratorio clínico: orden, muestra, resultados e interpretación")
 LAB = "/laboratorio/ordenes"
 cat = check("enfermera1 ve el catálogo de exámenes", "GET", "/laboratorio/examenes", T["enfermera1"], 200).json()["data"]

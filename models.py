@@ -231,6 +231,19 @@ class Receta(db.Model):
     detalles = db.relationship("DetalleReceta", backref="receta", lazy="joined", order_by="DetalleReceta.id")
 
 
+class MedicionCrecimiento(db.Model):
+    """Peso y talla de un niño o niña (0 a 5 años) para las curvas de la OMS (crecimiento.py)."""
+    __tablename__ = "mediciones_crecimiento"
+    id = db.Column(db.Integer, primary_key=True)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False, index=True)
+    fecha = db.Column(db.Date, nullable=False)
+    peso_kg = db.Column(db.Numeric(5, 2))
+    talla_cm = db.Column(db.Numeric(5, 1))          # longitud acostado antes de 2 años; talla de pie después
+    nota = db.Column(db.String(255))
+    registrado_por = db.Column(db.String(150))
+    fecha_registro = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
 class ListaEspera(db.Model):
     """Paciente que espera un espacio para cita (routes/lista_espera.py)."""
     __tablename__ = "lista_espera_citas"

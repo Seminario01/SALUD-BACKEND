@@ -41,6 +41,7 @@ VER = {
     "/constancias/<int:id>": "Vio la constancia No. {id}",
     "/laboratorio/ordenes/<int:id>": "Vio la orden de laboratorio No. {id}",
     "/vigilancia/pacientes": "Consultó la lista de casos de vigilancia epidemiológica",
+    "/pacientes/<int:id>/crecimiento": "Vio las curvas de crecimiento",
 }
 
 CAMBIOS = {
@@ -51,6 +52,8 @@ CAMBIOS = {
     ("PUT", "/citas/<int:id>"): ("modificar", "Modificó la cita No. {id}"),
     ("DELETE", "/citas/<int:id>"): ("anular", "Canceló la cita No. {id}"),
     ("POST", "/citas/lista-espera"): ("crear", "Agregó al paciente a la lista de espera"),
+    ("POST", "/pacientes/<int:id>/crecimiento"): ("crear", "Registró una medición de crecimiento"),
+    ("DELETE", "/pacientes/<int:id>/crecimiento/<int:mid>"): ("anular", "Anuló una medición de crecimiento"),
     ("PUT", "/citas/lista-espera/<int:id>"): ("modificar", "Actualizó la lista de espera No. {id}"),
     ("POST", "/citas/<int:id>/cobro"): ("modificar", "Generó el cobro de la cita No. {id}"),
     ("POST", "/citas/<int:id>/verificar-pago"): ("modificar", "Verificó el pago de la cita No. {id}"),

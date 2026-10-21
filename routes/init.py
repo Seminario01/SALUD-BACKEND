@@ -18,6 +18,7 @@ from routes.constancias import constancias_bp
 from routes.laboratorio import laboratorio_bp
 from routes.lista_espera import lista_espera_bp
 from routes.vigilancia import vigilancia_bp
+from routes.crecimiento import crecimiento_bp
 
 def registrar_rutas(app):
     app.register_blueprint(pacientes_bp)
@@ -40,3 +41,4 @@ def registrar_rutas(app):
     app.register_blueprint(laboratorio_bp)
     app.register_blueprint(lista_espera_bp)
     app.register_blueprint(vigilancia_bp)
+    app.register_blueprint(crecimiento_bp)

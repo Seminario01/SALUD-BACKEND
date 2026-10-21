@@ -175,6 +175,18 @@ departamento, sexo, edad), tendencia semanal, tabla municipio × grupo y alertas
 `vigilancia.pacientes` los municipios con menos de 3 pacientes salen como `pocos`.
 `GET /vigilancia/pacientes?municipio=` (Médico y Jefatura) da quiénes son y queda en la bitácora.
 
+## Crecimiento infantil (OMS, 0 a 5 años)
+
+`crecimiento.py` + `datos/oms_crecimiento.json`: L, M y S de las tablas ampliadas oficiales de la OMS
+(Patrones de Crecimiento Infantil 2006; peso/edad y talla/edad por día hasta 1856 días, peso/longitud
+45-110 cm y peso/talla 65-120 cm por cada 0.1 cm). Puntuación z por el método LMS con el ajuste de la
+OMS más allá de ±3 DE en los indicadores de peso; se comparó contra TODAS las columnas -4..+4 DE de
+la OMS y coincide. Antes de 2 años se usa peso para la longitud; después, peso para la talla.
+Clasificación con los puntos de corte de la OMS (desnutrición crónica, aguda, bajo peso, sobrepeso).
+`routes/crecimiento.py`: `GET/POST /pacientes/{id}/crecimiento` (registran Médico y Enfermería,
+`crecimiento.registrar`; ven quienes tienen `expediente.ver` o el ciudadano dueño), `DELETE .../{mid}`.
+`pruebas/prueba_crecimiento.py` lo revisa sin servidor.
+
 ## Reporte de diagnósticos
 
 `GET /reportes/diagnosticos` (`routes/reportes.py`, permiso `reportes.ver`: Médico, Jefatura,

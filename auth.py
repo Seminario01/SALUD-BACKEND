@@ -100,6 +100,7 @@ PERMISOS = {
     "reportes.ver":           (MED, JEF, ADM, *ROLES_AUDITORIA),  # diagnósticos más frecuentes (solo cifras)
     "vigilancia.ver":         (MED, ENF, JEF, ADM, *ROLES_AUDITORIA),  # mapa de casos por municipio (cifras)
     "vigilancia.pacientes":   (MED, JEF),            # quiénes son los casos de una zona (datos clínicos)
+    "crecimiento.registrar":  (MED, ENF),            # peso y talla de niños de 0 a 5 años (curvas de la OMS)
 }
 
 
