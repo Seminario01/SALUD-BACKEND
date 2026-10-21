@@ -586,6 +586,9 @@ def verificar_receta(codigo):
     if _demasiadas_consultas():
         return _error(429, "demasiadas_peticiones", "Demasiadas consultas seguidas. Espere un minuto e intente de nuevo.")
     receta = Receta.query.filter_by(codigo_verificacion=codigo).first() if CODIGO_QR.match(codigo) else None
+    # MySQL compara sin distinguir mayúsculas: se exige el código exacto (sí distingue "a" de "A")
+    if receta and receta.codigo_verificacion != codigo:
+        receta = None
     if not receta:
         return _error(404, "no_encontrado", "Esta receta no existe en el sistema del Módulo Salud. Puede ser falsa o el código estar alterado.")
     paciente = Paciente.query.get(receta.paciente_id)

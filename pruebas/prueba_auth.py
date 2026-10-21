@@ -769,6 +769,9 @@ dato("del paciente solo iniciales y DPI tapado (nada de nombre, teléfono ni ale
 alterado = cod[:-1] + ("A" if cod[-1] != "A" else "B")
 check("código alterado: no existe", "GET", f"/verificar/receta/{alterado}", None, 404)
 check("código con caracteres raros", "GET", "/verificar/receta/abc'%20OR%201=1", None, 404)
+cambiado = "".join(ch.lower() if ch.isupper() else ch.upper() for ch in cod)
+if cambiado != cod:
+    check("el mismo código con mayúsculas y minúsculas cambiadas no sirve", "GET", f"/verificar/receta/{cambiado}", None, 404)
 check("el número de receta NO sirve como código", "GET", f"/verificar/receta/{ra['id']}", None, 404)
 desp = next(x for x in requests.get(API + "/recetas?estado=DESPACHADA", headers=H("medico1")).json()["data"])
 v = check("la receta ya despachada", "GET", f"/verificar/receta/{desp['codigo_verificacion']}", None, 200).json()["data"]
@@ -988,8 +991,10 @@ pocos = next((x for x in r["municipios"] if x["codigo"] == "2002"), None)
 dato("Jefatura ve también el municipio con 1 caso", pocos is not None and pocos["casos"] >= 1)
 aud = check("analista1 (Auditoría) ve solo cifras", "GET", V, T["analista1"], 200).json()
 pocos_aud = next((x for x in aud["municipios"] if x["codigo"] == "2002"), None)
-dato("a Auditoría el municipio con menos de 3 pacientes le sale como 'pocos'", pocos_aud is None
-     or (pocos_aud["pocos"] and pocos_aud["casos"] is None))
+# (cada corrida de la prueba agrega un paciente ahí: la regla se revisa según cuántos haya)
+dato("a Auditoría un municipio con menos de 3 pacientes le sale como 'pocos' (y con 3 o más, la cifra)",
+     pocos_aud is not None and (pocos_aud["pocos"] and pocos_aud["casos"] is None if pocos["pacientes"] < 3
+                                else not pocos_aud["pocos"] and pocos_aud["casos"] == pocos["casos"]))
 dato("y no hay nombres en la respuesta", f"Vigilancia a {sufijo}" not in json.dumps(aud))
 check("grupo que no existe", "GET", "/vigilancia/casos?grupo=zombis", T["jefatura1"], 400)
 check("departamento que no existe", "GET", "/vigilancia/casos?departamento=99", T["jefatura1"], 400)

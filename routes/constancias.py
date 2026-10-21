@@ -271,6 +271,8 @@ def verificar_constancia(codigo):
     if _demasiadas_consultas():
         return _error(429, "demasiadas_peticiones", "Demasiadas consultas seguidas. Espere un minuto e intente de nuevo.")
     c = ConstanciaMedica.query.filter_by(codigo_verificacion=codigo).first() if CODIGO_QR.match(codigo) else None
+    if c and c.codigo_verificacion != codigo:      # exacto: MySQL no distingue mayúsculas
+        c = None
     if not c:
         return _error(404, "no_encontrado", "Esta constancia no existe en el sistema del Módulo Salud. Puede ser falsa o el código estar alterado.")
     paciente = Paciente.query.get(c.paciente_id)
