@@ -960,7 +960,8 @@ print("--- Residencia del paciente y vigilancia epidemiológica")
 ub = check("medico1 ve departamentos y municipios", "GET", "/ubicaciones", T["medico1"], 200).json()["data"]
 dato("22 departamentos y 340 municipios (sin los lagos)", len(ub["departamentos"]) == 22 and len(ub["municipios"]) == 340
      and any(x["codigo"] == "0115" and x["nombre"] == "Villa Nueva" for x in ub["municipios"]) and "CONRED" in ub["fuente"])
-check("ciudadano1 NO pide el catálogo", "GET", "/ubicaciones", T["ciudadano1"], 403)
+check("ciudadano1 también lo pide (para su residencia)", "GET", "/ubicaciones", T["ciudadano1"], 200)
+check("sin token no", "GET", "/ubicaciones", None, 401)
 check("municipio que no existe", "POST", "/pacientes", T["recepcion1"], 400, json={"nombre_completo": "Prueba Municipio", "municipio": "9999"})
 check("un lago no es residencia", "POST", "/pacientes", T["recepcion1"], 400, json={"nombre_completo": "Prueba Municipio", "municipio": "0100"})
 casos_b05 = []

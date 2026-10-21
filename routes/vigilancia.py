@@ -2,7 +2,7 @@
 Vigilancia epidemiológica: casos por municipio de residencia, para ver si una enfermedad se está
 juntando en una zona (posible brote) y actuar a tiempo.
 
-  GET /ubicaciones              departamentos y municipios (para los formularios)     (cualquier personal)
+  GET /ubicaciones              departamentos y municipios (para los formularios)     (cualquier usuario)
   GET /vigilancia/grupos        grupos de enfermedades vigilados                     (vigilancia.ver)
   GET /vigilancia/casos         casos por municipio, tendencia semanal y alertas      (vigilancia.ver, solo cifras)
   GET /vigilancia/pacientes     quiénes son los casos (de un municipio)              (vigilancia.pacientes)
@@ -20,7 +20,7 @@ from flask import Blueprint, jsonify, request
 
 import cie10
 import ubicaciones
-from auth import ROLES_PERSONAL, puede, requiere_permiso, tiene_rol, validar_token
+from auth import puede, requiere_permiso, validar_token
 from extensions import db
 from models import ExpedienteClinico, Paciente
 
@@ -146,11 +146,8 @@ def ubicaciones_gt():
     responses:
       200:
         description: "{fuente, departamentos: [{codigo, nombre}], municipios: [{codigo, nombre, departamento}]}"
-      403:
-        description: Solo personal de Salud o Auditoría
+    description: Datos públicos (INE/CONRED); también los usa el ciudadano para su residencia.
     """
-    if not tiene_rol(*ROLES_PERSONAL) and not puede("vigilancia.ver"):
-        return _error(403, "sin_permiso", "Solo para el personal de Salud")
     return jsonify(success=True, data=ubicaciones.catalogo()), 200
 
 
