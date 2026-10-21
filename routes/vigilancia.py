@@ -133,6 +133,43 @@ class _Filtros:
                 "edad_min": self.edad_min, "edad_max": self.edad_max}
 
 
+def _es_brote(semana, previo_4_semanas):
+    """3 o más casos en los últimos 7 días y más del doble del promedio semanal de las 4 semanas antes."""
+    promedio = round(previo_4_semanas / 4, 1)
+    return semana >= 3 and semana > 2 * promedio, promedio
+
+
+def alertas_por_enfermedad(f, todos):
+    """Posibles brotes por municipio Y grupo de enfermedad (más preciso que mezclar todo):
+    un aumento de dengue no queda escondido entre las infecciones respiratorias de siempre."""
+    ultima = f.hasta - timedelta(days=6)
+    semana, previo = Counter(), Counter()
+    for c in todos:
+        g = grupo_de(c["codigo"])
+        if not g:
+            continue
+        dia = c["fecha"].date()
+        if dia >= ultima:
+            semana[(c["municipio"], g)] += 1
+        elif dia >= ultima - timedelta(days=28):
+            previo[(c["municipio"], g)] += 1
+    alertas = []
+    for (mun, g), n in semana.items():
+        brote, promedio = _es_brote(n, previo[(mun, g)])
+        if brote:
+            alertas.append({"municipio": mun, "nombre": ubicaciones.nombre_municipio(mun),
+                            "departamento_nombre": ubicaciones.nombre_departamento(mun),
+                            "grupo": g, "enfermedad": GRUPOS[g][0], "ultimos_7_dias": n, "promedio_semanal_previo": promedio,
+                            "texto": f"{GRUPOS[g][0]}: {n} casos en los últimos 7 días (promedio anterior: {promedio} por semana)"})
+    return sorted(alertas, key=lambda a: -a["ultimos_7_dias"])
+
+
+def brotes_recientes():
+    """Para la pantalla de inicio: posibles brotes por enfermedad hasta hoy (sin filtros)."""
+    f = _Filtros({})
+    return alertas_por_enfermedad(f, f.casos(desde=f.hasta - timedelta(days=34)))
+
+
 @vigilancia_bp.route("/api/v1/salud/ubicaciones", methods=["GET"])
 @validar_token
 def ubicaciones_gt():
@@ -228,8 +265,7 @@ def casos_vigilancia():
     municipios, alertas = [], []
     for mun, casos in por_mun.most_common():
         info = ubicaciones.municipio(mun) or {}
-        promedio = round(previo_mun[mun] / 4, 1)
-        brote = semana_mun[mun] >= 3 and semana_mun[mun] > 2 * promedio
+        brote, promedio = _es_brote(semana_mun[mun], previo_mun[mun])
         fila = {"codigo": mun, "nombre": info.get("nombre"), "departamento": mun[:2],
                 "departamento_nombre": ubicaciones.nombre_departamento(mun),
                 "lat": info.get("lat"), "lon": info.get("lon")}
@@ -272,6 +308,8 @@ def casos_vigilancia():
                    total_pacientes=len({c["paciente_id"] for c in periodo}),
                    municipios=municipios, departamentos=departamentos, semanas=semanas, matriz=matriz,
                    grupos={g: n for g, (n, _) in GRUPOS.items()}, alertas=alertas,
+                   # Sin filtro de enfermedad, además se revisa cada enfermedad por separado
+                   alertas_por_enfermedad=[] if f.grupo else alertas_por_enfermedad(f, todos),
                    sin_ubicacion=sin_ubicacion, minimo_para_mostrar=None if ve_pacientes else MINIMO,
                    fuente_mapa=ubicaciones.FUENTE), 200
 

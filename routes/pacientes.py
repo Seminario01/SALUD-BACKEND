@@ -1,7 +1,7 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from flask import Blueprint, request, jsonify, g
 from extensions import db
-from models import Paciente
+from models import ExpedienteClinico, Paciente
 from auth import validar_token, requiere_permiso, puede
 from validacion import DatoInvalido, cui, fecha_pasada, opcion, telefono, texto
 from alertas_clinicas import parecido_nombre
@@ -194,6 +194,50 @@ def crear_paciente():
     db.session.add(paciente)
     db.session.commit()
     return jsonify(success=True, data={"id": paciente.id}, message="Paciente registrado"), 201
+
+
+@pacientes_bp.route("/api/v1/salud/pacientes/sin-residencia", methods=["GET"])
+@validar_token
+@requiere_permiso("pacientes.registrar")
+def pacientes_sin_residencia():
+    """
+    Pacientes sin municipio de residencia (para completarlos y que entren al mapa de vigilancia)
+    ---
+    tags:
+      - Pacientes
+    security:
+      - BearerAuth: []
+    description: >
+      Primero los que tuvieron atenciones en los últimos 90 días (son los que cuentan en el mapa).
+      Cada uno trae el municipio sugerido por su DPI (donde se inscribió: hay que confirmar que vive ahí).
+    parameters:
+      - {name: limite, in: query, type: integer, default: 100, description: "1 a 500"}
+    responses:
+      200:
+        description: "total y data [{id, nombre_completo, cui, fecha_nacimiento, telefono, atenciones_recientes, ultima_atencion, sugerido}]"
+    """
+    limite = request.args.get("limite", "100")
+    if not limite.isdigit() or not 1 <= int(limite) <= 500:
+        return jsonify(success=False, error="datos_invalidos", message="limite debe ser un número de 1 a 500"), 400
+    desde = datetime.now() - timedelta(days=90)
+    recientes = dict(db.session.query(ExpedienteClinico.paciente_id, db.func.count())
+                     .filter(ExpedienteClinico.fecha_atencion >= desde).group_by(ExpedienteClinico.paciente_id).all())
+    ultimas = dict(db.session.query(ExpedienteClinico.paciente_id, db.func.max(ExpedienteClinico.fecha_atencion))
+                   .group_by(ExpedienteClinico.paciente_id).all())
+    sin = Paciente.query.filter(db.or_(Paciente.municipio.is_(None), Paciente.municipio == "")).all()
+    sin.sort(key=lambda p: (-recientes.get(p.id, 0), -(ultimas[p.id].timestamp() if ultimas.get(p.id) else 0), p.nombre_completo))
+
+    def sugerido(p):
+        codigo = ubicaciones.desde_cui(p.cui)
+        return {"codigo": codigo, "nombre": ubicaciones.nombre_municipio(codigo),
+                "departamento": codigo[:2], "departamento_nombre": ubicaciones.nombre_departamento(codigo)} if codigo else None
+    return jsonify(success=True, total=len(sin), data=[{
+        "id": p.id, "nombre_completo": p.nombre_completo, "cui": p.cui, "telefono": p.telefono,
+        "fecha_nacimiento": str(p.fecha_nacimiento) if p.fecha_nacimiento else None,
+        "atenciones_recientes": recientes.get(p.id, 0),
+        "ultima_atencion": ultimas[p.id].isoformat(timespec="minutes") if ultimas.get(p.id) else None,
+        "sugerido": sugerido(p),
+    } for p in sin[:int(limite)]]), 200
 
 
 @pacientes_bp.route("/api/v1/salud/pacientes/posibles-duplicados", methods=["GET"])

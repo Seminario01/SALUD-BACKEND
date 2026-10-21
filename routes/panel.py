@@ -111,6 +111,13 @@ def _atencion_hoy():
             "completadas_7_dias": len(semana),
             "con_valores_fuera_de_rango_7_dias": sum(1 for o in semana if fuera(o)),
         }
+    if puede("vigilancia.ver"):
+        from routes.vigilancia import brotes_recientes
+        brotes = brotes_recientes()
+        resumen["vigilancia"] = {
+            "posibles_brotes": len(brotes),
+            "detalle": [f"{b['enfermedad']} en {b['nombre']} ({b['ultimos_7_dias']} casos en 7 días)" for b in brotes[:3]],
+        }
     if puede("citas.ver"):
         activos = ListaEspera.query.filter(ListaEspera.estado.in_(("ESPERANDO", "AVISADO"))).all()
         resumen["lista_espera"] = {

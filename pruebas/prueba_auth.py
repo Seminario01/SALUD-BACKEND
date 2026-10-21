@@ -1014,6 +1014,29 @@ dato("con nombre, edad, zona y diagnóstico", {c["paciente_id"] for c in lista} 
 bit = requests.get(API + "/bitacora/accesos?usuario=jefatura1&limite=50", headers=H("admin.salud")).json()["data"]
 dato("la bitácora anota que se consultó la lista", any(x["descripcion"] == "Consultó la lista de casos de vigilancia epidemiológica" for x in bit))
 
+print("--- Completar la residencia y alertas por enfermedad")
+sin = check("recepcion1 ve los pacientes sin residencia", "GET", "/pacientes/sin-residencia?limite=500", T["recepcion1"], 200).json()
+pid_dpi = requests.post(API + "/pacientes", headers=H("recepcion1"), json={
+    "nombre_completo": f"Residencia Pendiente {sufijo}", "cui": "".join(random.choice("0123456789") for _ in range(9)) + "0115"}).json()["data"]["id"]
+sin = requests.get(API + "/pacientes/sin-residencia?limite=500", headers=H("recepcion1")).json()
+nuevo_sin = next((x for x in sin["data"] if x["id"] == pid_dpi), None)
+dato("el paciente nuevo sin residencia aparece, con Villa Nueva sugerida por su DPI", nuevo_sin is not None
+     and nuevo_sin["sugerido"]["codigo"] == "0115" and nuevo_sin["sugerido"]["nombre"] == "Villa Nueva" and sin["total"] >= 1)
+dato("primero los que tienen atenciones recientes", [x["atenciones_recientes"] for x in sin["data"]] ==
+     sorted([x["atenciones_recientes"] for x in sin["data"]], reverse=True))
+check("medico1 NO completa residencias (es de Recepción)", "GET", "/pacientes/sin-residencia", T["medico1"], 403)
+check("límite fuera de rango", "GET", "/pacientes/sin-residencia?limite=0", T["recepcion1"], 400)
+check("recepcion1 le pone la residencia sugerida", "PUT", f"/pacientes/{pid_dpi}", T["recepcion1"], 200,
+      json={"municipio": "0115", "zona": "Zona 4"})
+dato("ya no está en la lista", not any(x["id"] == pid_dpi for x in
+                                       requests.get(API + "/pacientes/sin-residencia?limite=500", headers=H("recepcion1")).json()["data"]))
+r = requests.get(API + "/vigilancia/casos", headers=H("jefatura1")).json()
+dato("sin filtro de enfermedad, las alertas también salen por enfermedad (sarampión en Huehuetenango)",
+     any(a["municipio"] == "1301" and a["grupo"] == "exantematicas" for a in r["alertas_por_enfermedad"]))
+dato("con filtro de enfermedad no se repiten", requests.get(API + "/vigilancia/casos?grupo=diarreicas", headers=H("jefatura1")).json()["alertas_por_enfermedad"] == [])
+pv = requests.get(API + "/panel", headers=H("jefatura1")).json()["data"]["atencion_hoy"]["vigilancia"]
+dato("el inicio cuenta los posibles brotes y dice cuáles", pv["posibles_brotes"] >= 1 and any("Huehuetenango" in d for d in pv["detalle"]))
+
 print("--- Laboratorio clínico: orden, muestra, resultados e interpretación")
 LAB = "/laboratorio/ordenes"
 cat = check("enfermera1 ve el catálogo de exámenes", "GET", "/laboratorio/examenes", T["enfermera1"], 200).json()["data"]
@@ -1103,10 +1126,11 @@ check("indicadores sin api key", "GET", "/indicadores", None, 401)
 ind = check("indicadores con api key", "GET", "/indicadores", None, 200, headers={"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")}).json()
 dato("el contrato con Auditoría no cambia: /indicadores no trae la atención de hoy", "atencion_hoy" not in json.dumps(ind))
 hoy_jef = requests.get(API + "/panel", headers=H("jefatura1")).json()["data"]["atencion_hoy"]
-dato("Jefatura ve en el inicio urgencias, laboratorio y lista de espera", set(hoy_jef) == {"triage", "laboratorio", "lista_espera"}
+dato("Jefatura ve en el inicio urgencias, laboratorio, lista de espera y brotes", set(hoy_jef) == {"triage", "laboratorio", "lista_espera", "vigilancia"}
      and {"urgentes_en_espera", "excedidos"} <= set(hoy_jef["triage"]) and "por_atender" in hoy_jef["laboratorio"])
 dato("Farmacia no ve nada de eso (no es su pantalla)", requests.get(API + "/panel", headers=H("farmacia1")).json()["data"]["atencion_hoy"] == {})
-dato("Auditoría tampoco (sin datos clínicos)", requests.get(API + "/panel", headers=H("analista1")).json()["data"]["atencion_hoy"] == {})
+dato("Auditoría solo ve el resumen de posibles brotes (cifras, sin pacientes)",
+     set(requests.get(API + "/panel", headers=H("analista1")).json()["data"]["atencion_hoy"]) == {"vigilancia"})
 dato("Recepción ve urgencias y lista de espera, no laboratorio",
      set(requests.get(API + "/panel", headers=H("recepcion1")).json()["data"]["atencion_hoy"]) == {"triage", "lista_espera"})
 check("WS-SALUD-02 con tipoAtencion inválido", "GET", "/establecimientos/disponibilidad?tipoAtencion=CARDIOLOGIA", None, 400,
