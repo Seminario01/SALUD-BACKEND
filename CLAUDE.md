@@ -161,6 +161,20 @@ el médico ordena (`laboratorio.ordenar`), Enfermería toma la muestra y registr
 -> COMPLETADA (ya no se edita) o ANULADA. Resultados en JSON por examen. El ciudadano ve sus órdenes
 y los resultados solo cuando están completos.
 
+## Residencia y vigilancia epidemiológica
+
+`ubicaciones.py` + `datos/municipios_gt.json`: 22 departamentos y 340 municipios con el código del
+INE (el mismo de los últimos 4 dígitos del DPI, que es el lugar de inscripción, no de residencia).
+Fuente: límites de CONRED/OCHA (HDX `cod-ab-gtm`, CC BY-IGO); el frontend dibuja el mapa con
+`public/mapas/guatemala.geojson` (simplificado del mismo archivo). `pacientes.municipio` (4 dígitos)
+y `pacientes.zona` (texto) se validan contra el catálogo; los lagos (`..00`) no son residencia.
+`routes/vigilancia.py`: `GET /vigilancia/casos` (permiso `vigilancia.ver`, solo cifras) cuenta
+atenciones con CIE-10 por municipio de residencia, con filtros (período, grupo de `GRUPOS`, código,
+departamento, sexo, edad), tendencia semanal, tabla municipio × grupo y alertas de posible brote
+(últimos 7 días >= 3 casos y más del doble del promedio semanal de las 4 semanas anteriores). Sin
+`vigilancia.pacientes` los municipios con menos de 3 pacientes salen como `pocos`.
+`GET /vigilancia/pacientes?municipio=` (Médico y Jefatura) da quiénes son y queda en la bitácora.
+
 ## Reporte de diagnósticos
 
 `GET /reportes/diagnosticos` (`routes/reportes.py`, permiso `reportes.ver`: Médico, Jefatura,

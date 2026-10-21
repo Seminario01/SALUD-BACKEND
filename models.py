@@ -20,6 +20,9 @@ class Paciente(db.Model):
     tipo_seguro = db.Column(db.String(50))
     cuidador = db.Column(db.String(200))
     alergias = db.Column(db.String(500))            # "Penicilina, AINE" (texto libre; se revisa al recetar)
+    # Residencia (para la vigilancia epidemiológica): municipio con código del INE (ubicaciones.py)
+    municipio = db.Column(db.String(4), index=True)  # "0115" = Guatemala, Villa Nueva
+    zona = db.Column(db.String(120))                 # zona, colonia, aldea o caserío
     fecha_registro = db.Column(db.DateTime, default=datetime.utcnow)
 
 

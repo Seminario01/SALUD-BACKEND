@@ -5,6 +5,7 @@ from models import Paciente
 from auth import validar_token, requiere_permiso, puede
 from validacion import DatoInvalido, cui, fecha_pasada, opcion, telefono, texto
 from alertas_clinicas import parecido_nombre
+import ubicaciones
 
 GENEROS = ("M", "F", "Otro")
 SEGUROS = ("IGSS", "Privado", "Ninguno")
@@ -34,6 +35,8 @@ def _validar(data, actual=None):
         "tipo_seguro": lambda: opcion(data, "tipo_seguro", SEGUROS),
         "cuidador": lambda: texto(data, "cuidador", 200, etiqueta="cuidador"),
         "alergias": lambda: texto(data, "alergias", 500, etiqueta="Las alergias"),
+        "municipio": lambda: _municipio(data),
+        "zona": lambda: texto(data, "zona", 120, etiqueta="La zona o aldea"),
     }
     limpio = {}
     for campo, regla in reglas.items():
@@ -59,6 +62,14 @@ def _sub(data):
     return sub
 
 
+def _municipio(data):
+    """Código del INE del municipio de residencia (4 dígitos, de ubicaciones.py)."""
+    valor = texto(data, "municipio", 4, etiqueta="El municipio")
+    if valor is not None and not ubicaciones.municipio(valor):
+        raise DatoInvalido("El municipio no existe (use el código del INE, por ejemplo 0115 para Villa Nueva)")
+    return valor
+
+
 def serializar_paciente(p):
     return {
         "id": p.id,
@@ -70,6 +81,11 @@ def serializar_paciente(p):
         "tipo_seguro": p.tipo_seguro,
         "cuidador": p.cuidador,
         "alergias": p.alergias,
+        "municipio": p.municipio,
+        "municipio_nombre": ubicaciones.nombre_municipio(p.municipio),
+        "departamento": p.municipio[:2] if p.municipio else None,
+        "departamento_nombre": ubicaciones.nombre_departamento(p.municipio) if p.municipio else None,
+        "zona": p.zona,
         "tiene_cuenta": p.usuario_sub is not None,
     }
 
@@ -356,8 +372,8 @@ def actualizar_paciente(id):
         return jsonify(success=False, error="no_encontrado", message="Paciente no existe"), 404
 
     data = request.get_json(silent=True) or {}
-    # El propio ciudadano solo cambia sus datos de contacto; admin/recepción, todo.
-    permitidos = ["telefono", "tipo_seguro", "cuidador"]
+    # El propio ciudadano solo cambia sus datos de contacto y residencia; admin/recepción, todo.
+    permitidos = ["telefono", "tipo_seguro", "cuidador", "municipio", "zona"]   # residencia: también la cambia el ciudadano
     if puede("pacientes.registrar"):
         permitidos += ["nombre_completo", "cui", "fecha_nacimiento", "genero", "usuario_sub"]
     data = {campo: valor for campo, valor in data.items() if campo in permitidos}

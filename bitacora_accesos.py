@@ -40,6 +40,7 @@ VER = {
     "/citas/<int:id>": "Vio la cita No. {id}",
     "/constancias/<int:id>": "Vio la constancia No. {id}",
     "/laboratorio/ordenes/<int:id>": "Vio la orden de laboratorio No. {id}",
+    "/vigilancia/pacientes": "Consultó la lista de casos de vigilancia epidemiológica",
 }
 
 CAMBIOS = {

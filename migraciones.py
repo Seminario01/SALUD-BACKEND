@@ -83,6 +83,8 @@ COLUMNAS = [
     ("recetas", "alerta_interaccion", "VARCHAR(255) NULL"),
     ("expedientes_clinicos", "codigo_cie10", "VARCHAR(8) NULL"),
     ("turnos", "triage", "VARCHAR(10) NULL"),
+    ("pacientes", "municipio", "VARCHAR(4) NULL"),
+    ("pacientes", "zona", "VARCHAR(120) NULL"),
     ("turnos", "motivo_triage", "VARCHAR(255) NULL"),
     ("turnos", "triage_por", "VARCHAR(150) NULL"),
     ("turnos", "fecha_triage", "DATETIME NULL"),

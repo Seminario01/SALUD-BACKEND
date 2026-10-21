@@ -1,0 +1,2081 @@
+{
+ "departamentos": {
+  "01": "Guatemala",
+  "02": "El Progreso",
+  "03": "Sacatepéquez",
+  "04": "Chimaltenango",
+  "05": "Escuintla",
+  "06": "Santa Rosa",
+  "07": "Sololá",
+  "08": "Totonicapán",
+  "09": "Quetzaltenango",
+  "10": "Suchitepéquez",
+  "11": "Retalhuleu",
+  "12": "San Marcos",
+  "13": "Huehuetenango",
+  "14": "Quiché",
+  "15": "Baja Verapaz",
+  "16": "Alta Verapaz",
+  "17": "Petén",
+  "18": "Izabal",
+  "19": "Zacapa",
+  "20": "Chiquimula",
+  "21": "Jalapa",
+  "22": "Jutiapa"
+ },
+ "fuente": "CONRED / OCHA (HDX, cod-ab-gtm), licencia CC BY-IGO. Simplificado para la web.",
+ "municipios": {
+  "0100": {
+   "departamento": "01",
+   "lat": 14.4555,
+   "lon": -90.5664,
+   "nombre": "Lago De Amatitlan"
+  },
+  "0101": {
+   "departamento": "01",
+   "lat": 14.6268,
+   "lon": -90.48,
+   "nombre": "Guatemala"
+  },
+  "0102": {
+   "departamento": "01",
+   "lat": 14.5678,
+   "lon": -90.47,
+   "nombre": "Santa Catarina Pinula"
+  },
+  "0103": {
+   "departamento": "01",
+   "lat": 14.5499,
+   "lon": -90.3498,
+   "nombre": "San José Pinula"
+  },
+  "0104": {
+   "departamento": "01",
+   "lat": 14.785,
+   "lon": -90.3643,
+   "nombre": "San José del Golfo"
+  },
+  "0105": {
+   "departamento": "01",
+   "lat": 14.6786,
+   "lon": -90.3063,
+   "nombre": "Palencia"
+  },
+  "0106": {
+   "departamento": "01",
+   "lat": 14.7356,
+   "lon": -90.4932,
+   "nombre": "Chinautla"
+  },
+  "0107": {
+   "departamento": "01",
+   "lat": 14.7668,
+   "lon": -90.4464,
+   "nombre": "San Pedro Ayampuc"
+  },
+  "0108": {
+   "departamento": "01",
+   "lat": 14.6447,
+   "lon": -90.6029,
+   "nombre": "Mixco"
+  },
+  "0109": {
+   "departamento": "01",
+   "lat": 14.6864,
+   "lon": -90.6405,
+   "nombre": "San Pedro Sacatepéquez"
+  },
+  "0110": {
+   "departamento": "01",
+   "lat": 14.7791,
+   "lon": -90.6571,
+   "nombre": "San Juan Sacatepéquez"
+  },
+  "0111": {
+   "departamento": "01",
+   "lat": 14.7967,
+   "lon": -90.5437,
+   "nombre": "San Raimundo"
+  },
+  "0112": {
+   "departamento": "01",
+   "lat": 14.8529,
+   "lon": -90.4648,
+   "nombre": "Chuarrancho"
+  },
+  "0113": {
+   "departamento": "01",
+   "lat": 14.4557,
+   "lon": -90.4438,
+   "nombre": "Fraijanes"
+  },
+  "0114": {
+   "departamento": "01",
+   "lat": 14.4556,
+   "lon": -90.6101,
+   "nombre": "Amatitlán"
+  },
+  "0115": {
+   "departamento": "01",
+   "lat": 14.5327,
+   "lon": -90.611,
+   "nombre": "Villa Nueva"
+  },
+  "0116": {
+   "departamento": "01",
+   "lat": 14.3998,
+   "lon": -90.51,
+   "nombre": "Villa Canales"
+  },
+  "0117": {
+   "departamento": "01",
+   "lat": 14.5074,
+   "lon": -90.5582,
+   "nombre": "Petapa"
+  },
+  "0201": {
+   "departamento": "02",
+   "lat": 14.8522,
+   "lon": -90.0915,
+   "nombre": "Guastatoya"
+  },
+  "0202": {
+   "departamento": "02",
+   "lat": 14.992,
+   "lon": -90.1431,
+   "nombre": "Morazán"
+  },
+  "0203": {
+   "departamento": "02",
+   "lat": 15.0173,
+   "lon": -89.9918,
+   "nombre": "San Agustín Acasaguastlán"
+  },
+  "0204": {
+   "departamento": "02",
+   "lat": 15.0056,
+   "lon": -89.8866,
+   "nombre": "San Cristóbal Acasaguastlán"
+  },
+  "0205": {
+   "departamento": "02",
+   "lat": 14.8888,
+   "lon": -89.9178,
+   "nombre": "El Jícaro"
+  },
+  "0206": {
+   "departamento": "02",
+   "lat": 14.7769,
+   "lon": -90.1997,
+   "nombre": "Sanarate"
+  },
+  "0207": {
+   "departamento": "02",
+   "lat": 14.7525,
+   "lon": -90.1029,
+   "nombre": "Sansare"
+  },
+  "0208": {
+   "departamento": "02",
+   "lat": 14.7418,
+   "lon": -90.2745,
+   "nombre": "San Antonio La Paz"
+  },
+  "0301": {
+   "departamento": "03",
+   "lat": 14.5377,
+   "lon": -90.7217,
+   "nombre": "Antigua Guatemala"
+  },
+  "0302": {
+   "departamento": "03",
+   "lat": 14.5856,
+   "lon": -90.7375,
+   "nombre": "Jocotenango"
+  },
+  "0303": {
+   "departamento": "03",
+   "lat": 14.6023,
+   "lon": -90.7665,
+   "nombre": "Pastores"
+  },
+  "0304": {
+   "departamento": "03",
+   "lat": 14.6636,
+   "lon": -90.7463,
+   "nombre": "Sumpango"
+  },
+  "0305": {
+   "departamento": "03",
+   "lat": 14.6803,
+   "lon": -90.7009,
+   "nombre": "Santo Domingo Xenacoj"
+  },
+  "0306": {
+   "departamento": "03",
+   "lat": 14.6412,
+   "lon": -90.6804,
+   "nombre": "Santiago Sacatepéquez"
+  },
+  "0307": {
+   "departamento": "03",
+   "lat": 14.6009,
+   "lon": -90.6828,
+   "nombre": "San Bartolomé Milpas Altas"
+  },
+  "0308": {
+   "departamento": "03",
+   "lat": 14.5953,
+   "lon": -90.6519,
+   "nombre": "San Lucas Sacatepéquez"
+  },
+  "0309": {
+   "departamento": "03",
+   "lat": 14.5683,
+   "lon": -90.677,
+   "nombre": "Santa Lucía Milpas Altas"
+  },
+  "0310": {
+   "departamento": "03",
+   "lat": 14.5414,
+   "lon": -90.6755,
+   "nombre": "Magdalena Milpas Altas"
+  },
+  "0311": {
+   "departamento": "03",
+   "lat": 14.4766,
+   "lon": -90.7052,
+   "nombre": "Santa María de Jesús"
+  },
+  "0312": {
+   "departamento": "03",
+   "lat": 14.5078,
+   "lon": -90.7819,
+   "nombre": "Ciudad Vieja"
+  },
+  "0313": {
+   "departamento": "03",
+   "lat": 14.5304,
+   "lon": -90.8287,
+   "nombre": "San Miguel Dueñas"
+  },
+  "0314": {
+   "departamento": "03",
+   "lat": 14.4414,
+   "lon": -90.8119,
+   "nombre": "Alotenango"
+  },
+  "0315": {
+   "departamento": "03",
+   "lat": 14.5533,
+   "lon": -90.7767,
+   "nombre": "San Antonio Aguas Calientes"
+  },
+  "0316": {
+   "departamento": "03",
+   "lat": 14.5571,
+   "lon": -90.8091,
+   "nombre": "Santa Catarina Barahona"
+  },
+  "0401": {
+   "departamento": "04",
+   "lat": 14.686,
+   "lon": -90.836,
+   "nombre": "Chimaltenango"
+  },
+  "0402": {
+   "departamento": "04",
+   "lat": 14.8612,
+   "lon": -90.9139,
+   "nombre": "San José Poaquil"
+  },
+  "0403": {
+   "departamento": "04",
+   "lat": 14.8294,
+   "lon": -90.7728,
+   "nombre": "San Martín Jilotepeque"
+  },
+  "0404": {
+   "departamento": "04",
+   "lat": 14.7523,
+   "lon": -90.8998,
+   "nombre": "Comalapa"
+  },
+  "0405": {
+   "departamento": "04",
+   "lat": 14.8372,
+   "lon": -90.9539,
+   "nombre": "Santa Apolonia"
+  },
+  "0406": {
+   "departamento": "04",
+   "lat": 14.8109,
+   "lon": -91.0178,
+   "nombre": "Tecpán Guatemala"
+  },
+  "0407": {
+   "departamento": "04",
+   "lat": 14.6566,
+   "lon": -91.0315,
+   "nombre": "Patzún"
+  },
+  "0408": {
+   "departamento": "04",
+   "lat": 14.5315,
+   "lon": -91.0812,
+   "nombre": "Pochuta"
+  },
+  "0409": {
+   "departamento": "04",
+   "lat": 14.639,
+   "lon": -90.9357,
+   "nombre": "Patzicía"
+  },
+  "0410": {
+   "departamento": "04",
+   "lat": 14.6957,
+   "lon": -90.9308,
+   "nombre": "Santa Cruz Balanyá"
+  },
+  "0411": {
+   "departamento": "04",
+   "lat": 14.5501,
+   "lon": -90.9539,
+   "nombre": "Acatenango"
+  },
+  "0412": {
+   "departamento": "04",
+   "lat": 14.4501,
+   "lon": -91.0069,
+   "nombre": "Yepocapa"
+  },
+  "0413": {
+   "departamento": "04",
+   "lat": 14.6032,
+   "lon": -90.8615,
+   "nombre": "San Andrés Itzapa"
+  },
+  "0414": {
+   "departamento": "04",
+   "lat": 14.5936,
+   "lon": -90.8244,
+   "nombre": "Parramos"
+  },
+  "0415": {
+   "departamento": "04",
+   "lat": 14.6798,
+   "lon": -90.8896,
+   "nombre": "Zaragoza"
+  },
+  "0416": {
+   "departamento": "04",
+   "lat": 14.6796,
+   "lon": -90.7901,
+   "nombre": "El Tejar"
+  },
+  "0501": {
+   "departamento": "05",
+   "lat": 14.3079,
+   "lon": -90.8044,
+   "nombre": "Escuintla"
+  },
+  "0502": {
+   "departamento": "05",
+   "lat": 14.2945,
+   "lon": -91.0762,
+   "nombre": "Santa Lucía Cotzumalguapa"
+  },
+  "0503": {
+   "departamento": "05",
+   "lat": 14.1212,
+   "lon": -90.9585,
+   "nombre": "La Democracia"
+  },
+  "0504": {
+   "departamento": "05",
+   "lat": 14.3625,
+   "lon": -90.9378,
+   "nombre": "Siquinalá"
+  },
+  "0505": {
+   "departamento": "05",
+   "lat": 14.0987,
+   "lon": -90.8177,
+   "nombre": "Masagua"
+  },
+  "0506": {
+   "departamento": "05",
+   "lat": 14.1717,
+   "lon": -91.4004,
+   "nombre": "Tiquisate"
+  },
+  "0507": {
+   "departamento": "05",
+   "lat": 14.0841,
+   "lon": -91.1276,
+   "nombre": "La Gomera"
+  },
+  "0508": {
+   "departamento": "05",
+   "lat": 14.1586,
+   "lon": -90.6506,
+   "nombre": "Guanagazapa"
+  },
+  "0509": {
+   "departamento": "05",
+   "lat": 13.9711,
+   "lon": -90.8888,
+   "nombre": "San José"
+  },
+  "0510": {
+   "departamento": "05",
+   "lat": 13.9743,
+   "lon": -90.6902,
+   "nombre": "Iztapa"
+  },
+  "0511": {
+   "departamento": "05",
+   "lat": 14.3946,
+   "lon": -90.6984,
+   "nombre": "Palín"
+  },
+  "0512": {
+   "departamento": "05",
+   "lat": 14.3384,
+   "lon": -90.6591,
+   "nombre": "San Vicente Pacaya"
+  },
+  "0513": {
+   "departamento": "05",
+   "lat": 14.1293,
+   "lon": -91.293,
+   "nombre": "Nueva Concepción"
+  },
+  "0514": {
+   "departamento": "05",
+   "lat": 13.9628,
+   "lon": -91.1476,
+   "nombre": "Sipacate"
+  },
+  "0601": {
+   "departamento": "06",
+   "lat": 14.248,
+   "lon": -90.2887,
+   "nombre": "Cuilapa"
+  },
+  "0602": {
+   "departamento": "06",
+   "lat": 14.3028,
+   "lon": -90.3996,
+   "nombre": "Barberena"
+  },
+  "0603": {
+   "departamento": "06",
+   "lat": 14.4355,
+   "lon": -90.3591,
+   "nombre": "Santa Rosa de Lima"
+  },
+  "0604": {
+   "departamento": "06",
+   "lat": 14.3896,
+   "lon": -90.1587,
+   "nombre": "Casillas"
+  },
+  "0605": {
+   "departamento": "06",
+   "lat": 14.4469,
+   "lon": -90.1568,
+   "nombre": "San Rafael Las Flores"
+  },
+  "0606": {
+   "departamento": "06",
+   "lat": 14.1167,
+   "lon": -90.1328,
+   "nombre": "Oratorio"
+  },
+  "0607": {
+   "departamento": "06",
+   "lat": 14.0735,
+   "lon": -90.2616,
+   "nombre": "San Juan Tecuaco"
+  },
+  "0608": {
+   "departamento": "06",
+   "lat": 13.9873,
+   "lon": -90.3616,
+   "nombre": "Chiquimulilla"
+  },
+  "0609": {
+   "departamento": "06",
+   "lat": 14.039,
+   "lon": -90.5564,
+   "nombre": "Taxisco"
+  },
+  "0610": {
+   "departamento": "06",
+   "lat": 14.1467,
+   "lon": -90.2592,
+   "nombre": "Santa María Ixhuatán"
+  },
+  "0611": {
+   "departamento": "06",
+   "lat": 14.0064,
+   "lon": -90.4298,
+   "nombre": "Guazacapán"
+  },
+  "0612": {
+   "departamento": "06",
+   "lat": 14.3832,
+   "lon": -90.3703,
+   "nombre": "Santa Cruz Naranjo"
+  },
+  "0613": {
+   "departamento": "06",
+   "lat": 14.2336,
+   "lon": -90.5253,
+   "nombre": "Pueblo Nuevo Viñas"
+  },
+  "0614": {
+   "departamento": "06",
+   "lat": 14.3902,
+   "lon": -90.2679,
+   "nombre": "Nueva Santa Rosa"
+  },
+  "0700": {
+   "departamento": "07",
+   "lat": 14.6786,
+   "lon": -91.1841,
+   "nombre": "Lago De Atitlan"
+  },
+  "0701": {
+   "departamento": "07",
+   "lat": 14.8174,
+   "lon": -91.1821,
+   "nombre": "Sololá"
+  },
+  "0702": {
+   "departamento": "07",
+   "lat": 14.7762,
+   "lon": -91.2276,
+   "nombre": "San José Chacayá"
+  },
+  "0703": {
+   "departamento": "07",
+   "lat": 14.7012,
+   "lon": -91.3328,
+   "nombre": "Santa María Visitación"
+  },
+  "0704": {
+   "departamento": "07",
+   "lat": 14.7822,
+   "lon": -91.269,
+   "nombre": "Santa Lucía Utatlán"
+  },
+  "0705": {
+   "departamento": "07",
+   "lat": 14.7342,
+   "lon": -91.4431,
+   "nombre": "Nahualá"
+  },
+  "0706": {
+   "departamento": "07",
+   "lat": 14.7118,
+   "lon": -91.381,
+   "nombre": "Santa Catarina Ixtahuacán"
+  },
+  "0707": {
+   "departamento": "07",
+   "lat": 14.7205,
+   "lon": -91.2971,
+   "nombre": "Santa Clara La Laguna"
+  },
+  "0708": {
+   "departamento": "07",
+   "lat": 14.7836,
+   "lon": -91.1342,
+   "nombre": "Concepción"
+  },
+  "0709": {
+   "departamento": "07",
+   "lat": 14.7541,
+   "lon": -91.1108,
+   "nombre": "San Andrés Semetabaj"
+  },
+  "0710": {
+   "departamento": "07",
+   "lat": 14.7491,
+   "lon": -91.1534,
+   "nombre": "Panajachel"
+  },
+  "0711": {
+   "departamento": "07",
+   "lat": 14.719,
+   "lon": -91.1289,
+   "nombre": "Santa Catarina Palopó"
+  },
+  "0712": {
+   "departamento": "07",
+   "lat": 14.6657,
+   "lon": -91.1032,
+   "nombre": "San Antonio Palopó"
+  },
+  "0713": {
+   "departamento": "07",
+   "lat": 14.59,
+   "lon": -91.1496,
+   "nombre": "San Lucas Tolimán"
+  },
+  "0714": {
+   "departamento": "07",
+   "lat": 14.7448,
+   "lon": -91.2232,
+   "nombre": "Santa Cruz La Laguna"
+  },
+  "0715": {
+   "departamento": "07",
+   "lat": 14.7355,
+   "lon": -91.2813,
+   "nombre": "San Pablo La Laguna"
+  },
+  "0716": {
+   "departamento": "07",
+   "lat": 14.7326,
+   "lon": -91.2601,
+   "nombre": "San Marcos La Laguna"
+  },
+  "0717": {
+   "departamento": "07",
+   "lat": 14.6734,
+   "lon": -91.3074,
+   "nombre": "San Juan La Laguna"
+  },
+  "0718": {
+   "departamento": "07",
+   "lat": 14.6478,
+   "lon": -91.2683,
+   "nombre": "San Pedro La Laguna"
+  },
+  "0719": {
+   "departamento": "07",
+   "lat": 14.5991,
+   "lon": -91.2423,
+   "nombre": "Santiago Atitlán"
+  },
+  "0801": {
+   "departamento": "08",
+   "lat": 14.8921,
+   "lon": -91.3105,
+   "nombre": "Totonicapán"
+  },
+  "0802": {
+   "departamento": "08",
+   "lat": 14.9264,
+   "lon": -91.4626,
+   "nombre": "San Cristóbal Totonicapán"
+  },
+  "0803": {
+   "departamento": "08",
+   "lat": 14.9757,
+   "lon": -91.498,
+   "nombre": "San Francisco El Alto"
+  },
+  "0804": {
+   "departamento": "08",
+   "lat": 14.9107,
+   "lon": -91.4973,
+   "nombre": "San Andrés Xecul"
+  },
+  "0805": {
+   "departamento": "08",
+   "lat": 15.1097,
+   "lon": -91.366,
+   "nombre": "Momostenango"
+  },
+  "0806": {
+   "departamento": "08",
+   "lat": 15.0368,
+   "lon": -91.3254,
+   "nombre": "Santa María Chiquimula"
+  },
+  "0807": {
+   "departamento": "08",
+   "lat": 15.1524,
+   "lon": -91.2813,
+   "nombre": "Santa Lucía La Reforma"
+  },
+  "0808": {
+   "departamento": "08",
+   "lat": 15.1089,
+   "lon": -91.4693,
+   "nombre": "San Bartolo"
+  },
+  "0901": {
+   "departamento": "09",
+   "lat": 14.8136,
+   "lon": -91.5427,
+   "nombre": "Quetzaltenango"
+  },
+  "0902": {
+   "departamento": "09",
+   "lat": 14.8771,
+   "lon": -91.4623,
+   "nombre": "Salcajá"
+  },
+  "0903": {
+   "departamento": "09",
+   "lat": 14.8936,
+   "lon": -91.5382,
+   "nombre": "Olintepeque"
+  },
+  "0904": {
+   "departamento": "09",
+   "lat": 15.0791,
+   "lon": -91.5677,
+   "nombre": "San Carlos Sija"
+  },
+  "0905": {
+   "departamento": "09",
+   "lat": 14.991,
+   "lon": -91.6393,
+   "nombre": "Sibilia"
+  },
+  "0906": {
+   "departamento": "09",
+   "lat": 15.1061,
+   "lon": -91.6576,
+   "nombre": "Cabricán"
+  },
+  "0907": {
+   "departamento": "09",
+   "lat": 14.9369,
+   "lon": -91.62,
+   "nombre": "Cajolá"
+  },
+  "0908": {
+   "departamento": "09",
+   "lat": 14.9015,
+   "lon": -91.6045,
+   "nombre": "San Miguel Sigüila"
+  },
+  "0909": {
+   "departamento": "09",
+   "lat": 14.8616,
+   "lon": -91.6962,
+   "nombre": "Ostuncalco"
+  },
+  "0910": {
+   "departamento": "09",
+   "lat": 14.8429,
+   "lon": -91.5826,
+   "nombre": "San Mateo"
+  },
+  "0911": {
+   "departamento": "09",
+   "lat": 14.8438,
+   "lon": -91.619,
+   "nombre": "Concepción Chiquirichapa"
+  },
+  "0912": {
+   "departamento": "09",
+   "lat": 14.7844,
+   "lon": -91.6586,
+   "nombre": "San Martín Sacatepéquez"
+  },
+  "0913": {
+   "departamento": "09",
+   "lat": 14.8114,
+   "lon": -91.4859,
+   "nombre": "Almolonga"
+  },
+  "0914": {
+   "departamento": "09",
+   "lat": 14.814,
+   "lon": -91.4371,
+   "nombre": "Cantel"
+  },
+  "0915": {
+   "departamento": "09",
+   "lat": 15.0426,
+   "lon": -91.6342,
+   "nombre": "Huitán"
+  },
+  "0916": {
+   "departamento": "09",
+   "lat": 14.7427,
+   "lon": -91.4968,
+   "nombre": "Zunil"
+  },
+  "0917": {
+   "departamento": "09",
+   "lat": 14.6975,
+   "lon": -91.7507,
+   "nombre": "Colomba"
+  },
+  "0918": {
+   "departamento": "09",
+   "lat": 14.9259,
+   "lon": -91.5466,
+   "nombre": "San Francisco La Unión"
+  },
+  "0919": {
+   "departamento": "09",
+   "lat": 14.6983,
+   "lon": -91.5995,
+   "nombre": "El Palmar"
+  },
+  "0920": {
+   "departamento": "09",
+   "lat": 14.6318,
+   "lon": -92.0107,
+   "nombre": "Coatepeque"
+  },
+  "0921": {
+   "departamento": "09",
+   "lat": 14.5877,
+   "lon": -91.8354,
+   "nombre": "Génova"
+  },
+  "0922": {
+   "departamento": "09",
+   "lat": 14.633,
+   "lon": -91.8644,
+   "nombre": "Flores Costa Cuca"
+  },
+  "0923": {
+   "departamento": "09",
+   "lat": 14.8766,
+   "lon": -91.5765,
+   "nombre": "La Esperanza"
+  },
+  "0924": {
+   "departamento": "09",
+   "lat": 14.936,
+   "lon": -91.6701,
+   "nombre": "Palestina de Los Altos"
+  },
+  "1001": {
+   "departamento": "10",
+   "lat": 14.5055,
+   "lon": -91.5377,
+   "nombre": "Mazatenango"
+  },
+  "1002": {
+   "departamento": "10",
+   "lat": 14.4951,
+   "lon": -91.5682,
+   "nombre": "Cuyotenango"
+  },
+  "1003": {
+   "departamento": "10",
+   "lat": 14.6329,
+   "lon": -91.5207,
+   "nombre": "San Francisco Zapotitlán"
+  },
+  "1004": {
+   "departamento": "10",
+   "lat": 14.5332,
+   "lon": -91.4558,
+   "nombre": "San Bernardino"
+  },
+  "1005": {
+   "departamento": "10",
+   "lat": 14.3729,
+   "lon": -91.4286,
+   "nombre": "San José El Ídolo"
+  },
+  "1006": {
+   "departamento": "10",
+   "lat": 14.2824,
+   "lon": -91.4971,
+   "nombre": "Santo Domingo Suchitepéquez"
+  },
+  "1007": {
+   "departamento": "10",
+   "lat": 14.2798,
+   "lon": -91.5221,
+   "nombre": "San Lorenzo"
+  },
+  "1008": {
+   "departamento": "10",
+   "lat": 14.5727,
+   "lon": -91.4705,
+   "nombre": "Samayac"
+  },
+  "1009": {
+   "departamento": "10",
+   "lat": 14.5945,
+   "lon": -91.4311,
+   "nombre": "San Pablo Jocopilas"
+  },
+  "1010": {
+   "departamento": "10",
+   "lat": 14.5144,
+   "lon": -91.4078,
+   "nombre": "San Antonio Suchitepéquez"
+  },
+  "1011": {
+   "departamento": "10",
+   "lat": 14.5036,
+   "lon": -91.3591,
+   "nombre": "San Miguel Panán"
+  },
+  "1012": {
+   "departamento": "10",
+   "lat": 14.5087,
+   "lon": -91.5137,
+   "nombre": "San Gabriel"
+  },
+  "1013": {
+   "departamento": "10",
+   "lat": 14.4867,
+   "lon": -91.3303,
+   "nombre": "Chicacao"
+  },
+  "1014": {
+   "departamento": "10",
+   "lat": 14.387,
+   "lon": -91.1864,
+   "nombre": "Patulul"
+  },
+  "1015": {
+   "departamento": "10",
+   "lat": 14.4728,
+   "lon": -91.2476,
+   "nombre": "Santa Bárbara"
+  },
+  "1016": {
+   "departamento": "10",
+   "lat": 14.4338,
+   "lon": -91.1878,
+   "nombre": "San Juan Bautista"
+  },
+  "1017": {
+   "departamento": "10",
+   "lat": 14.6192,
+   "lon": -91.4119,
+   "nombre": "Santo Tomás La Unión"
+  },
+  "1018": {
+   "departamento": "10",
+   "lat": 14.6329,
+   "lon": -91.497,
+   "nombre": "Zunilito"
+  },
+  "1019": {
+   "departamento": "10",
+   "lat": 14.6681,
+   "lon": -91.5301,
+   "nombre": "Pueblo Nuevo"
+  },
+  "1020": {
+   "departamento": "10",
+   "lat": 14.3856,
+   "lon": -91.3361,
+   "nombre": "Río Bravo"
+  },
+  "1021": {
+   "departamento": "10",
+   "lat": 14.2657,
+   "lon": -91.5825,
+   "nombre": "San José La Máquina"
+  },
+  "1101": {
+   "departamento": "11",
+   "lat": 14.391,
+   "lon": -91.737,
+   "nombre": "Retalhuleu"
+  },
+  "1102": {
+   "departamento": "11",
+   "lat": 14.5596,
+   "lon": -91.6518,
+   "nombre": "San Sebastián"
+  },
+  "1103": {
+   "departamento": "11",
+   "lat": 14.4499,
+   "lon": -91.6545,
+   "nombre": "Santa Cruz Muluá"
+  },
+  "1104": {
+   "departamento": "11",
+   "lat": 14.614,
+   "lon": -91.5954,
+   "nombre": "San Martín Zapotitlán"
+  },
+  "1105": {
+   "departamento": "11",
+   "lat": 14.6377,
+   "lon": -91.5731,
+   "nombre": "San Felipe"
+  },
+  "1106": {
+   "departamento": "11",
+   "lat": 14.3806,
+   "lon": -91.634,
+   "nombre": "San Andrés Villa Seca"
+  },
+  "1107": {
+   "departamento": "11",
+   "lat": 14.3339,
+   "lon": -91.8776,
+   "nombre": "Champerico"
+  },
+  "1108": {
+   "departamento": "11",
+   "lat": 14.6289,
+   "lon": -91.6899,
+   "nombre": "Nuevo San Carlos"
+  },
+  "1109": {
+   "departamento": "11",
+   "lat": 14.5887,
+   "lon": -91.7496,
+   "nombre": "El Asintal"
+  },
+  "1201": {
+   "departamento": "12",
+   "lat": 14.9935,
+   "lon": -91.8365,
+   "nombre": "San Marcos"
+  },
+  "1202": {
+   "departamento": "12",
+   "lat": 14.9564,
+   "lon": -91.7694,
+   "nombre": "San Pedro Sacatepéquez"
+  },
+  "1203": {
+   "departamento": "12",
+   "lat": 14.9665,
+   "lon": -91.7125,
+   "nombre": "San Antonio Sacatepéquez"
+  },
+  "1204": {
+   "departamento": "12",
+   "lat": 15.1198,
+   "lon": -91.7326,
+   "nombre": "Comitancillo"
+  },
+  "1205": {
+   "departamento": "12",
+   "lat": 15.2696,
+   "lon": -91.7189,
+   "nombre": "San Miguel Ixtahuacán"
+  },
+  "1206": {
+   "departamento": "12",
+   "lat": 15.2902,
+   "lon": -91.8764,
+   "nombre": "Concepción Tutuapa"
+  },
+  "1207": {
+   "departamento": "12",
+   "lat": 15.2952,
+   "lon": -92.1336,
+   "nombre": "Tacaná"
+  },
+  "1208": {
+   "departamento": "12",
+   "lat": 15.1264,
+   "lon": -92.0566,
+   "nombre": "Sibinal"
+  },
+  "1209": {
+   "departamento": "12",
+   "lat": 15.0586,
+   "lon": -91.9739,
+   "nombre": "Tajumulco"
+  },
+  "1210": {
+   "departamento": "12",
+   "lat": 15.1537,
+   "lon": -91.8176,
+   "nombre": "Tejutla"
+  },
+  "1211": {
+   "departamento": "12",
+   "lat": 14.9321,
+   "lon": -91.9079,
+   "nombre": "San Rafael Pie de la Cuesta"
+  },
+  "1212": {
+   "departamento": "12",
+   "lat": 14.8152,
+   "lon": -91.8887,
+   "nombre": "Nuevo Progreso"
+  },
+  "1213": {
+   "departamento": "12",
+   "lat": 14.8448,
+   "lon": -91.9426,
+   "nombre": "El Tumbador"
+  },
+  "1214": {
+   "departamento": "12",
+   "lat": 14.8866,
+   "lon": -92.0006,
+   "nombre": "El Rodeo"
+  },
+  "1215": {
+   "departamento": "12",
+   "lat": 14.9144,
+   "lon": -92.0915,
+   "nombre": "Malacatán"
+  },
+  "1216": {
+   "departamento": "12",
+   "lat": 14.8481,
+   "lon": -92.0702,
+   "nombre": "Catarina"
+  },
+  "1217": {
+   "departamento": "12",
+   "lat": 14.7061,
+   "lon": -92.1351,
+   "nombre": "Ayutla"
+  },
+  "1218": {
+   "departamento": "12",
+   "lat": 14.5589,
+   "lon": -92.1808,
+   "nombre": "Ocós"
+  },
+  "1219": {
+   "departamento": "12",
+   "lat": 14.9766,
+   "lon": -91.9328,
+   "nombre": "San Pablo"
+  },
+  "1220": {
+   "departamento": "12",
+   "lat": 14.7946,
+   "lon": -91.7945,
+   "nombre": "El Quetzal"
+  },
+  "1221": {
+   "departamento": "12",
+   "lat": 14.8201,
+   "lon": -91.8232,
+   "nombre": "La Reforma"
+  },
+  "1222": {
+   "departamento": "12",
+   "lat": 14.7182,
+   "lon": -92.0714,
+   "nombre": "Pajapita"
+  },
+  "1223": {
+   "departamento": "12",
+   "lat": 15.1323,
+   "lon": -91.9067,
+   "nombre": "Ixchiguán"
+  },
+  "1224": {
+   "departamento": "12",
+   "lat": 15.2377,
+   "lon": -91.9645,
+   "nombre": "San José Ojetenam"
+  },
+  "1225": {
+   "departamento": "12",
+   "lat": 14.885,
+   "lon": -91.7631,
+   "nombre": "San Cristóbal Cucho"
+  },
+  "1226": {
+   "departamento": "12",
+   "lat": 15.1945,
+   "lon": -91.659,
+   "nombre": "Sipacapa"
+  },
+  "1227": {
+   "departamento": "12",
+   "lat": 14.9248,
+   "lon": -91.8417,
+   "nombre": "Esquipulas Palo Gordo"
+  },
+  "1228": {
+   "departamento": "12",
+   "lat": 15.0477,
+   "lon": -91.6795,
+   "nombre": "Río Blanco"
+  },
+  "1229": {
+   "departamento": "12",
+   "lat": 15.0265,
+   "lon": -91.7468,
+   "nombre": "San Lorenzo"
+  },
+  "1230": {
+   "departamento": "12",
+   "lat": 14.5513,
+   "lon": -92.113,
+   "nombre": "La Blanca"
+  },
+  "1301": {
+   "departamento": "13",
+   "lat": 15.303,
+   "lon": -91.3346,
+   "nombre": "Huehuetenango"
+  },
+  "1302": {
+   "departamento": "13",
+   "lat": 15.5005,
+   "lon": -91.4252,
+   "nombre": "Chiantla"
+  },
+  "1303": {
+   "departamento": "13",
+   "lat": 15.2343,
+   "lon": -91.4778,
+   "nombre": "Malacatancito"
+  },
+  "1304": {
+   "departamento": "13",
+   "lat": 15.4564,
+   "lon": -91.973,
+   "nombre": "Cuilco"
+  },
+  "1305": {
+   "departamento": "13",
+   "lat": 15.934,
+   "lon": -91.6807,
+   "nombre": "Nentón"
+  },
+  "1306": {
+   "departamento": "13",
+   "lat": 15.5324,
+   "lon": -91.7519,
+   "nombre": "San Pedro Necta"
+  },
+  "1307": {
+   "departamento": "13",
+   "lat": 15.7494,
+   "lon": -91.721,
+   "nombre": "Jacaltenango"
+  },
+  "1308": {
+   "departamento": "13",
+   "lat": 15.697,
+   "lon": -91.4308,
+   "nombre": "Soloma"
+  },
+  "1309": {
+   "departamento": "13",
+   "lat": 15.4254,
+   "lon": -91.8093,
+   "nombre": "Ixtahuacán"
+  },
+  "1310": {
+   "departamento": "13",
+   "lat": 15.3321,
+   "lon": -91.6203,
+   "nombre": "Santa Bárbara"
+  },
+  "1311": {
+   "departamento": "13",
+   "lat": 15.5392,
+   "lon": -91.8822,
+   "nombre": "La Libertad"
+  },
+  "1312": {
+   "departamento": "13",
+   "lat": 15.6177,
+   "lon": -91.8689,
+   "nombre": "La Democracia"
+  },
+  "1313": {
+   "departamento": "13",
+   "lat": 15.7489,
+   "lon": -91.6253,
+   "nombre": "San Miguel Acatán"
+  },
+  "1314": {
+   "departamento": "13",
+   "lat": 15.7281,
+   "lon": -91.5211,
+   "nombre": "San Rafael La Independencia"
+  },
+  "1315": {
+   "departamento": "13",
+   "lat": 15.5623,
+   "lon": -91.6047,
+   "nombre": "Todos Santos Cuchumatán"
+  },
+  "1316": {
+   "departamento": "13",
+   "lat": 15.4741,
+   "lon": -91.6258,
+   "nombre": "San Juan Atitán"
+  },
+  "1317": {
+   "departamento": "13",
+   "lat": 15.7504,
+   "lon": -91.3179,
+   "nombre": "Santa Eulalia"
+  },
+  "1318": {
+   "departamento": "13",
+   "lat": 15.9311,
+   "lon": -91.4462,
+   "nombre": "San Mateo Ixtatán"
+  },
+  "1319": {
+   "departamento": "13",
+   "lat": 15.4429,
+   "lon": -91.7101,
+   "nombre": "Colotenango"
+  },
+  "1320": {
+   "departamento": "13",
+   "lat": 15.4266,
+   "lon": -91.5556,
+   "nombre": "San Sebastián Huehuetenango"
+  },
+  "1321": {
+   "departamento": "13",
+   "lat": 15.3627,
+   "lon": -92.0273,
+   "nombre": "Tectitán"
+  },
+  "1322": {
+   "departamento": "13",
+   "lat": 15.6424,
+   "lon": -91.6642,
+   "nombre": "Concepción Huista"
+  },
+  "1323": {
+   "departamento": "13",
+   "lat": 15.6414,
+   "lon": -91.4266,
+   "nombre": "San Juan Ixcoy"
+  },
+  "1324": {
+   "departamento": "13",
+   "lat": 15.6568,
+   "lon": -91.7845,
+   "nombre": "San Antonio Huista"
+  },
+  "1325": {
+   "departamento": "13",
+   "lat": 15.801,
+   "lon": -91.5918,
+   "nombre": "San Sebastián Coatán"
+  },
+  "1326": {
+   "departamento": "13",
+   "lat": 15.9141,
+   "lon": -91.1927,
+   "nombre": "Barillas"
+  },
+  "1327": {
+   "departamento": "13",
+   "lat": 15.4056,
+   "lon": -91.3183,
+   "nombre": "Aguacatán"
+  },
+  "1328": {
+   "departamento": "13",
+   "lat": 15.4108,
+   "lon": -91.6714,
+   "nombre": "San Rafael Petzal"
+  },
+  "1329": {
+   "departamento": "13",
+   "lat": 15.3748,
+   "lon": -91.71,
+   "nombre": "San Gaspar Ixchil"
+  },
+  "1330": {
+   "departamento": "13",
+   "lat": 15.5101,
+   "lon": -91.6872,
+   "nombre": "Santiago Chimaltenango"
+  },
+  "1331": {
+   "departamento": "13",
+   "lat": 15.7464,
+   "lon": -91.8448,
+   "nombre": "Santa Ana Huista"
+  },
+  "1332": {
+   "departamento": "13",
+   "lat": 15.5873,
+   "lon": -91.7377,
+   "nombre": "Unión Cantinil"
+  },
+  "1333": {
+   "departamento": "13",
+   "lat": 15.6138,
+   "lon": -91.754,
+   "nombre": "Petatán"
+  },
+  "1401": {
+   "departamento": "14",
+   "lat": 15.0265,
+   "lon": -91.1266,
+   "nombre": "Santa Cruz del Quiché"
+  },
+  "1402": {
+   "departamento": "14",
+   "lat": 15.0089,
+   "lon": -91.0338,
+   "nombre": "Chiché"
+  },
+  "1403": {
+   "departamento": "14",
+   "lat": 15.0691,
+   "lon": -91.0228,
+   "nombre": "Chinique"
+  },
+  "1404": {
+   "departamento": "14",
+   "lat": 15.0913,
+   "lon": -90.889,
+   "nombre": "Zacualpa"
+  },
+  "1405": {
+   "departamento": "14",
+   "lat": 15.6068,
+   "lon": -90.9986,
+   "nombre": "Chajul"
+  },
+  "1406": {
+   "departamento": "14",
+   "lat": 14.889,
+   "lon": -91.0924,
+   "nombre": "Chichicastenango"
+  },
+  "1407": {
+   "departamento": "14",
+   "lat": 14.9709,
+   "lon": -91.1967,
+   "nombre": "Patzité"
+  },
+  "1408": {
+   "departamento": "14",
+   "lat": 15.0565,
+   "lon": -91.2171,
+   "nombre": "San Antonio Ilotenango"
+  },
+  "1409": {
+   "departamento": "14",
+   "lat": 15.1625,
+   "lon": -91.1633,
+   "nombre": "San Pedro Jocopilas"
+  },
+  "1410": {
+   "departamento": "14",
+   "lat": 15.3709,
+   "lon": -91.0229,
+   "nombre": "Cunén"
+  },
+  "1411": {
+   "departamento": "14",
+   "lat": 15.4259,
+   "lon": -91.0095,
+   "nombre": "San Juan Cotzal"
+  },
+  "1412": {
+   "departamento": "14",
+   "lat": 15.0078,
+   "lon": -90.8148,
+   "nombre": "Joyabaj"
+  },
+  "1413": {
+   "departamento": "14",
+   "lat": 15.6057,
+   "lon": -91.1829,
+   "nombre": "Nebaj"
+  },
+  "1414": {
+   "departamento": "14",
+   "lat": 15.2238,
+   "lon": -90.9315,
+   "nombre": "San Andrés Sajcabajá"
+  },
+  "1415": {
+   "departamento": "14",
+   "lat": 15.482,
+   "lon": -90.8418,
+   "nombre": "Uspantán"
+  },
+  "1416": {
+   "departamento": "14",
+   "lat": 15.2671,
+   "lon": -91.1255,
+   "nombre": "Sacapulas"
+  },
+  "1417": {
+   "departamento": "14",
+   "lat": 15.1824,
+   "lon": -91.0159,
+   "nombre": "San Bartolomé Jocotenango"
+  },
+  "1418": {
+   "departamento": "14",
+   "lat": 15.2021,
+   "lon": -90.8619,
+   "nombre": "Canillá"
+  },
+  "1419": {
+   "departamento": "14",
+   "lat": 15.399,
+   "lon": -90.7448,
+   "nombre": "Chicamán"
+  },
+  "1420": {
+   "departamento": "14",
+   "lat": 15.8805,
+   "lon": -90.9035,
+   "nombre": "Ixcán"
+  },
+  "1421": {
+   "departamento": "14",
+   "lat": 14.9268,
+   "lon": -90.6601,
+   "nombre": "Pachalum"
+  },
+  "1501": {
+   "departamento": "15",
+   "lat": 15.0528,
+   "lon": -90.3246,
+   "nombre": "Salamá"
+  },
+  "1502": {
+   "departamento": "15",
+   "lat": 15.141,
+   "lon": -90.4199,
+   "nombre": "San Miguel Chicaj"
+  },
+  "1503": {
+   "departamento": "15",
+   "lat": 15.1326,
+   "lon": -90.5297,
+   "nombre": "Rabinal"
+  },
+  "1504": {
+   "departamento": "15",
+   "lat": 15.155,
+   "lon": -90.6949,
+   "nombre": "Cubulco"
+  },
+  "1505": {
+   "departamento": "15",
+   "lat": 14.9408,
+   "lon": -90.5765,
+   "nombre": "Granados"
+  },
+  "1506": {
+   "departamento": "15",
+   "lat": 14.9492,
+   "lon": -90.493,
+   "nombre": "El Chol"
+  },
+  "1507": {
+   "departamento": "15",
+   "lat": 15.0515,
+   "lon": -90.2107,
+   "nombre": "San Jerónimo"
+  },
+  "1508": {
+   "departamento": "15",
+   "lat": 15.2178,
+   "lon": -90.0199,
+   "nombre": "Purulhá"
+  },
+  "1601": {
+   "departamento": "16",
+   "lat": 15.6848,
+   "lon": -90.5578,
+   "nombre": "Cobán"
+  },
+  "1602": {
+   "departamento": "16",
+   "lat": 15.3336,
+   "lon": -90.4074,
+   "nombre": "Santa Cruz Verapaz"
+  },
+  "1603": {
+   "departamento": "16",
+   "lat": 15.3836,
+   "lon": -90.5756,
+   "nombre": "San Cristóbal Verapaz"
+  },
+  "1604": {
+   "departamento": "16",
+   "lat": 15.2939,
+   "lon": -90.3403,
+   "nombre": "Tactic"
+  },
+  "1605": {
+   "departamento": "16",
+   "lat": 15.303,
+   "lon": -90.2443,
+   "nombre": "Tamahú"
+  },
+  "1606": {
+   "departamento": "16",
+   "lat": 15.307,
+   "lon": -90.0699,
+   "nombre": "Tucurú"
+  },
+  "1607": {
+   "departamento": "16",
+   "lat": 15.3232,
+   "lon": -89.669,
+   "nombre": "Panzós"
+  },
+  "1608": {
+   "departamento": "16",
+   "lat": 15.4257,
+   "lon": -89.7978,
+   "nombre": "Senahú"
+  },
+  "1609": {
+   "departamento": "16",
+   "lat": 15.5768,
+   "lon": -90.2026,
+   "nombre": "San Pedro Carchá"
+  },
+  "1610": {
+   "departamento": "16",
+   "lat": 15.395,
+   "lon": -90.2496,
+   "nombre": "San Juan Chamelco"
+  },
+  "1611": {
+   "departamento": "16",
+   "lat": 15.5763,
+   "lon": -89.9883,
+   "nombre": "Lanquín"
+  },
+  "1612": {
+   "departamento": "16",
+   "lat": 15.6116,
+   "lon": -89.7341,
+   "nombre": "Cahabón"
+  },
+  "1613": {
+   "departamento": "16",
+   "lat": 15.8893,
+   "lon": -90.3388,
+   "nombre": "Chisec"
+  },
+  "1614": {
+   "departamento": "16",
+   "lat": 15.7378,
+   "lon": -89.5683,
+   "nombre": "Chahal"
+  },
+  "1615": {
+   "departamento": "16",
+   "lat": 15.8858,
+   "lon": -89.7256,
+   "nombre": "Fray Bartolomé de Las Casas"
+  },
+  "1616": {
+   "departamento": "16",
+   "lat": 15.2507,
+   "lon": -89.8307,
+   "nombre": "Santa Catalina La Tinta"
+  },
+  "1617": {
+   "departamento": "16",
+   "lat": 15.8913,
+   "lon": -90.1051,
+   "nombre": "Raxruhá"
+  },
+  "1701": {
+   "departamento": "17",
+   "lat": 17.354,
+   "lon": -89.5188,
+   "nombre": "Flores"
+  },
+  "1702": {
+   "departamento": "17",
+   "lat": 17.3737,
+   "lon": -89.8094,
+   "nombre": "San José"
+  },
+  "1703": {
+   "departamento": "17",
+   "lat": 16.9826,
+   "lon": -90.1036,
+   "nombre": "San Benito"
+  },
+  "1704": {
+   "departamento": "17",
+   "lat": 17.388,
+   "lon": -90.4519,
+   "nombre": "San Andrés"
+  },
+  "1705": {
+   "departamento": "17",
+   "lat": 16.9935,
+   "lon": -90.6426,
+   "nombre": "La Libertad"
+  },
+  "1706": {
+   "departamento": "17",
+   "lat": 16.6238,
+   "lon": -90.0309,
+   "nombre": "San Francisco"
+  },
+  "1707": {
+   "departamento": "17",
+   "lat": 16.8308,
+   "lon": -89.6129,
+   "nombre": "Santa Ana"
+  },
+  "1708": {
+   "departamento": "17",
+   "lat": 16.6451,
+   "lon": -89.3597,
+   "nombre": "Dolores"
+  },
+  "1709": {
+   "departamento": "17",
+   "lat": 16.0565,
+   "lon": -89.6401,
+   "nombre": "San Luis"
+  },
+  "1710": {
+   "departamento": "17",
+   "lat": 16.2976,
+   "lon": -90.1687,
+   "nombre": "Sayaxché"
+  },
+  "1711": {
+   "departamento": "17",
+   "lat": 17.3216,
+   "lon": -89.2441,
+   "nombre": "Melchor de Mencos"
+  },
+  "1712": {
+   "departamento": "17",
+   "lat": 16.3349,
+   "lon": -89.526,
+   "nombre": "Poptún"
+  },
+  "1713": {
+   "departamento": "17",
+   "lat": 16.8604,
+   "lon": -90.8531,
+   "nombre": "Las Cruces"
+  },
+  "1714": {
+   "departamento": "17",
+   "lat": 16.5156,
+   "lon": -89.7277,
+   "nombre": "El Chal"
+  },
+  "1801": {
+   "departamento": "18",
+   "lat": 15.7344,
+   "lon": -88.4314,
+   "nombre": "Puerto Barrios"
+  },
+  "1802": {
+   "departamento": "18",
+   "lat": 15.7493,
+   "lon": -89.1777,
+   "nombre": "Lívingston"
+  },
+  "1803": {
+   "departamento": "18",
+   "lat": 15.4354,
+   "lon": -89.4292,
+   "nombre": "El Estor"
+  },
+  "1804": {
+   "departamento": "18",
+   "lat": 15.4216,
+   "lon": -88.8114,
+   "nombre": "Morales"
+  },
+  "1805": {
+   "departamento": "18",
+   "lat": 15.2913,
+   "lon": -89.0856,
+   "nombre": "Los Amates"
+  },
+  "1901": {
+   "departamento": "19",
+   "lat": 14.973,
+   "lon": -89.4442,
+   "nombre": "Zacapa"
+  },
+  "1902": {
+   "departamento": "19",
+   "lat": 14.9744,
+   "lon": -89.6095,
+   "nombre": "Estanzuela"
+  },
+  "1903": {
+   "departamento": "19",
+   "lat": 15.0938,
+   "lon": -89.6073,
+   "nombre": "Río Hondo"
+  },
+  "1904": {
+   "departamento": "19",
+   "lat": 15.1515,
+   "lon": -89.3157,
+   "nombre": "Gualán"
+  },
+  "1905": {
+   "departamento": "19",
+   "lat": 15.0651,
+   "lon": -89.7556,
+   "nombre": "Teculután"
+  },
+  "1906": {
+   "departamento": "19",
+   "lat": 15.0053,
+   "lon": -89.8104,
+   "nombre": "Usumatlán"
+  },
+  "1907": {
+   "departamento": "19",
+   "lat": 14.8905,
+   "lon": -89.7826,
+   "nombre": "Cabañas"
+  },
+  "1908": {
+   "departamento": "19",
+   "lat": 14.7961,
+   "lon": -89.7586,
+   "nombre": "San Diego"
+  },
+  "1909": {
+   "departamento": "19",
+   "lat": 14.9583,
+   "lon": -89.2589,
+   "nombre": "La Unión"
+  },
+  "1910": {
+   "departamento": "19",
+   "lat": 14.9122,
+   "lon": -89.6884,
+   "nombre": "Huité"
+  },
+  "1911": {
+   "departamento": "19",
+   "lat": 14.9162,
+   "lon": -89.5889,
+   "nombre": "San Jorge"
+  },
+  "2001": {
+   "departamento": "20",
+   "lat": 14.7921,
+   "lon": -89.5914,
+   "nombre": "Chiquimula"
+  },
+  "2002": {
+   "departamento": "20",
+   "lat": 14.7153,
+   "lon": -89.6086,
+   "nombre": "San José La Arada"
+  },
+  "2003": {
+   "departamento": "20",
+   "lat": 14.7433,
+   "lon": -89.4316,
+   "nombre": "San Juan Ermita"
+  },
+  "2004": {
+   "departamento": "20",
+   "lat": 14.8142,
+   "lon": -89.4103,
+   "nombre": "Jocotán"
+  },
+  "2005": {
+   "departamento": "20",
+   "lat": 14.8675,
+   "lon": -89.2957,
+   "nombre": "Camotán"
+  },
+  "2006": {
+   "departamento": "20",
+   "lat": 14.6975,
+   "lon": -89.3234,
+   "nombre": "Olopa"
+  },
+  "2007": {
+   "departamento": "20",
+   "lat": 14.6317,
+   "lon": -89.2592,
+   "nombre": "Esquipulas"
+  },
+  "2008": {
+   "departamento": "20",
+   "lat": 14.4896,
+   "lon": -89.4518,
+   "nombre": "Concepción Las Minas"
+  },
+  "2009": {
+   "departamento": "20",
+   "lat": 14.6131,
+   "lon": -89.4585,
+   "nombre": "Quezaltepeque"
+  },
+  "2010": {
+   "departamento": "20",
+   "lat": 14.6784,
+   "lon": -89.5154,
+   "nombre": "San Jacinto"
+  },
+  "2011": {
+   "departamento": "20",
+   "lat": 14.5797,
+   "lon": -89.6215,
+   "nombre": "Ipala"
+  },
+  "2101": {
+   "departamento": "21",
+   "lat": 14.6256,
+   "lon": -90.0652,
+   "nombre": "Jalapa"
+  },
+  "2102": {
+   "departamento": "21",
+   "lat": 14.7136,
+   "lon": -89.8419,
+   "nombre": "San Pedro Pinula"
+  },
+  "2103": {
+   "departamento": "21",
+   "lat": 14.6498,
+   "lon": -89.7195,
+   "nombre": "San Luis Jilotepeque"
+  },
+  "2104": {
+   "departamento": "21",
+   "lat": 14.5344,
+   "lon": -89.7595,
+   "nombre": "San Manuel Chaparrón"
+  },
+  "2105": {
+   "departamento": "21",
+   "lat": 14.4741,
+   "lon": -90.0748,
+   "nombre": "San Carlos Alzatate"
+  },
+  "2106": {
+   "departamento": "21",
+   "lat": 14.507,
+   "lon": -89.8984,
+   "nombre": "Monjas"
+  },
+  "2107": {
+   "departamento": "21",
+   "lat": 14.5678,
+   "lon": -90.2087,
+   "nombre": "Mataquescuintla"
+  },
+  "2201": {
+   "departamento": "22",
+   "lat": 14.3111,
+   "lon": -89.9504,
+   "nombre": "Jutiapa"
+  },
+  "2202": {
+   "departamento": "22",
+   "lat": 14.3813,
+   "lon": -89.8534,
+   "nombre": "El Progreso"
+  },
+  "2203": {
+   "departamento": "22",
+   "lat": 14.4447,
+   "lon": -89.7688,
+   "nombre": "Santa Catarina Mita"
+  },
+  "2204": {
+   "departamento": "22",
+   "lat": 14.4611,
+   "lon": -89.5903,
+   "nombre": "Agua Blanca"
+  },
+  "2205": {
+   "departamento": "22",
+   "lat": 14.3081,
+   "lon": -89.6779,
+   "nombre": "Asunción Mita"
+  },
+  "2206": {
+   "departamento": "22",
+   "lat": 14.1661,
+   "lon": -89.7754,
+   "nombre": "Yupiltepeque"
+  },
+  "2207": {
+   "departamento": "22",
+   "lat": 14.1712,
+   "lon": -89.722,
+   "nombre": "Atescatempa"
+  },
+  "2208": {
+   "departamento": "22",
+   "lat": 14.0808,
+   "lon": -89.7616,
+   "nombre": "Jerez"
+  },
+  "2209": {
+   "departamento": "22",
+   "lat": 14.1799,
+   "lon": -89.8527,
+   "nombre": "El Adelanto"
+  },
+  "2210": {
+   "departamento": "22",
+   "lat": 14.1106,
+   "lon": -89.8178,
+   "nombre": "Zapotitlán"
+  },
+  "2211": {
+   "departamento": "22",
+   "lat": 14.1198,
+   "lon": -89.8944,
+   "nombre": "Comapa"
+  },
+  "2212": {
+   "departamento": "22",
+   "lat": 14.1103,
+   "lon": -90.0161,
+   "nombre": "Jalpatagua"
+  },
+  "2213": {
+   "departamento": "22",
+   "lat": 14.0006,
+   "lon": -90.0149,
+   "nombre": "Conguaco"
+  },
+  "2214": {
+   "departamento": "22",
+   "lat": 13.9082,
+   "lon": -90.114,
+   "nombre": "Moyuta"
+  },
+  "2215": {
+   "departamento": "22",
+   "lat": 13.8953,
+   "lon": -90.2059,
+   "nombre": "Pasaco"
+  },
+  "2216": {
+   "departamento": "22",
+   "lat": 14.2686,
+   "lon": -90.1628,
+   "nombre": "San José Acatempa"
+  },
+  "2217": {
+   "departamento": "22",
+   "lat": 14.2829,
+   "lon": -90.0542,
+   "nombre": "Quesada"
+  }
+ }
+}

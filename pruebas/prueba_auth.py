@@ -956,6 +956,58 @@ activos = requests.get(API + LE, headers=H("recepcion1")).json()["data"]
 dato("ninguno de los dos sigue en la lista activa", not {e1["id"], e2["id"]} & {x["id"] for x in activos})
 requests.delete(API + f"/citas/{cita_e}", headers=H("recepcion1"))
 
+print("--- Residencia del paciente y vigilancia epidemiológica")
+ub = check("medico1 ve departamentos y municipios", "GET", "/ubicaciones", T["medico1"], 200).json()["data"]
+dato("22 departamentos y 340 municipios (sin los lagos)", len(ub["departamentos"]) == 22 and len(ub["municipios"]) == 340
+     and any(x["codigo"] == "0115" and x["nombre"] == "Villa Nueva" for x in ub["municipios"]) and "CONRED" in ub["fuente"])
+check("ciudadano1 NO pide el catálogo", "GET", "/ubicaciones", T["ciudadano1"], 403)
+check("municipio que no existe", "POST", "/pacientes", T["recepcion1"], 400, json={"nombre_completo": "Prueba Municipio", "municipio": "9999"})
+check("un lago no es residencia", "POST", "/pacientes", T["recepcion1"], 400, json={"nombre_completo": "Prueba Municipio", "municipio": "0100"})
+casos_b05 = []
+for i, mun in enumerate(("1301", "1301", "1301", "2001")):
+    pid = check(f"paciente {i + 1} con residencia {mun}", "POST", "/pacientes", T["recepcion1"], 201,
+                json={"nombre_completo": f"Vigilancia {'abcd'[i]} {sufijo}", "municipio": mun, "zona": "Cantón Central",
+                      "fecha_nacimiento": "2015-03-01", "genero": "F"}).json()["data"]["id"]
+    requests.post(API + f"/expedientes/{pid}/atenciones", headers=H("medico1"), json={"codigo_cie10": "B05.9"})
+    casos_b05.append(pid)
+ficha = requests.get(API + f"/pacientes/{casos_b05[0]}", headers=H("medico1")).json()["data"]
+dato("la ficha dice municipio y departamento", ficha["municipio"] == "1301" and ficha["municipio_nombre"] == "Huehuetenango"
+     and ficha["departamento_nombre"] == "Huehuetenango" and ficha["zona"] == "Cantón Central")
+check("recepcion1 cambia la residencia", "PUT", f"/pacientes/{casos_b05[3]}", T["recepcion1"], 200, json={"municipio": "2002"})
+V = "/vigilancia/casos?codigo=B05"
+check("recepcion1 NO ve la vigilancia", "GET", V, T["recepcion1"], 403)
+check("ciudadano1 NO ve la vigilancia", "GET", V, T["ciudadano1"], 403)
+r = check("jefatura1 ve los casos de sarampión (B05)", "GET", V, T["jefatura1"], 200).json()
+hue = next((x for x in r["municipios"] if x["codigo"] == "1301"), None)
+dato("Huehuetenango con 3 o más casos esta semana", hue is not None and hue["casos"] >= 3 and hue["ultimos_7_dias"] >= 3
+     and hue["departamento_nombre"] == "Huehuetenango" and hue["lat"])
+dato("la tendencia trae semanas y la alerta su explicación", len(r["semanas"]) >= 4
+     and all("texto" in a for a in r["alertas"]) and r["filtros"]["codigo"] == "B05")
+pocos = next((x for x in r["municipios"] if x["codigo"] == "2002"), None)
+dato("Jefatura ve también el municipio con 1 caso", pocos is not None and pocos["casos"] >= 1)
+aud = check("analista1 (Auditoría) ve solo cifras", "GET", V, T["analista1"], 200).json()
+pocos_aud = next((x for x in aud["municipios"] if x["codigo"] == "2002"), None)
+dato("a Auditoría el municipio con menos de 3 pacientes le sale como 'pocos'", pocos_aud is None
+     or (pocos_aud["pocos"] and pocos_aud["casos"] is None))
+dato("y no hay nombres en la respuesta", f"Vigilancia a {sufijo}" not in json.dumps(aud))
+check("grupo que no existe", "GET", "/vigilancia/casos?grupo=zombis", T["jefatura1"], 400)
+check("departamento que no existe", "GET", "/vigilancia/casos?departamento=99", T["jefatura1"], 400)
+check("edad mínima mayor que la máxima", "GET", "/vigilancia/casos?edad_min=50&edad_max=10", T["jefatura1"], 400)
+check("período de más de un año", "GET", "/vigilancia/casos?desde=2024-01-01&hasta=2026-01-01", T["jefatura1"], 400)
+check("fecha con otro formato", "GET", "/vigilancia/casos?desde=01/10/2026", T["jefatura1"], 400)
+r = check("filtro por edad (0 a 17 años) y sexo", "GET", f"{V}&edad_min=0&edad_max=17&genero=F", T["jefatura1"], 200).json()
+dato("las niñas de los casos siguen ahí", any(x["codigo"] == "1301" for x in r["municipios"]))
+r = check("filtro por edad (60 o más)", "GET", f"{V}&edad_min=60", T["jefatura1"], 200).json()
+dato("los casos de 11 años ya no salen", not any(x["codigo"] == "1301" for x in r["municipios"]))
+check("enfermera1 NO ve quiénes son", "GET", "/vigilancia/pacientes?municipio=1301&codigo=B05", T["enfermera1"], 403)
+check("municipio inválido", "GET", "/vigilancia/pacientes?municipio=9999", T["jefatura1"], 400)
+lista = check("jefatura1 ve quiénes son los casos de Huehuetenango", "GET", "/vigilancia/pacientes?municipio=1301&codigo=B05",
+              T["jefatura1"], 200).json()["data"]
+dato("con nombre, edad, zona y diagnóstico", {c["paciente_id"] for c in lista} >= set(casos_b05[:3])
+     and all(c["codigo"].startswith("B05") and c["zona"] == "Cantón Central" for c in lista[:3]))
+bit = requests.get(API + "/bitacora/accesos?usuario=jefatura1&limite=50", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota que se consultó la lista", any(x["descripcion"] == "Consultó la lista de casos de vigilancia epidemiológica" for x in bit))
+
 print("--- Laboratorio clínico: orden, muestra, resultados e interpretación")
 LAB = "/laboratorio/ordenes"
 cat = check("enfermera1 ve el catálogo de exámenes", "GET", "/laboratorio/examenes", T["enfermera1"], 200).json()["data"]
