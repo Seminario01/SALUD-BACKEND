@@ -24,5 +24,7 @@ cargar() {
 }
 
 cargar datos_demo.sql
+# Pacientes y atenciones de todo el país (mapa de vigilancia, recetas, crecimiento). Una sola vez.
+[ -f "$BASE/demo_poblacion.sql" ] && cargar demo_poblacion.sql
 [ "${1:-}" = "--turnos" ] && cargar demo_turnos_hoy.sql
 echo "=== Listo"
