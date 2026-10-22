@@ -12,6 +12,7 @@ from bitacora import registrar, resumir
 from services_externos import coordinar_jornada
 from routes.hospitalizacion import resumen_hospitalizacion
 from routes.caja import resumen_cuentas
+from routes.integraciones import _error_modulo
 
 externos_bp = Blueprint("externos", __name__)
 
@@ -87,8 +88,12 @@ def coordinar_jornada_vacunacion():
         description: Estudiantes convocados a la jornada
       404:
         description: No se encontraron estudiantes para los criterios enviados
-      500:
-        description: Error al coordinar con Educación
+      422:
+        description: Educación rechazó la petición (con su motivo)
+      424:
+        description: Educación respondió algo que Salud no puede usar, o no aceptó la clave de Salud
+      503:
+        description: Educación no está configurado o no responde (3 s)
     """
     data = request.get_json(silent=True) or {}
     tipo_jornada = data.get("tipo_jornada")
@@ -103,13 +108,16 @@ def coordinar_jornada_vacunacion():
         ), 400
 
     resultado = coordinar_jornada(tipo_jornada, lugar, fecha, hora)
+    if resultado.get("error") == "no_encontrado":
+        return jsonify(success=False, error="no_encontrado", message="No se encontraron estudiantes para la jornada"), 404
     if not resultado["success"]:
-        return jsonify(
-            success=False, error=resultado.get("error", "error_conexion"),
-            message=resultado.get("message", "Error al coordinar la jornada con Educación"),
-        ), 500
+        # Falla de Educación, no de Salud: 503 / 422 / 424 como las demás integraciones (nunca 500)
+        return _error_modulo(resultado, "Educación")
 
     estudiantes = resultado["data"]
+    if not isinstance(estudiantes, list):
+        return jsonify(success=False, error="respuesta_invalida", modulo="Educación",
+                       message="Educación debe responder una lista de estudiantes"), 424
     if not estudiantes:
         return jsonify(success=False, error="no_encontrado", message="No se encontraron estudiantes para la jornada"), 404
 

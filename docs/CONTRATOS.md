@@ -99,8 +99,9 @@ POST /api/v1/educacion/jornadas/coordinar
   "fecha": "2026-10-09", "hora": "08:00" }
 ```
 Responde una lista de estudiantes, cada uno con `cui`, `nombreCompleto`, `establecimiento`, `grado`, `seccion` y `jornada`.
+Un `404` o una lista vacía significa que no hay estudiantes para esa jornada.
 
-**WS-SALUD-07: Validar practicante.**
+**WS-SALUD-07: Validar practicante** (opcional: Salud ya tiene la llamada, pero ninguna pantalla la usa todavía).
 
 ```
 GET /api/v1/educacion/practicantes/validar/{cui}
@@ -157,7 +158,7 @@ URL base: `https://saludumg.online/api/v1/salud`. Todos requieren `X-API-Key`. L
 
 | Servicio | Quién lo usa | Petición | Respuesta |
 |---|---|---|---|
-| **WS-SALUD-01** Coordinar jornada de vacunación | Educación | `POST /jornadas/coordinar` con `tipo_jornada`, `lugar`, `fecha`, `hora` | Lista de estudiantes convocados. Salud se la pide a Educación |
+| **WS-SALUD-01** Coordinar jornada de vacunación | Educación | `POST /jornadas/coordinar` con `tipo_jornada`, `lugar`, `fecha`, `hora` | Lista de estudiantes convocados. Salud se la pide a Educación. `400` falta un dato · `404` sin estudiantes · `503` Educación no responde · `422` Educación rechazó la petición · `424` Educación no aceptó la clave de Salud o respondió algo que no es una lista |
 | **WS-SALUD-02** Establecimientos disponibles | Seguridad | `GET /establecimientos/disponibilidad` (detalle abajo) | `disponible`, `mensaje` y `establecimientos[]` |
 | **WS-SALUD-06** Horas de práctica | Educación | `GET /practicantes/{cui}/horas` | `horasAcumuladas`, `fechaInicio`, `fechaFin`, `supervisor`, `estado` |
 | Costo de una cita | Tributario | `GET /citas/{id}/costo` | `cita_id`, `monto`, `pago_confirmado` |

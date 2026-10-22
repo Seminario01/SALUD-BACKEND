@@ -1037,6 +1037,22 @@ dato("con filtro de enfermedad no se repiten", requests.get(API + "/vigilancia/c
 pv = requests.get(API + "/panel", headers=H("jefatura1")).json()["data"]["atencion_hoy"]["vigilancia"]
 dato("el inicio cuenta los posibles brotes y dice cuáles", pv["posibles_brotes"] >= 1 and any("Huehuetenango" in d for d in pv["detalle"]))
 
+print("--- Servicios que consume Educación (WS-SALUD-01 y WS-SALUD-06)")
+clave_edu = {"X-API-Key": os.getenv("CLAVE_ENTRADA_EDUCACION") or os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar"),
+             "X-Modulo-Origen": "Educación"}
+jornada = {"tipo_jornada": "Vacunación Td y VPH", "lugar": "INEB Jornada Matutina, Antigua Guatemala", "fecha": "2026-11-05", "hora": "08:00"}
+j = check("Educación coordina una jornada (WS-SALUD-01)", "POST", "/jornadas/coordinar", None, 200, headers=clave_edu, json=jornada).json()
+dato("responde la lista de estudiantes convocados (cui, nombreCompleto, establecimiento, grado...)",
+     isinstance(j.get("data"), list) and len(j["data"]) > 0
+     and all({"cui", "nombreCompleto", "establecimiento", "grado", "seccion", "jornada"} <= set(e) for e in j["data"]))
+check("jornada sin la hora", "POST", "/jornadas/coordinar", None, 400, headers=clave_edu, json={**jornada, "hora": ""})
+check("jornada sin API key", "POST", "/jornadas/coordinar", None, 401, json=jornada)
+check("jornada con una clave que no es", "POST", "/jornadas/coordinar", None, 403, headers={"X-API-Key": "no-es-la-clave"}, json=jornada)
+h = check("Educación consulta horas de práctica (WS-SALUD-06)", "GET", "/practicantes/2520123450106/horas", None, 200, headers=clave_edu).json()["data"]
+dato("trae horasAcumuladas, fechas, supervisor y estado", isinstance(h["horasAcumuladas"], int)
+     and {"fechaInicio", "fechaFin", "supervisor", "estado"} <= set(h))
+check("practicante que no existe", "GET", "/practicantes/0000000000000/horas", None, 404, headers=clave_edu)
+
 print("--- Curvas de crecimiento infantil (OMS, 0 a 5 años)")
 nacio = (date.today() - timedelta(days=365)).isoformat()
 nina = requests.post(API + "/pacientes", headers=H("recepcion1"), json={
