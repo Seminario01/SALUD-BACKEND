@@ -9,6 +9,10 @@
 # Uso (desde la PC):
 #   ssh denis@IP 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/cargar_demo.sh'            datos demo
 #   ssh denis@IP 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/cargar_demo.sh --turnos'   y turnos de hoy
+#   ssh denis@IP 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/cargar_demo.sh --hoy'      fechas al día y turnos de hoy
+# --hoy (para el día de la presentación): mueve las fechas de los datos demo como si se hubieran
+# cargado hoy (demo_refrescar_fechas.sql: mapa, brotes, citas de hoy, recetas pendientes) y carga
+# los turnos de la sala de espera. Se puede correr todos los días; no duplica nada.
 # La clave de MySQL la pone el propio contenedor: no se escribe en ningún comando.
 # ============================================================================
 set -euo pipefail
@@ -26,5 +30,10 @@ cargar() {
 cargar datos_demo.sql
 # Pacientes y atenciones de todo el país (mapa de vigilancia, recetas, crecimiento). Una sola vez.
 [ -f "$BASE/demo_poblacion.sql" ] && cargar demo_poblacion.sql
-[ "${1:-}" = "--turnos" ] && cargar demo_turnos_hoy.sql
+if [ "${1:-}" = "--hoy" ]; then
+  cargar demo_refrescar_fechas.sql
+  cargar demo_turnos_hoy.sql
+elif [ "${1:-}" = "--turnos" ]; then
+  cargar demo_turnos_hoy.sql
+fi
 echo "=== Listo"
