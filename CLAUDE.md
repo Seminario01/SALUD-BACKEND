@@ -218,8 +218,8 @@ diagnóstico, se usa su nombre oficial) y queda en `expedientes_clinicos.codigo_
 `routes/puestos.py` (permiso `puestos.asignar`, solo Administración): da un puesto de Salud (`salud:*`) a
 una cuenta del Login Único por su `sub` (el código que muestra "Mi resumen"; nunca por correo o usuario,
 que se pueden cambiar allá). Tabla `puestos_asignados`; `auth.validar_token` los suma a los roles del token
-(`g.usuario["roles"]`; los del token quedan en `roles_token` y los asignados en `asignados`), con 30 s
-de memoria que se borra al asignar o quitar. Solo vale en Salud. Nadie puede asignarse ni quitarse su
+(`g.usuario["roles"]`; los del token quedan en `roles_token` y los asignados en `asignados`), leídos en
+cada petición (sin memoria: con varios procesos, quitar un puesto vale al instante). Solo vale en Salud. Nadie puede asignarse ni quitarse su
 propio puesto; cada cambio queda en la bitácora ("Asignó el puesto Jefatura médica a ...").
 `usuarios_recientes` guarda a quien entra (cualquier cuenta) para listar "Entraron sin puesto".
 `GET /mis-permisos` devuelve `asignados`, que el frontend suma al menú.

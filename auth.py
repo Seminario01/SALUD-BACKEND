@@ -14,7 +14,6 @@ Reglas del servicio transversal AUTH (ver "Cómo consumir el Login Único"):
 """
 import hmac
 import logging
-import time
 from functools import wraps
 
 import jwt
@@ -170,30 +169,21 @@ _ROLES_DE_RELLENO = ("offline_access", "uma_authorization")
 # Puestos asignados en Salud (routes/puestos.py): además de los roles de su cuenta del Login Único,
 # un usuario puede tener puestos que le dio Administración dentro del módulo. Se buscan por su
 # `sub` (fijo y firmado por el Login Único; el correo o el usuario se pueden cambiar allá).
-# Se guardan 30 segundos en memoria; asignar o quitar borra la memoria de ese usuario.
+# Se leen en cada petición (una consulta con índice), sin memoria: con varios procesos de gunicorn,
+# una memoria por proceso haría que un puesto recién quitado siguiera valiendo un rato.
 # ---------------------------------------------------------------------------
 PUESTOS_ASIGNABLES = ROLES_PERSONAL
-_CACHE_PUESTOS = {}
-SEGUNDOS_CACHE_PUESTOS = 30
 
 
 def puestos_asignados(sub):
     """Roles que Administración le asignó en Salud a este usuario."""
-    guardado = _CACHE_PUESTOS.get(sub)
-    if guardado and time.monotonic() - guardado[0] < SEGUNDOS_CACHE_PUESTOS:
-        return guardado[1]
     try:
         from models import PuestoAsignado  # aquí para no importar modelos al cargar auth.py
         roles = [p.rol for p in PuestoAsignado.query.filter_by(usuario_sub=sub).all() if p.rol in PUESTOS_ASIGNABLES]
     except Exception as error:  # noqa: BLE001  (sin base de datos: solo los roles del token)
         logging.getLogger(__name__).warning("No se pudieron leer los puestos asignados: %s", error)
         return []
-    _CACHE_PUESTOS[sub] = (time.monotonic(), roles)
     return roles
-
-
-def olvidar_puestos(sub):
-    _CACHE_PUESTOS.pop(sub, None)
 
 
 def validar_token(f):

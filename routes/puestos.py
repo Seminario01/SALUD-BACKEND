@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 
 from flask import Blueprint, g, jsonify, request
 
-from auth import PUESTOS_ASIGNABLES, olvidar_puestos, requiere_permiso, validar_token
+from auth import PUESTOS_ASIGNABLES, requiere_permiso, validar_token
 from extensions import db
 from models import PuestoAsignado, UsuarioReciente
 from validacion import texto
@@ -123,7 +123,6 @@ def asignar_puesto():
                        asignado_por_sub=g.usuario["sub"], fecha=datetime.now())
     db.session.add(p)
     db.session.commit()
-    olvidar_puestos(sub)
     quien = p.usuario or p.nombre or sub[:8]
     return jsonify(success=True, data={**_persona(p), "detalle": f"{NOMBRES[rol]} a {quien}"},
                    message=f"Puesto {NOMBRES[rol]} asignado. Lo verá al recargar la página."), 201
@@ -158,5 +157,4 @@ def quitar_puesto(id):
     datos = {**_persona(p), "detalle": f"{NOMBRES.get(p.rol, p.rol)} a {p.usuario or p.nombre or p.usuario_sub[:8]}"}
     db.session.delete(p)
     db.session.commit()
-    olvidar_puestos(p.usuario_sub)
     return jsonify(success=True, data=datos, message="Puesto quitado"), 200
