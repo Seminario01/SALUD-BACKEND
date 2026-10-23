@@ -1070,6 +1070,26 @@ dato("la bitácora dice qué puesto se asignó y se quitó, y a quién",
      any(x["descripcion"] == "Asignó el puesto Jefatura médica a ciudadano2" for x in bit)
      and any(x["descripcion"] == "Quitó el puesto Jefatura médica a ciudadano2" for x in bit))
 
+print("--- Panel de Auditoría Social (cada consulta queda registrada, también las rechazadas)")
+requests.get(API + "/indicadores", headers={"User-Agent": "curl/prueba"})                    # sin clave ni token
+requests.get(API + "/auditoria/indicadores?desde=2026-01-01&hasta=2026-12-31", headers=H("medico1"))   # token sin el rol
+check("analista1 consulta los indicadores con su token", "GET", "/indicadores", T["analista1"], 200)
+check("recepcion1 NO ve el panel de Auditoría", "GET", "/integraciones/auditoria", T["recepcion1"], 403)
+pa = check("jefatura1 ve el panel de Auditoría", "GET", "/integraciones/auditoria", T["jefatura1"], 200).json()["data"]
+motivos = {r["motivo"]: r for r in pa["rechazos"]}
+dato("el intento sin clave ni token aparece como rechazo, explicado", "sin_credenciales" in motivos
+     and "ni token" in motivos["sin_credenciales"]["explicacion"] and "sin clave ni token" in (motivos["sin_credenciales"]["ejemplo"] or ""))
+dato("el token sin el rol también, diciendo de quién era", "permiso_denegado" in motivos and "token de medico1" in (motivos["permiso_denegado"]["ejemplo"] or ""))
+dato("la última consulta exitosa es la de analista1 con su token", pa["ultima_exitosa"] and "token de analista1" in (pa["ultima_exitosa"]["detalle"] or ""))
+dato("lista los 3 servicios y la configuración del token", len(pa["servicios"]) == 3 and pa["configuracion"]["rol_tablero"] == "auditoria:lectura"
+     and pa["configuracion"]["audiencia"] == "rsd-api")
+pr = check("admin.salud prueba ahora los servicios", "POST", "/integraciones/auditoria/probar", T["admin.salud"], 200).json()["data"]
+dato("la prueba revisa indicadores con clave, el tablero y el Login Único", len(pr["pasos"]) == 3 and pr["pasos"][1]["ok"] and pr["pasos"][2]["ok"])
+check("recepcion1 NO puede probar", "POST", "/integraciones/auditoria/probar", T["recepcion1"], 403)
+pa2 = requests.get(API + "/integraciones/auditoria", headers=H("jefatura1")).json()["data"]
+dato("la prueba del panel no cuenta como consulta real de Auditoría",
+     pa2["ultima_exitosa"]["fecha"] == pa["ultima_exitosa"]["fecha"])
+
 print("--- Servicios que consume Educación (WS-SALUD-01 y WS-SALUD-06)")
 clave_edu = {"X-API-Key": os.getenv("CLAVE_ENTRADA_EDUCACION") or os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar"),
              "X-Modulo-Origen": "Educación"}

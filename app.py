@@ -10,6 +10,7 @@ from routes.init import registrar_rutas
 from auth import precargar_jwks
 from validacion import DatoInvalido
 from bitacora_accesos import registrar_acceso
+import auditoria_registro
 
 SWAGGER_TEMPLATE = {
     "swagger": "2.0",
@@ -55,6 +56,9 @@ def crear_app():
 
     # Bitácora de accesos: quién vio o modificó datos de pacientes (bitacora_accesos.py)
     app.after_request(registrar_acceso)
+    # Cada consulta de Auditoría Social, también las rechazadas, con su motivo (auditoria_registro.py)
+    app.before_request(auditoria_registro.inicio)
+    app.after_request(auditoria_registro.registrar_consulta)
 
     # Errores de la API siempre en JSON (los otros módulos esperan {"success": false, ...})
     @app.errorhandler(404)

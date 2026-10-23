@@ -20,6 +20,7 @@ from routes.lista_espera import lista_espera_bp
 from routes.vigilancia import vigilancia_bp
 from routes.crecimiento import crecimiento_bp
 from routes.puestos import puestos_bp
+from routes.auditoria_panel import auditoria_panel_bp
 
 def registrar_rutas(app):
     app.register_blueprint(pacientes_bp)
@@ -44,3 +45,4 @@ def registrar_rutas(app):
     app.register_blueprint(vigilancia_bp)
     app.register_blueprint(crecimiento_bp)
     app.register_blueprint(puestos_bp)
+    app.register_blueprint(auditoria_panel_bp)

@@ -224,6 +224,18 @@ propio puesto; cada cambio queda en la bitácora ("Asignó el puesto Jefatura m�
 `usuarios_recientes` guarda a quien entra (cualquier cuenta) para listar "Entraron sin puesto".
 `GET /mis-permisos` devuelve `asignados`, que el frontend suma al menú.
 
+## Panel de Auditoría Social
+
+`auditoria_registro.py` (before/after_request en `app.py`) anota en la bitácora de integraciones
+(entrante, módulo Auditoría) CADA consulta a los servicios para Auditoría (`/indicadores`,
+`/presupuesto/ejecucion`, `/auditoria/indicadores` y sus alias), también las rechazadas: qué credencial
+mandó ("token de X", "clave de Y", "sin clave ni token") y el motivo. Las de `routes/externos.py` con
+X-API-Key ya las anota ese archivo. `routes/auditoria_panel.py` (permiso `integraciones.ver`):
+`GET /integraciones/auditoria` (servicios, configuración del token, última consulta exitosa real,
+rechazos de 7 días agrupados con su explicación en `MOTIVOS`) y `POST /integraciones/auditoria/probar`
+(indicadores con la clave de Auditoría o la común, cálculo del tablero del mes y llaves del Login
+Único; queda marcado como prueba y no cuenta como consulta real).
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:
