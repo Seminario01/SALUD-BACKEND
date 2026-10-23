@@ -177,6 +177,36 @@ class PersonalSalud(db.Model):
     ultimo_acceso = db.Column(db.DateTime, default=datetime.now)
 
 
+class PuestoAsignado(db.Model):
+    """Puesto de Salud dado DENTRO del módulo a un usuario del Login Único (por su sub), además de
+    los roles que trae su cuenta. Lo asigna Administración (permiso puestos.asignar); auth.py lo suma
+    a los roles en cada petición. Solo vale en Salud: en los otros módulos la cuenta no cambia."""
+    __tablename__ = "puestos_asignados"
+    __table_args__ = (db.UniqueConstraint("usuario_sub", "rol", name="uq_puesto_usuario_rol"),)
+    id = db.Column(db.Integer, primary_key=True)
+    usuario_sub = db.Column(db.String(SUB_LEN), nullable=False, index=True)
+    rol = db.Column(db.String(40), nullable=False)           # salud:admin, salud:jefatura...
+    usuario = db.Column(db.String(100))                      # para reconocer a la persona (del Login Único)
+    nombre = db.Column(db.String(150))
+    email = db.Column(db.String(150))
+    nota = db.Column(db.String(255))
+    asignado_por = db.Column(db.String(150))
+    asignado_por_sub = db.Column(db.String(SUB_LEN))
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class UsuarioReciente(db.Model):
+    """Quién entró al módulo (cualquier cuenta, también ciudadanos), a lo más una vez cada 10 minutos.
+    Sirve para que Administración encuentre a alguien sin puesto y se lo asigne."""
+    __tablename__ = "usuarios_recientes"
+    sub = db.Column(db.String(SUB_LEN), primary_key=True)
+    usuario = db.Column(db.String(100))
+    nombre = db.Column(db.String(150))
+    email = db.Column(db.String(150))
+    roles = db.Column(db.String(500))                        # roles del token, separados por coma
+    ultimo_acceso = db.Column(db.DateTime, default=datetime.now, index=True)
+
+
 class BitacoraAcceso(db.Model):
     """Quién vio o modificó datos de pacientes, y cuándo (bitácora para Administración).
     La escribe bitacora_accesos.py al terminar cada petición del personal o del ciudadano."""

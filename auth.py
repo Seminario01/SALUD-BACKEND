@@ -14,6 +14,7 @@ Reglas del servicio transversal AUTH (ver "Cómo consumir el Login Único"):
 """
 import hmac
 import logging
+import time
 from functools import wraps
 
 import jwt
@@ -97,6 +98,7 @@ PERMISOS = {
     "integraciones.ver":      (JEF, ADM),
     "integraciones.demo":     (JEF, ADM),
     "bitacora.ver":           (ADM,),                # quién vio o modificó cada expediente
+    "puestos.asignar":        (ADM,),                # dar un puesto de Salud a una cuenta del Login Único
     "reportes.ver":           (MED, JEF, ADM, *ROLES_AUDITORIA),  # diagnósticos más frecuentes (solo cifras)
     "vigilancia.ver":         (MED, ENF, JEF, ADM, *ROLES_AUDITORIA),  # mapa de casos por municipio (cifras)
     "vigilancia.pacientes":   (MED, JEF),            # quiénes son los casos de una zona (datos clínicos)
@@ -164,6 +166,36 @@ _ROLES_DE_RELLENO = ("offline_access", "uma_authorization")
 # ---------------------------------------------------------------------------
 # Decoradores
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Puestos asignados en Salud (routes/puestos.py): además de los roles de su cuenta del Login Único,
+# un usuario puede tener puestos que le dio Administración dentro del módulo. Se buscan por su
+# `sub` (fijo y firmado por el Login Único; el correo o el usuario se pueden cambiar allá).
+# Se guardan 30 segundos en memoria; asignar o quitar borra la memoria de ese usuario.
+# ---------------------------------------------------------------------------
+PUESTOS_ASIGNABLES = ROLES_PERSONAL
+_CACHE_PUESTOS = {}
+SEGUNDOS_CACHE_PUESTOS = 30
+
+
+def puestos_asignados(sub):
+    """Roles que Administración le asignó en Salud a este usuario."""
+    guardado = _CACHE_PUESTOS.get(sub)
+    if guardado and time.monotonic() - guardado[0] < SEGUNDOS_CACHE_PUESTOS:
+        return guardado[1]
+    try:
+        from models import PuestoAsignado  # aquí para no importar modelos al cargar auth.py
+        roles = [p.rol for p in PuestoAsignado.query.filter_by(usuario_sub=sub).all() if p.rol in PUESTOS_ASIGNABLES]
+    except Exception as error:  # noqa: BLE001  (sin base de datos: solo los roles del token)
+        logging.getLogger(__name__).warning("No se pudieron leer los puestos asignados: %s", error)
+        return []
+    _CACHE_PUESTOS[sub] = (time.monotonic(), roles)
+    return roles
+
+
+def olvidar_puestos(sub):
+    _CACHE_PUESTOS.pop(sub, None)
+
+
 def validar_token(f):
     """Exige un access token válido del Login Único y deja el usuario en g.usuario."""
     @wraps(f)
@@ -212,12 +244,16 @@ def validar_token(f):
         except jwt.InvalidTokenError:
             return _error(401, "token_invalido", "El token no es válido")
 
+        roles_token = (payload.get("realm_access") or {}).get("roles", [])
+        asignados = [r for r in puestos_asignados(payload["sub"]) if r not in roles_token]
         g.usuario = {
             "sub": payload["sub"],
             "usuario": payload.get("preferred_username"),
             "email": payload.get("email"),
             "nombre": payload.get("name"),
-            "roles": (payload.get("realm_access") or {}).get("roles", []),
+            "roles": roles_token + asignados,
+            "roles_token": roles_token,
+            "asignados": asignados,
             "origen": payload.get("azp"),
         }
         return f(*args, **kwargs)

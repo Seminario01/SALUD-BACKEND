@@ -149,6 +149,8 @@ def mis_permisos():
     return jsonify(success=True, data={
         "usuario": g.usuario.get("usuario"),
         "roles": [r for r in roles if ":" in r or r == "ciudadano"],
+        # Puestos que le dio Administración dentro de Salud (además de los de su cuenta del Login Único)
+        "asignados": g.usuario.get("asignados", []),
         "permisos": permisos_de(roles),
         "matriz": {p: list(r) for p, r in PERMISOS.items()},
     }), 200

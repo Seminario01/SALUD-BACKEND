@@ -1037,6 +1037,39 @@ dato("con filtro de enfermedad no se repiten", requests.get(API + "/vigilancia/c
 pv = requests.get(API + "/panel", headers=H("jefatura1")).json()["data"]["atencion_hoy"]["vigilancia"]
 dato("el inicio cuenta los posibles brotes y dice cuáles", pv["posibles_brotes"] >= 1 and any("Huehuetenango" in d for d in pv["detalle"]))
 
+print("--- Puestos asignados en Salud (un ciudadano recibe un puesto dentro del módulo)")
+PU = "/puestos/asignados"
+sub_c2 = sub(T["ciudadano2"])
+for viejo in requests.get(API + PU, headers=H("admin.salud")).json()["data"]["asignados"]:
+    if viejo["usuario_sub"] == sub_c2:                      # de una corrida anterior que no terminó
+        requests.delete(API + f"{PU}/{viejo['id']}", headers=H("admin.salud"))
+check("ciudadano2 (sin puesto) NO ve el tablero", "GET", "/panel", T["ciudadano2"], 403)
+check("recepcion1 NO asigna puestos", "POST", PU, T["recepcion1"], 403, json={"usuario_sub": sub_c2, "rol": "salud:jefatura"})
+check("ciudadano2 NO se asigna un puesto", "POST", PU, T["ciudadano2"], 403, json={"usuario_sub": sub_c2, "rol": "salud:admin"})
+check("código de usuario inválido", "POST", PU, T["admin.salud"], 400, json={"usuario_sub": "jefry", "rol": "salud:jefatura"})
+check("puesto que no es de Salud (Auditoría)", "POST", PU, T["admin.salud"], 400, json={"usuario_sub": sub_c2, "rol": "auditoria:admin"})
+check("admin.salud NO cambia su propio puesto", "POST", PU, T["admin.salud"], 403,
+      json={"usuario_sub": sub(T["admin.salud"]), "rol": "salud:jefatura"})
+lista = check("admin.salud ve quién entró sin puesto", "GET", PU, T["admin.salud"], 200).json()["data"]
+dato("ciudadano2 aparece entre los que entraron sin puesto, con su usuario",
+     any(x["usuario_sub"] == sub_c2 and x["usuario"] == "ciudadano2" for x in lista["recientes"]) and len(lista["puestos"]) == 7)
+asig = check("admin.salud le asigna Jefatura a ciudadano2", "POST", PU, T["admin.salud"], 201,
+             json={"usuario_sub": sub_c2.upper(), "rol": "salud:jefatura", "nota": "Revisión del grupo"}).json()["data"]
+check("el mismo puesto otra vez", "POST", PU, T["admin.salud"], 409, json={"usuario_sub": sub_c2, "rol": "salud:jefatura"})
+check("con el MISMO token, ciudadano2 ya ve el tablero (el servidor suma el puesto)", "GET", "/panel", T["ciudadano2"], 200)
+mp = requests.get(API + "/mis-permisos", headers=H("ciudadano2")).json()["data"]
+dato("mis-permisos dice el puesto asignado y sus permisos", mp["asignados"] == ["salud:jefatura"]
+     and "vigilancia.pacientes" in mp["permisos"] and "salud:jefatura" in mp["roles"])
+check("ciudadano2 (Jefatura) sigue viendo SU expediente", "GET", f"/expedientes/{p2}", T["ciudadano2"], 200)
+check("ciudadano2 (Jefatura) tampoco asigna puestos", "POST", PU, T["ciudadano2"], 403, json={"usuario_sub": sub(T["ciudadano1"]), "rol": "salud:admin"})
+check("admin.salud le quita el puesto", "DELETE", f"{PU}/{asig['id']}", T["admin.salud"], 200)
+check("ciudadano2 vuelve a no ver el tablero", "GET", "/panel", T["ciudadano2"], 403)
+check("quitar uno que ya no existe", "DELETE", f"{PU}/{asig['id']}", T["admin.salud"], 404)
+bit = requests.get(API + "/bitacora/accesos?usuario=admin.salud&limite=200", headers=H("admin.salud")).json()["data"]
+dato("la bitácora dice qué puesto se asignó y se quitó, y a quién",
+     any(x["descripcion"] == "Asignó el puesto Jefatura médica a ciudadano2" for x in bit)
+     and any(x["descripcion"] == "Quitó el puesto Jefatura médica a ciudadano2" for x in bit))
+
 print("--- Servicios que consume Educación (WS-SALUD-01 y WS-SALUD-06)")
 clave_edu = {"X-API-Key": os.getenv("CLAVE_ENTRADA_EDUCACION") or os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar"),
              "X-Modulo-Origen": "Educación"}

@@ -67,6 +67,7 @@ MATRIZ = {
     "integraciones.ver":      {"JEF", "ADM"},
     "integraciones.demo":     {"JEF", "ADM"},
     "bitacora.ver":           {"ADM"},
+    "puestos.asignar":        {"ADM"},
     "pacientes.alergias":     {"MED", "ENF", "REC"},
     "reportes.ver":           {"MED", "JEF", "ADM", "AUD"},
     "constancias.ver":        {"MED", "ENF", "JEF", "ADM"},
@@ -148,6 +149,7 @@ PRUEBAS = {
     "integraciones.ver":      lambda u: not denegado(pedir(u, "GET", "/integraciones/bitacora")),
     "integraciones.demo":     lambda u: not denegado(pedir(u, "POST", "/integraciones/simular/no-existe")),
     # las dos rutas de la bitácora deben dar lo mismo (si no, "distintas" no es True ni False y falla)
+    "puestos.asignar":        lambda u: not denegado(pedir(u, "POST", "/puestos/asignados", json={})),
     "bitacora.ver":           lambda u: (lambda a, b: a if a == b else "distintas")(
                                   not denegado(pedir(u, "GET", "/bitacora/accesos?limite=1")),
                                   not denegado(pedir(u, "GET", "/bitacora/inusuales?dias=1"))),

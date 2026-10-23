@@ -213,6 +213,17 @@ común ("gripe", "ivu", "presión alta"); `pruebas/prueba_cie10.py` lo revisa si
 `POST /expedientes/{id}/atenciones` acepta `codigo_cie10` (solo códigos del catálogo; si no se escribe
 diagnóstico, se usa su nombre oficial) y queda en `expedientes_clinicos.codigo_cie10`.
 
+## Puestos asignados en Salud
+
+`routes/puestos.py` (permiso `puestos.asignar`, solo Administración): da un puesto de Salud (`salud:*`) a
+una cuenta del Login Único por su `sub` (el código que muestra "Mi resumen"; nunca por correo o usuario,
+que se pueden cambiar allá). Tabla `puestos_asignados`; `auth.validar_token` los suma a los roles del token
+(`g.usuario["roles"]`; los del token quedan en `roles_token` y los asignados en `asignados`), con 30 s
+de memoria que se borra al asignar o quitar. Solo vale en Salud. Nadie puede asignarse ni quitarse su
+propio puesto; cada cambio queda en la bitácora ("Asignó el puesto Jefatura médica a ...").
+`usuarios_recientes` guarda a quien entra (cualquier cuenta) para listar "Entraron sin puesto".
+`GET /mis-permisos` devuelve `asignados`, que el frontend suma al menú.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

@@ -21,7 +21,7 @@ from sqlalchemy import select
 from bitacora import enmascarar
 from extensions import db
 from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, ListaEspera,
-                    OrdenLaboratorio, PersonalSalud, Receta, Turno)
+                    OrdenLaboratorio, PersonalSalud, Receta, Turno, UsuarioReciente)
 
 log = logging.getLogger(__name__)
 PREFIJO = "/api/v1/salud"
@@ -53,6 +53,8 @@ CAMBIOS = {
     ("DELETE", "/citas/<int:id>"): ("anular", "Canceló la cita No. {id}"),
     ("POST", "/citas/lista-espera"): ("crear", "Agregó al paciente a la lista de espera"),
     ("POST", "/pacientes/<int:id>/crecimiento"): ("crear", "Registró una medición de crecimiento"),
+    ("POST", "/puestos/asignados"): ("crear", "Asignó el puesto {detalle}"),
+    ("DELETE", "/puestos/asignados/<int:id>"): ("anular", "Quitó el puesto {detalle}"),
     ("DELETE", "/pacientes/<int:id>/crecimiento/<int:mid>"): ("anular", "Anuló una medición de crecimiento"),
     ("PUT", "/citas/lista-espera/<int:id>"): ("modificar", "Actualizó la lista de espera No. {id}"),
     ("POST", "/citas/<int:id>/cobro"): ("modificar", "Generó el cobro de la cita No. {id}"),
@@ -134,6 +136,25 @@ def _paciente(regla, args, datos):
 
 
 _VISTOS = {}   # sub -> última vez que se actualizó personal_salud (en este proceso)
+_RECIENTES = {}  # sub -> última vez que se actualizó usuarios_recientes (en este proceso)
+
+
+def _anotar_reciente(usuario, ahora):
+    """Guarda a quien entró (cualquier cuenta), a lo más una vez cada 10 minutos: así Administración
+    encuentra a un compañero sin puesto para asignárselo (routes/puestos.py)."""
+    sub = usuario.get("sub")
+    if not sub or ahora - _RECIENTES.get(sub, datetime.min) < timedelta(minutes=10):
+        return
+    _RECIENTES[sub] = ahora
+    datos = {"usuario": (usuario.get("usuario") or "")[:100] or None, "nombre": (usuario.get("nombre") or "")[:150] or None,
+             "email": (usuario.get("email") or "")[:150] or None,
+             "roles": ",".join(usuario.get("roles_token") or usuario.get("roles") or [])[:500], "ultimo_acceso": ahora}
+    tabla = UsuarioReciente.__table__
+    with db.engine.begin() as conexion:
+        if conexion.execute(select(tabla.c.sub).where(tabla.c.sub == sub)).first():
+            conexion.execute(tabla.update().where(tabla.c.sub == sub).values(**datos))
+        else:
+            conexion.execute(tabla.insert().values(sub=sub, **datos))
 
 
 def _anotar_personal(usuario, ahora):
@@ -165,12 +186,14 @@ def registrar_acceso(respuesta):
             return respuesta
         try:
             _anotar_personal(usuario, datetime.now())
+            _anotar_reciente(usuario, datetime.now())
         except Exception as error:  # noqa: BLE001
             log.warning("No se pudo anotar al personal: %s", error)
         regla = request.url_rule.rule[len(PREFIJO):]
         args = request.view_args or {}
         datos = _datos_respuesta(respuesta)
-        formato = {"id": args.get("id", ""), "nuevo": datos.get("numero_turno") or datos.get("id", "")}
+        formato = {"id": args.get("id", ""), "nuevo": datos.get("numero_turno") or datos.get("id", ""),
+                   "detalle": datos.get("detalle", "")}
 
         if request.method == "GET":
             if regla not in VER:
