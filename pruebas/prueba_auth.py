@@ -1146,7 +1146,8 @@ check("ciudadano1 ve SU referencia (p1 es suyo)", "GET", f"/referencias/{rid}", 
 check("ciudadano2 NO ve la referencia de otro", "GET", f"/referencias/{rid}", T["ciudadano2"], 403)
 check("ciudadano2 NO ve las referencias de otro paciente", "GET", f"/pacientes/{p1}/referencias", T["ciudadano2"], 403)
 red2 = requests.get(API + "/establecimientos?q=Roosevelt", headers=H("medico1")).json()["data"]["establecimientos"]
-dato("la red cuenta las referencias recibidas por cada hospital (90 días)", red2 and red2[0]["referencias_90_dias"] >= 1)
+dato("la red cuenta las referencias recibidas por cada hospital (90 días)",
+     any(e["id"] == roo["id"] and e["referencias_90_dias"] >= 1 for e in red2))
 bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&limite=100", headers=H("admin.salud")).json()["data"]
 dato("la bitácora anota la referencia y su cierre", any(x["descripcion"].startswith("Refirió al paciente") for x in bit)
      and any(x["descripcion"] == f"Actualizó la referencia No. {rid}" for x in bit))

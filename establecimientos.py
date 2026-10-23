@@ -29,6 +29,23 @@ def _clave(nombre):
     return " ".join(texto.replace(".", " ").split())
 
 
+def _unir_repetidos(db, Establecimiento):
+    """Si un hospital quedó dos veces (por ejemplo, la red se cargó y DESPUÉS los datos demo con otro
+    nombre del mismo hospital), se queda el primero, toma lo que le falte del otro y el otro se borra
+    (si nadie lo usa en una referencia)."""
+    from models import Referencia
+    for h in RED["hospitales"]:
+        claves = set(map(_clave, [h["nombre"], *h["otros_nombres"]]))
+        filas = sorted((e for e in Establecimiento.query.all() if _clave(e.nombre) in claves), key=lambda e: e.id_establecimiento)
+        for otro in filas[1:]:
+            primero = filas[0]
+            for campo in ("direccion", "telefono", "tipo_atencion_disponible"):
+                setattr(primero, campo, getattr(primero, campo) or getattr(otro, campo))
+            if not Referencia.query.filter_by(establecimiento_id=otro.id_establecimiento).first():
+                db.session.delete(otro)
+                log.warning("Red de establecimientos: %s estaba repetido; se unió", otro.nombre)
+
+
 def cargar_red(db):
     from models import Establecimiento
     if "establecimientos" not in inspect(db.engine).get_table_names():
@@ -50,6 +67,8 @@ def cargar_red(db):
             e.fuente = e.fuente or "MSPAS"
             e.departamento = e.departamento or h["departamento"]
             e.municipio = e.municipio or h["municipio"]
+        db.session.flush()
+        _unir_repetidos(db, Establecimiento)
         # Los que ya estaban sin código de municipio (cargados a mano): se busca por departamento y municipio
         import ubicaciones
         for e in Establecimiento.query.filter(Establecimiento.codigo_municipio.is_(None)).all():
