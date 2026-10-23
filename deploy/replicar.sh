@@ -41,6 +41,8 @@ done
 echo "=== 2. Contenedores"
 cd "$RAIZ/SALUD-BACKEND/deploy"
 docker compose up -d --build --quiet-pull 2>&1 | tail -n 5
+# Los simuladores ya no van en producción ni en el respaldo (solo en las pruebas)
+docker rm -f salud-simuladores-1 >/dev/null 2>&1 || true
 # La primera vez MySQL carga el esquema y los datos de demostración: puede tardar unos minutos
 for _ in $(seq 1 150); do
   [ "$(docker inspect -f '{{.State.Health.Status}}' "$(docker compose ps -q db)")" = "healthy" ] && break

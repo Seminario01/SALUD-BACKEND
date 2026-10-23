@@ -86,8 +86,11 @@ def estado_integraciones():
         if r["success"] or r.get("error") in ("no_encontrado", "respuesta_invalida"):
             datos = r.get("data") if isinstance(r.get("data"), dict) else {}
             indicadores = {k: v for k, v in datos.items() if k not in ("simulado", "modulo")}
-            estado[nombre] = {"estado": "conectado", "simulado": bool(r.get("simulado") or datos.get("simulado")),
-                              "indicadores": indicadores}
+            simulado = bool(r.get("simulado") or datos.get("simulado"))
+            if simulado and not Config.SIMULACIONES:
+                estado[nombre] = {"estado": "no_configurado", "simulado": False}
+                continue
+            estado[nombre] = {"estado": "conectado", "simulado": simulado, "indicadores": indicadores}
         elif r.get("error") == "no_configurado":
             estado[nombre] = {"estado": "no_configurado", "simulado": False}
         else:
@@ -471,6 +474,8 @@ def bitacora_integraciones():
         description: Registros, del más reciente al más antiguo, y totales por módulo
     """
     query = BitacoraIntegracion.query
+    if not Config.SIMULACIONES:
+        query = query.filter(BitacoraIntegracion.simulado.is_(False))
     modulo = request.args.get("modulo")
     direccion = request.args.get("direccion")
     if modulo:
@@ -483,8 +488,10 @@ def bitacora_integraciones():
         limite = 50
     registros = query.order_by(BitacoraIntegracion.id.desc()).limit(limite).all()
 
-    totales = dict(db.session.query(BitacoraIntegracion.modulo, db.func.count())
-                   .group_by(BitacoraIntegracion.modulo).all())
+    conteo = db.session.query(BitacoraIntegracion.modulo, db.func.count())
+    if not Config.SIMULACIONES:
+        conteo = conteo.filter(BitacoraIntegracion.simulado.is_(False))
+    totales = dict(conteo.group_by(BitacoraIntegracion.modulo).all())
     return jsonify(success=True, data=[{
         "id": r.id, "fecha": r.fecha.isoformat(timespec="seconds"), "direccion": r.direccion,
         "modulo": r.modulo, "operacion": r.operacion, "metodo": r.metodo, "ruta": r.ruta,
@@ -533,6 +540,8 @@ def simular_consulta_entrante(caso):
       503:
         description: El módulo no está configurado con los simuladores
     """
+    if not Config.SIMULACIONES:
+        return jsonify(success=False, error="no_disponible", message="Las demostraciones no están disponibles en este servidor"), 404
     if caso not in CASOS_SIMULADOS:
         return jsonify(success=False, error="no_encontrado", message="Caso desconocido"), 404
     url = getattr(Config, CASOS_SIMULADOS[caso])

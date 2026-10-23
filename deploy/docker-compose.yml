@@ -54,12 +54,12 @@ services:
       AUTH_ISSUER: ${AUTH_ISSUER:?Falta AUTH_ISSUER en .env}
       AUTH_AUDIENCE: rsd-api
       MODULOS_API_KEY: ${MODULOS_API_KEY:?Falta MODULOS_API_KEY en .env}
-      # Mientras los otros módulos no publiquen su servicio, se usan los
-      # simuladores (servicio de abajo). Cuando un equipo tenga su URL real,
-      # se pone en el .env y se corre "docker compose up -d".
-      URL_EDUCACION: ${URL_EDUCACION:-http://simuladores:5055}
-      URL_SEGURIDAD: ${URL_SEGURIDAD:-http://simuladores:5055}
-      URL_TRIBUTARIO: ${URL_TRIBUTARIO:-http://simuladores:5055}
+      # URL real de cada módulo (en el .env). Vacía = "No conectado". En producción no hay
+      # simuladores ni demostraciones: solo los servicios reales.
+      URL_EDUCACION: ${URL_EDUCACION:-}
+      URL_SEGURIDAD: ${URL_SEGURIDAD:-}
+      URL_TRIBUTARIO: ${URL_TRIBUTARIO:-}
+      SIMULACIONES: "false"
       API_KEY_EDUCACION: ${API_KEY_EDUCACION:-}
       API_KEY_SEGURIDAD: ${API_KEY_SEGURIDAD:-}
       API_KEY_TRIBUTARIO: ${API_KEY_TRIBUTARIO:-}
@@ -76,19 +76,6 @@ services:
       TIPO_OBLIGACION_SERVICIOS: ${TIPO_OBLIGACION_SERVICIOS:-SERVICIOS_MEDICOS}
       DIAS_VENCIMIENTO_COBRO: ${DIAS_VENCIMIENTO_COBRO:-15}
       COSTO_CONSULTA: ${COSTO_CONSULTA:-150}
-      TZ: America/Guatemala
-
-  # Simuladores de Educación, Seguridad y Tributario (datos ficticios; todas
-  # las respuestas dicen "simulado": true). Solo en la red interna de Docker:
-  # no se publican a internet.
-  simuladores:
-    build: ..
-    restart: unless-stopped
-    command: ["gunicorn", "--workers", "1", "--threads", "4", "--bind", "0.0.0.0:5055",
-              "--chdir", "simuladores", "--access-logfile", "-", "app:app"]
-    environment:
-      MODULOS_API_KEY: ${MODULOS_API_KEY}
-      SALUD_URL: http://backend:5050
       TZ: America/Guatemala
 
   frontend:

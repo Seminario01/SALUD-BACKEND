@@ -24,7 +24,7 @@ echo "=== $(hostname) ($ROL)  $(date '+%Y-%m-%d %H:%M')"
 echo "         código: backend $(git -C .. log --oneline -1 | cut -c1-7), frontend $(git -C ../../SALUD-FRONTEND log --oneline -1 | cut -c1-7)"
 
 # --- Contenedores
-ESPERADOS="db backend frontend simuladores"
+ESPERADOS="db backend frontend"
 [ "$ROL" = "PRODUCCIÓN" ] && ESPERADOS="$ESPERADOS tunel"
 for s in $ESPERADOS; do
   estado="$(docker compose ps --format '{{.State}}' "$s" 2>/dev/null)"

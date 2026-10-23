@@ -39,6 +39,9 @@ class Config:
     # Reenviar el token del usuario a los otros módulos. Mientras cada módulo
     # use su propio Keycloak, el token no es válido en los demás: poner "false".
     REENVIAR_TOKEN_USUARIO = os.getenv("REENVIAR_TOKEN_USUARIO", "true").lower() == "true"
+    # Simuladores de los otros módulos y la demostración de Integraciones: solo para las pruebas
+    # (PC y GitHub). En producción (deploy/docker-compose.yml) va SIMULACIONES=false.
+    SIMULACIONES = os.getenv("SIMULACIONES", "true").lower() == "true"
 
     # Alertas de Seguridad que se muestran en el panel (zona del hospital)
     DEPARTAMENTO_ALERTAS = os.getenv("DEPARTAMENTO_ALERTAS", "Sacatepéquez")

@@ -271,3 +271,7 @@ IP en un día (nivel medio). Los umbrales se pueden cambiar por parámetro. Solo
   **424** si su respuesta no se puede usar, **503** si no está disponible o configurado.
   No usar 502: el proxy lo reemplaza y el mensaje no llega a la pantalla.
 - Contratos con cada módulo: `docs/CONTRATOS.md` y `docs/INTEGRACIONES.md`.
+- `SIMULACIONES` (`config.py`, por defecto true): en producción `deploy/docker-compose.yml` la pone en false y
+  no levanta los simuladores. Así un módulo sin URL real sale "no_configurado" (aunque responda un simulador),
+  la bitácora y los totales no muestran registros `simulado` y `POST /integraciones/simular/*` responde 404.
+  En la PC y en GitHub queda en true para las pruebas.

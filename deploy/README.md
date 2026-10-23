@@ -79,7 +79,7 @@ vuelve a correr `datos_demo.sql`, que solo agrega lo que falta. Con `--turnos` t
 ssh denis@100.70.58.32 'bash ~/proyecto-salud/SALUD-BACKEND/deploy/cargar_demo.sh --turnos'
 ```
 
-**Integración con otros módulos (simuladores):** el servicio `simuladores` del compose imita a Educación, Seguridad y Tributario con datos ficticios (ver `docs/INTEGRACIONES.md` y `docs/CONTRATOS.md`). Con `URL_EDUCACION`, `URL_SEGURIDAD` y `URL_TRIBUTARIO` vacías en `.env`, el backend los usa. Cuando un equipo publique su servicio, se pone su URL en `.env` y se corre `docker compose up -d`.
+**Integración con otros módulos:** cada módulo se conecta con su URL real en `.env` (`URL_EDUCACION`, `URL_SEGURIDAD`, `URL_TRIBUTARIO`); vacía = "No conectado". En producción y en el respaldo no hay simuladores ni demostraciones (`SIMULACIONES=false`); los simuladores (`simuladores/`) solo se usan en las pruebas de la PC y de GitHub.
 
 Comprobación local en el servidor:
 

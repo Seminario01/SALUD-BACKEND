@@ -45,6 +45,18 @@ def _fila(b):
             "resultado": b.resultado, "detalle": b.detalle, "prueba": b.simulado, "usuario": b.usuario}
 
 
+def _operativo():
+    """El servicio para Auditoría responde: el cálculo del tablero funciona y el Login Único que firma
+    su token está disponible. No hace peticiones ni deja registros."""
+    try:
+        hoy = date.today()
+        indicadores, _ = calcular(hoy.replace(day=1), hoy)
+        get_jwk_client().get_signing_keys()
+        return bool(indicadores)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 @auditoria_panel_bp.route("/api/v1/salud/integraciones/auditoria", methods=["GET"])
 @validar_token
 @requiere_permiso("integraciones.ver")
@@ -65,6 +77,8 @@ def panel_auditoria():
         .order_by(BitacoraIntegracion.fecha.desc()).first()
     desde = datetime.now() - timedelta(days=DIAS)
     recientes = base.filter(BitacoraIntegracion.fecha >= desde).order_by(BitacoraIntegracion.fecha.desc()).all()
+    if not Config.SIMULACIONES:
+        recientes = [b for b in recientes if not b.simulado]       # en producción, sin las pruebas del panel
     reales = [b for b in recientes if not b.simulado]
     rechazos = {}
     for b in reales:
@@ -75,6 +89,7 @@ def panel_auditoria():
         r["veces"] += 1
     por_dia = Counter(b.fecha.date().isoformat() for b in reales if b.resultado == "ok")
     return jsonify(success=True, data={
+        "operativo": _operativo(),
         "servicios": [
             {"nombre": "Tablero de Auditoría (indicadores por rango)", "ruta": f"GET {RUTA_TABLERO}?desde=AAAA-MM-DD&hasta=AAAA-MM-DD",
              "alias": list(RUTAS_ALIAS), "credencial": f"Token del Login Único con el rol {ROL_AUDITORIA_LECTURA}"},
