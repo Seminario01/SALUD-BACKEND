@@ -83,6 +83,17 @@ En GitHub, `.github/workflows/pruebas.yml` corre todo esto solo en cada push a `
 (MySQL, Keycloak con `keycloak-local/import`, simuladores y datos de SALUD-DATABASE): ver la
 pestaña Actions del repo. Si se agrega una prueba que necesita algo nuevo, agregarlo también ahí.
 
+## Datos de demostración
+
+`deploy/cargar_demo.sh` carga de SALUD-DATABASE `datos_demo.sql` (bloques que se completan solos) y
+`demo_poblacion.sql` (826 pacientes ficticios de los 22 departamentos, generado por
+`generar_demo_poblacion.py` con semilla fija: dosis por peso en niños, alergias respetadas, crecimiento con
+las curvas OMS; solo dos brotes planeados, Escuintla y Cobán). Las fechas son relativas al día de carga,
+así que envejecen: `cargar_demo.sh --hoy` corre `demo_refrescar_fechas.sql` (mueve cada bloque los días que
+pasaron, medido con un dato ancla de fecha conocida; solo datos demo, nunca bitácoras ni cobros enviados a
+Tributario) y carga los turnos de hoy. Correrlo el día de la presentación. Si se agrega un bloque demo
+nuevo con fechas relativas, agregarle su ancla en `demo_refrescar_fechas.sql`.
+
 ## Validación de datos
 
 Los datos que llegan en el cuerpo se validan con `validacion.py` (`texto`, `cui`, `monto`,
