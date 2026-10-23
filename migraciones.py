@@ -19,6 +19,12 @@ COLUMNAS = [
     ("establecimientos", "codigo_municipio", "VARCHAR(4) NULL"),
     ("establecimientos", "nivel", "VARCHAR(40) NULL"),
     ("establecimientos", "fuente", "VARCHAR(200) NULL"),
+    # Sedes (sedes.py)
+    ("establecimientos", "es_sede", "TINYINT(1) NOT NULL DEFAULT 0"),
+    ("turnos", "sede_id", "INT NULL"),
+    ("camas", "sede_id", "INT NULL"),
+    ("hospitalizaciones", "sede_id", "INT NULL"),
+    ("recursos_hospitalarios", "sede_id", "INT NULL"),
     ("citas_medicas", "numero_referencia", "VARCHAR(20) NULL UNIQUE"),
     ("citas_medicas", "estado_cobro", "VARCHAR(20) NULL"),
     ("citas_medicas", "fecha_vencimiento", "DATE NULL"),

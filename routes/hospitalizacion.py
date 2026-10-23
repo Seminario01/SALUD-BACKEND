@@ -30,6 +30,7 @@ from auth import puede, requiere_permiso, tiene_rol, validar_token, ROL_MEDICO
 from extensions import db
 from validacion import texto
 from models import Cama, ExpedienteClinico, Hospitalizacion, NotaHospitalizacion, Paciente, RecursoHospitalario
+from sedes import de_la_sede, filtrar, misma_sede, sede_para_crear
 
 hospitalizacion_bp = Blueprint("hospitalizacion", __name__)
 
@@ -72,26 +73,27 @@ def _paciente_propio():
 
 
 # ------------------------------------------------------------------ recursos
-def _recurso_de_area(area):
-    """Categoría de camas del área (la crea si no existe)."""
+def _recurso_de_area(area, sede_id):
+    """Categoría de camas del área en la sede (la crea si no existe)."""
     descripcion = AREAS[area]
-    recurso = RecursoHospitalario.query.filter_by(tipo="cama", descripcion=descripcion) \
+    recurso = RecursoHospitalario.query.filter(RecursoHospitalario.tipo == "cama", RecursoHospitalario.descripcion == descripcion,
+                                               de_la_sede(RecursoHospitalario.sede_id, sede_id)) \
         .order_by(RecursoHospitalario.id).first()
     if recurso is None:
-        recurso = RecursoHospitalario(tipo="cama", descripcion=descripcion, disponible=0, total=0)
+        recurso = RecursoHospitalario(tipo="cama", descripcion=descripcion, disponible=0, total=0, sede_id=sede_id)
         db.session.add(recurso)
         db.session.flush()
     return recurso
 
 
-def sincronizar_recursos(*areas):
-    """Recalcula total y disponibles de las áreas indicadas desde el censo de camas."""
+def sincronizar_recursos(sede_id, *areas):
+    """Recalcula total y disponibles de las áreas indicadas de una sede desde el censo de camas."""
     db.session.flush()
     for area in set(areas):
         if area not in AREAS:
             continue
-        recurso = _recurso_de_area(area)
-        camas = Cama.query.filter_by(area=area).all()
+        recurso = _recurso_de_area(area, sede_id)
+        camas = Cama.query.filter(Cama.area == area, de_la_sede(Cama.sede_id, sede_id)).all()
         recurso.total = len(camas)
         recurso.disponible = sum(1 for c in camas if c.estado == "DISPONIBLE")
 
@@ -111,7 +113,7 @@ def _hospitalizacion(h, nombres=None, clinico=True, con_notas=False):
         "estado": h.estado, "area": h.sala, "cama": h.cama, "cama_id": h.cama_id,
         "fecha_orden": _fecha(h.fecha_ingreso), "fecha_ingreso": _fecha(h.fecha_asignacion),
         "fecha_egreso": _fecha(h.fecha_egreso), "dias_estancia": _dias(h),
-        "medico": h.medico_nombre, "medico_sub": h.medico_sub,
+        "medico": h.medico_nombre, "medico_sub": h.medico_sub, "sede_id": h.sede_id,
     }
     if clinico:
         dato.update({
@@ -140,6 +142,7 @@ def _cama(c, ocupantes):
     h = ocupantes.get(c.id)
     return {
         "id": c.id, "codigo": c.codigo, "area": c.area, "estado": c.estado, "observacion": c.observacion,
+        "sede_id": c.sede_id,
         "hospitalizacion_id": h.id if h else None,
         "paciente_id": h.paciente_id if h else None,
         "paciente": h.paciente_nombre if h else None,
@@ -172,7 +175,7 @@ def listar_camas():
       200:
         description: Camas con su estado y, si está ocupada, el paciente
     """
-    query = Cama.query
+    query = filtrar(Cama.query, Cama)
     if request.args.get("area"):
         query = query.filter_by(area=request.args["area"])
     if request.args.get("estado"):
@@ -222,9 +225,10 @@ def crear_cama():
         return _error(400, "datos_invalidos", f"Indique el código y un área: {', '.join(AREAS)}")
     if Cama.query.filter_by(codigo=codigo).first():
         return _error(409, "duplicado", f"Ya existe la cama {codigo}")
-    cama = Cama(codigo=codigo, area=area, recurso_id=_recurso_de_area(area).id, estado="DISPONIBLE")
+    sede = sede_para_crear()
+    cama = Cama(codigo=codigo, area=area, recurso_id=_recurso_de_area(area, sede).id, estado="DISPONIBLE", sede_id=sede)
     db.session.add(cama)
-    sincronizar_recursos(area)
+    sincronizar_recursos(sede, area)
     db.session.commit()
     return jsonify(success=True, data=_cama(cama, {}), message="Cama agregada"), 201
 
@@ -269,7 +273,7 @@ def actualizar_cama(id):
         return _error(409, "cama_ocupada", f"La cama {cama.codigo} está ocupada")
     cama.estado = estado
     cama.observacion = (data.get("observacion") or None) if estado == "MANTENIMIENTO" else None
-    sincronizar_recursos(cama.area)
+    sincronizar_recursos(cama.sede_id, cama.area)
     db.session.commit()
     return jsonify(success=True, data=_cama(cama, {}), message="Cama actualizada"), 200
 
@@ -303,8 +307,10 @@ def listar_hospitalizaciones():
     query = Hospitalizacion.query
     if puede("hospitalizacion.ver"):
         clinico = puede("expediente.ver")
-        if request.args.get("paciente_id"):
+        if request.args.get("paciente_id"):            # la ficha del paciente: de todas las sedes
             query = query.filter_by(paciente_id=_entero(request.args["paciente_id"]))
+        else:
+            query = filtrar(query, Hospitalizacion)
     else:
         propio = _paciente_propio()
         if propio is None:
@@ -406,7 +412,7 @@ def ordenar_ingreso():
     h = Hospitalizacion(paciente_id=paciente.id, sala=area, diagnostico=diagnostico,
                         indicaciones=texto(data, "indicaciones", 2000, etiqueta="Las indicaciones"),
                         expediente_id=expediente_id, estado="PENDIENTE", fecha_ingreso=datetime.now(),
-                        medico_sub=g.usuario["sub"], medico_nombre=_usuario())
+                        medico_sub=g.usuario["sub"], medico_nombre=_usuario(), sede_id=sede_para_crear())
     db.session.add(h)
     db.session.commit()
     return jsonify(success=True, data=_hospitalizacion(h, {paciente.id: paciente.nombre_completo}),
@@ -455,6 +461,8 @@ def asignar_cama(id):
         return _error(404, "no_encontrado", "Cama no existe")
     if cama.estado != "DISPONIBLE":
         return _error(409, "cama_no_disponible", f"La cama {cama.codigo} está {cama.estado.lower()}")
+    if not misma_sede(cama.sede_id, h.sede_id):
+        return _error(409, "otra_sede", f"La cama {cama.codigo} es de otra sede")
     if h.estado == "PENDIENTE" and cama.area != h.sala:
         return _error(400, "area_distinta", f"El ingreso es para {h.sala}; la cama {cama.codigo} es de {cama.area}")
 
@@ -477,7 +485,7 @@ def asignar_cama(id):
     cama.estado = "OCUPADA"
     h.cama_id, h.cama, h.sala = cama.id, cama.codigo, cama.area
     cuentas.abrir_por_ingreso(h, h.asignado_por)          # solo la primera vez: abre la cuenta
-    sincronizar_recursos(*areas)
+    sincronizar_recursos(cama.sede_id, *areas)
     db.session.commit()
     return jsonify(success=True, data=_hospitalizacion(h, _nombres([h.paciente_id])), message=mensaje), 200
 
@@ -529,7 +537,7 @@ def dar_egreso(id):
     cama = Cama.query.get(h.cama_id) if h.cama_id else None
     if cama:
         cama.estado = "LIMPIEZA"
-        sincronizar_recursos(cama.area)
+        sincronizar_recursos(cama.sede_id, cama.area)
     h.estado, h.tipo_egreso, h.resumen_egreso = "EGRESADO", tipo, resumen
     h.fecha_egreso, h.egresado_por = datetime.now(), _usuario()
     cuentas.egreso(h, _usuario())                          # último tramo de día cama
@@ -709,16 +717,16 @@ def signos_vitales(id):
     return jsonify(success=True, data=datos), 200
 
 
-def resumen_hospitalizacion():
-    """Indicadores agregados (panel e /indicadores). Sin datos personales."""
-    camas = Cama.query.all()
+def resumen_hospitalizacion(filtro=lambda query, modelo: query):
+    """Indicadores agregados (panel e /indicadores). Sin datos personales. El panel pasa filtro=sedes.filtrar."""
+    camas = filtro(Cama.query, Cama).all()
     total = len(camas)
     ocupadas = sum(1 for c in camas if c.estado == "OCUPADA")
     hace30 = datetime.now() - timedelta(days=30)
     return {
-        "hospitalizados": Hospitalizacion.query.filter_by(estado="ACTIVO").count(),
-        "ordenes_pendientes": Hospitalizacion.query.filter_by(estado="PENDIENTE").count(),
-        "egresos_ultimos_30_dias": Hospitalizacion.query.filter(Hospitalizacion.estado == "EGRESADO",
+        "hospitalizados": filtro(Hospitalizacion.query, Hospitalizacion).filter_by(estado="ACTIVO").count(),
+        "ordenes_pendientes": filtro(Hospitalizacion.query, Hospitalizacion).filter_by(estado="PENDIENTE").count(),
+        "egresos_ultimos_30_dias": filtro(Hospitalizacion.query, Hospitalizacion).filter(Hospitalizacion.estado == "EGRESADO",
                                                                 Hospitalizacion.fecha_egreso >= hace30).count(),
         "camas_total": total,
         "camas_disponibles": sum(1 for c in camas if c.estado == "DISPONIBLE"),

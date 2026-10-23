@@ -249,6 +249,19 @@ Jefatura (`referencias.gestionar`); las ven también Recepción y Administració
 refiere a un establecimiento inactivo. WS-SALUD-02 (Seguridad) usa la misma tabla: solo los ACTIVOS, con `nivel`
 y `codigoMunicipio`.
 
+## Sedes (varios hospitales)
+
+`sedes.py`: los establecimientos con `es_sede` son sedes de este sistema. Turnos (numeración y cola), camas,
+hospitalizaciones y recursos llevan `sede_id`; farmacia, caja, expedientes, citas y pacientes son compartidos.
+Cada persona trabaja en la sede de `sedes_usuario` (la asigna Administración con `PUT /sedes/personal/<sub>`,
+permiso `puestos.asignar`); sin fila, en la principal (`Config.SEDE_PRINCIPAL`, Hospital Pedro de Bethancourt).
+Jefatura y Administración (`sedes.cambiar`) ven otra sede o todas con el encabezado `X-Sede` (id o `todas`);
+al resto se le ignora. `filtrar(query, Modelo)` aplica la sede; lo que no tiene `sede_id` (cargado por SQL)
+cuenta como de la principal y `preparar_sedes` se lo pone al arrancar. Una cama solo se asigna a una orden de su
+misma sede. `GET /sedes` (sedes, mi_sede, actual, puede_cambiar). `/panel` da turnos, recursos y hospitalización
+de la sede al personal; `/indicadores` y el tablero de Auditoría siguen con todo el módulo. La sede principal no
+se quita, ni una sede con personal o camas. `datos_demo.sql` agrega la segunda sede (Hospital Roosevelt) con camas.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

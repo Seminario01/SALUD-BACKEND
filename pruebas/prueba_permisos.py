@@ -69,6 +69,7 @@ MATRIZ = {
     "bitacora.ver":           {"ADM"},
     "puestos.asignar":        {"ADM"},
     "establecimientos.gestionar": {"ADM"},
+    "sedes.cambiar":          {"JEF", "ADM"},
     "referencias.ver":        {"MED", "ENF", "REC", "JEF", "ADM"},
     "referencias.crear":      {"MED"},
     "referencias.gestionar":  {"MED", "ENF", "JEF"},
@@ -152,6 +153,7 @@ PRUEBAS = {
     "presupuesto.editar":     lambda u: not denegado(pedir(u, "PUT", "/presupuesto", json={})),
     "integraciones.ver":      lambda u: not denegado(pedir(u, "GET", "/integraciones/bitacora")),
     "integraciones.demo":     lambda u: not denegado(pedir(u, "POST", "/integraciones/simular/no-existe")),
+    "sedes.cambiar":          lambda u: requests.get(API + "/sedes", timeout=15, headers={"Authorization": f"Bearer {T[u]}", "X-Sede": "todas"}).json()["data"]["actual"] is None,
     # las dos rutas de la bitácora deben dar lo mismo (si no, "distintas" no es True ni False y falla)
     "puestos.asignar":        lambda u: not denegado(pedir(u, "POST", "/puestos/asignados", json={})),
     "establecimientos.gestionar": lambda u: not denegado(pedir(u, "PUT", "/establecimientos/999999", json={})),

@@ -1288,6 +1288,64 @@ check("dias fuera de rango", "GET", f"{INU}?dias=0", T["admin.salud"], 400)
 check("dias que no es número", "GET", f"{INU}?dias=siete", T["admin.salud"], 400)
 check("umbral de pacientes demasiado bajo", "GET", f"{INU}?pacientes_por_hora=1", T["admin.salud"], 400)
 
+print("--- Sedes: turnos, camas, hospitalización y recursos de cada sede")
+info = check("enfermera1 ve las sedes", "GET", "/sedes", T["enfermera1"], 200).json()["data"]
+principal = next((x["id"] for x in info["sedes"] if x["principal"]), None)
+otra = next((x["id"] for x in info["sedes"] if not x["principal"]), None)
+dato("hay sede principal y una segunda sede (datos_demo: Hospital Roosevelt)", principal and otra)
+dato("enfermera1 no cambia de sede con X-Sede", not info["puede_cambiar"])
+personal = check("Administración ve el personal y su sede", "GET", "/sedes/personal", T["admin.salud"], 200).json()["data"]["personal"]
+sub_enf = next((x["usuario_sub"] for x in personal if x["usuario"] == "enfermera1"), None)
+dato("enfermera1 aparece en el personal", sub_enf)
+check("ciudadano1 NO ve el personal", "GET", "/sedes/personal", T["ciudadano1"], 403)
+if principal and otra and sub_enf:
+    check("enfermera1 NO asigna sedes", "PUT", f"/sedes/personal/{sub_enf}", T["enfermera1"], 403, json={"sede_id": otra})
+    check("sede que no es del sistema", "PUT", f"/sedes/personal/{sub_enf}", T["admin.salud"], 400, json={"sede_id": 999999})
+    check("código de usuario inválido", "PUT", "/sedes/personal/no-es-un-codigo", T["admin.salud"], 400, json={"sede_id": otra})
+    check("Administración pasa a enfermera1 a la segunda sede", "PUT", f"/sedes/personal/{sub_enf}", T["admin.salud"], 200, json={"sede_id": otra})
+    camas_otra = check("enfermera1 ve el censo de su sede", "GET", "/camas", T["enfermera1"], 200).json()["data"]
+    dato("solo camas de la segunda sede", camas_otra and all(c["sede_id"] == otra for c in camas_otra))
+    con_encabezado = requests.get(API + "/camas", headers={"Authorization": f"Bearer {T['enfermera1']}", "X-Sede": str(principal)}).json()["data"]
+    dato("X-Sede no le cambia la sede a Enfermería", {c["id"] for c in con_encabezado} == {c["id"] for c in camas_otra})
+    camas_pri = requests.get(API + "/camas", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
+    dato("medico1 (sede principal) no ve las camas de la otra sede", not {c["id"] for c in camas_pri} & {c["id"] for c in camas_otra})
+    todas = check("Jefatura ve todas las sedes", "GET", "/camas", T["jefatura1"], 200, headers={"X-Sede": "todas"}).json()["data"]
+    dato("todas = principal + segunda sede", len(todas) == len(camas_pri) + len(camas_otra))
+    solo_otra = requests.get(API + "/camas", headers={"Authorization": f"Bearer {T['jefatura1']}", "X-Sede": str(otra)}).json()["data"]
+    dato("Jefatura elige la segunda sede", {c["id"] for c in solo_otra} == {c["id"] for c in camas_otra})
+    rec = requests.get(API + "/recursos", headers={"Authorization": f"Bearer {T['enfermera1']}"}).json()["data"]
+    dato("los recursos son de la sede", rec and all(r["sede_id"] == otra for r in rec))
+    # Turno en la segunda sede: no aparece en la cola de la principal
+    activos = {t["paciente_id"] for t in requests.get(API + "/turnos/activos", headers={"Authorization": f"Bearer {T['jefatura1']}", "X-Sede": "todas"}).json()["data"]}
+    libre = next(x["id"] for x in requests.get(API + "/pacientes", headers={"Authorization": f"Bearer {T['admin.salud']}"}).json()["data"] if x["id"] not in activos)
+    check("enfermera1 genera un turno en su sede", "POST", "/turnos", T["enfermera1"], 201, json={"paciente_id": libre, "tipo_atencion": "consulta_general"})
+    cola_otra = requests.get(API + "/turnos/activos", headers={"Authorization": f"Bearer {T['enfermera1']}"}).json()["data"]
+    cola_pri = requests.get(API + "/turnos/activos", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]
+    nuevo = next((t for t in cola_otra if t.get("paciente_id") == libre), None)
+    dato("el turno queda en la cola de la segunda sede", nuevo and nuevo["sede_id"] == otra)
+    dato("y no en la cola de la sede principal", all(t.get("paciente_id") != libre for t in cola_pri))
+    if nuevo:
+        check("enfermera1 finaliza el turno", "PUT", f"/turnos/{nuevo['id']}/finalizar", T["enfermera1"], 200)
+    # Una orden de ingreso de la sede principal no recibe una cama de la otra sede
+    for h in requests.get(API + f"/hospitalizaciones?paciente_id={p2}", headers={"Authorization": f"Bearer {T['medico1']}"}).json()["data"]:
+        if h["estado"] == "PENDIENTE":
+            requests.post(API + f"/hospitalizaciones/{h['id']}/anular", headers={"Authorization": f"Bearer {T['medico1']}"}, json={})
+        if h["estado"] == "ACTIVO":
+            requests.post(API + f"/hospitalizaciones/{h['id']}/egreso", headers={"Authorization": f"Bearer {T['medico1']}"}, json={"tipo_egreso": "ALTA", "resumen": "Prueba"})
+    orden = check("medico1 ordena un ingreso (sede principal)", "POST", "/hospitalizaciones", T["medico1"], 201,
+                  json={"paciente_id": p2, "area": "Medicina general", "diagnostico": "Prueba de sedes"}).json()["data"]
+    dato("la orden es de la sede principal", orden["sede_id"] == principal)
+    libre_otra = next((c for c in camas_otra if c["estado"] == "DISPONIBLE" and c["area"] == "Medicina general"), None)
+    if libre_otra:
+        check("cama de otra sede", "POST", f"/hospitalizaciones/{orden['id']}/asignar-cama", T["enfermera1"], 409, json={"cama_id": libre_otra["id"]})
+    pendientes = requests.get(API + "/hospitalizaciones?estado=PENDIENTE", headers={"Authorization": f"Bearer {T['enfermera1']}"}).json()["data"]
+    dato("la orden no sale en los pendientes de la otra sede", all(h["id"] != orden["id"] for h in pendientes))
+    check("medico1 anula la orden", "POST", f"/hospitalizaciones/{orden['id']}/anular", T["medico1"], 200, json={"motivo": "Prueba"})
+    check("la sede principal no se quita", "PUT", f"/establecimientos/{principal}", T["admin.salud"], 409, json={"es_sede": False})
+    check("una sede con camas no se quita", "PUT", f"/establecimientos/{otra}", T["admin.salud"], 409, json={"es_sede": False})
+    check("es_sede debe ser true o false", "PUT", f"/establecimientos/{otra}", T["admin.salud"], 400, json={"es_sede": "si"})
+    check("enfermera1 vuelve a la sede principal", "PUT", f"/sedes/personal/{sub_enf}", T["admin.salud"], 200, json={"sede_id": principal})
+
 print("--- Estado del servicio (monitor externo, sin token)")
 e = check("estado sin token", "GET", "/estado", None, 200)
 dato("dice ok y nada más (ni versión, ni datos)", e.json() == {"success": True, "estado": "ok"}

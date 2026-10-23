@@ -25,7 +25,7 @@ from extensions import db
 from models import Establecimiento, Paciente, Referencia
 from routes.externos import TIPOS_ATENCION
 from routes.pacientes import puede_ver_paciente
-from validacion import DatoInvalido, entero, opcion, telefono, texto
+from validacion import DatoInvalido, booleano, entero, opcion, telefono, texto
 
 red_bp = Blueprint("red", __name__)
 ESTADOS_SERVICIO = ("ACTIVO", "INACTIVO", "EN_MANTENIMIENTO")
@@ -46,7 +46,7 @@ def _establecimiento(e, enviadas=0):
             "departamento": e.departamento, "municipio": e.municipio, "codigo_municipio": e.codigo_municipio,
             "direccion": e.direccion, "telefono": e.telefono, "estado_servicio": e.estado_servicio,
             "tipo_atencion": [t for t in (e.tipo_atencion_disponible or "").split(",") if t], "fuente": e.fuente,
-            "referencias_90_dias": enviadas}
+            "referencias_90_dias": enviadas, "es_sede": bool(e.es_sede)}
 
 
 def _referencia(r, paciente=None):
@@ -129,6 +129,8 @@ def _datos_establecimiento(data, nuevo):
         if not isinstance(valor, list) or not all(isinstance(t, str) and t in TIPOS_ATENCION for t in valor):
             raise DatoInvalido(f"tipo_atencion es una lista con: {', '.join(TIPOS_ATENCION)}")
         cambios["tipo_atencion_disponible"] = ",".join(dict.fromkeys(valor)) or None
+    if not nuevo and "es_sede" in data:
+        cambios["es_sede"] = booleano(data, "es_sede")
     return cambios
 
 
@@ -200,11 +202,14 @@ def editar_establecimiento(id):
             telefono: {type: string}
             estado_servicio: {type: string, enum: [ACTIVO, INACTIVO, EN_MANTENIMIENTO]}
             tipo_atencion: {type: array, items: {type: string}}
+            es_sede: {type: boolean, description: "Sede de este sistema (turnos, camas y recursos propios)"}
     responses:
       200:
         description: Guardado
       404:
         description: No existe
+      409:
+        description: No se puede quitar la sede (es la principal o tiene personal o camas)
     """
     e = Establecimiento.query.get(id)
     if not e:
@@ -212,6 +217,13 @@ def editar_establecimiento(id):
     cambios = _datos_establecimiento(request.get_json(silent=True) or {}, False)
     if not cambios:
         return _error(400, "datos_incompletos", "No hay nada que cambiar")
+    if cambios.get("es_sede") is False and e.es_sede:
+        from models import Cama, SedeUsuario
+        from sedes import principal_id
+        if e.id_establecimiento == principal_id():
+            return _error(409, "sede_principal", "Es la sede principal: no se puede quitar")
+        if SedeUsuario.query.filter_by(sede_id=e.id_establecimiento).first() or Cama.query.filter_by(sede_id=e.id_establecimiento).first():
+            return _error(409, "sede_en_uso", "La sede tiene personal o camas: cámbielos de sede primero")
     for campo, valor in cambios.items():
         setattr(e, campo, valor)
     db.session.commit()

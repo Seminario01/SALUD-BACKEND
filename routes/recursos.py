@@ -3,6 +3,7 @@ from extensions import db
 from models import Cama, RecursoHospitalario
 from auth import validar_token, requiere_permiso, puede
 from validacion import texto
+from sedes import filtrar, sede_para_crear
 
 recursos_bp = Blueprint("recursos", __name__)
 
@@ -29,7 +30,7 @@ def _validar_cantidades(disponible, total):
 @validar_token
 @requiere_permiso("recursos.ver")
 def listar_recursos():
-    recursos = RecursoHospitalario.query.all()
+    recursos = filtrar(RecursoHospitalario.query, RecursoHospitalario).order_by(RecursoHospitalario.id).all()
     con_camas = {c.recurso_id for c in Cama.query.with_entities(Cama.recurso_id).distinct()}
     return jsonify(success=True, data=[{
         "id": r.id,
@@ -39,6 +40,7 @@ def listar_recursos():
         "total": r.total,
         # Si el área tiene censo de camas, total y disponibles se calculan desde Hospitalización
         "por_censo": r.id in con_camas,
+        "sede_id": r.sede_id,
     } for r in recursos]), 200
 
 
@@ -91,6 +93,7 @@ def crear_recurso():
         descripcion=texto(data, "descripcion", 200, etiqueta="La descripción"),
         disponible=int(data.get("disponible", 0)),
         total=int(data.get("total", 0)),
+        sede_id=sede_para_crear(),
     )
     db.session.add(recurso)
     db.session.commit()

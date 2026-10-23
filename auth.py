@@ -99,6 +99,7 @@ PERMISOS = {
     "bitacora.ver":           (ADM,),                # quién vio o modificó cada expediente
     "puestos.asignar":        (ADM,),                # dar un puesto de Salud a una cuenta del Login Único
     "establecimientos.gestionar": (ADM,),            # completar dirección, teléfono y estado de la red
+    "sedes.cambiar":          (JEF, ADM),            # ver otra sede o todas (encabezado X-Sede, sedes.py)
     "referencias.ver":        (MED, ENF, REC, JEF, ADM),   # Recepción coordina el traslado
     "referencias.crear":      (MED,),                # referir a un paciente a otro establecimiento
     "referencias.gestionar":  (MED, ENF, JEF),       # marcar recibida o cancelada

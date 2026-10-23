@@ -69,6 +69,7 @@ class RecursoHospitalario(db.Model):
     descripcion = db.Column(db.String(200))
     disponible = db.Column(db.Integer, default=0)
     total = db.Column(db.Integer, default=0)
+    sede_id = db.Column(db.Integer, db.ForeignKey("establecimientos.id_establecimiento"), index=True)   # sedes.py
     ultima_actualizacion = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -89,6 +90,7 @@ class Turno(db.Model):
     motivo_triage = db.Column(db.String(255))
     triage_por = db.Column(db.String(150))
     fecha_triage = db.Column(db.DateTime)
+    sede_id = db.Column(db.Integer, db.ForeignKey("establecimientos.id_establecimiento"), index=True)   # sedes.py
 
 
 class PresupuestoHospitalario(db.Model):
@@ -125,6 +127,7 @@ class Establecimiento(db.Model):
     codigo_municipio = db.Column(db.String(4), index=True)    # código INE (el mismo del mapa de vigilancia)
     nivel = db.Column(db.String(40))                          # Referencia nacional, Regional, Departamental, Distrital...
     fuente = db.Column(db.String(200))                        # de dónde salió el dato (red: portal del MSPAS)
+    es_sede = db.Column(db.Boolean, default=False, nullable=False)   # aquí trabaja personal de este sistema (sedes.py)
 
 
 class Referencia(db.Model):
@@ -218,6 +221,16 @@ class PuestoAsignado(db.Model):
     nota = db.Column(db.String(255))
     asignado_por = db.Column(db.String(150))
     asignado_por_sub = db.Column(db.String(SUB_LEN))
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
+class SedeUsuario(db.Model):
+    """Sede donde trabaja una persona del personal (la asigna Administración en "Asignar puestos").
+    Sin fila, trabaja en la sede principal (sedes.py)."""
+    __tablename__ = "sedes_usuario"
+    usuario_sub = db.Column(db.String(SUB_LEN), primary_key=True)
+    sede_id = db.Column(db.Integer, db.ForeignKey("establecimientos.id_establecimiento"), nullable=False)
+    asignado_por = db.Column(db.String(150))
     fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
 
@@ -419,6 +432,7 @@ class Cama(db.Model):
     estado = db.Column(db.String(20), nullable=False, default="DISPONIBLE")  # DISPONIBLE, OCUPADA, LIMPIEZA, MANTENIMIENTO
     observacion = db.Column(db.String(200))
     actualizado = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+    sede_id = db.Column(db.Integer, db.ForeignKey("establecimientos.id_establecimiento"), index=True)   # sedes.py
 
 
 class Hospitalizacion(db.Model):
@@ -447,6 +461,7 @@ class Hospitalizacion(db.Model):
     resumen_egreso = db.Column(db.Text)
     egresado_por = db.Column(db.String(150))
     motivo_anulacion = db.Column(db.String(255))
+    sede_id = db.Column(db.Integer, db.ForeignKey("establecimientos.id_establecimiento"), index=True)   # sedes.py
     notas = db.relationship("NotaHospitalizacion", backref="hospitalizacion", lazy="select",
                             order_by="NotaHospitalizacion.id.desc()")
 

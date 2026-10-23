@@ -42,6 +42,8 @@ class Config:
     # Simuladores de los otros módulos y la demostración de Integraciones: solo para las pruebas
     # (PC y GitHub). En producción (deploy/docker-compose.yml) va SIMULACIONES=false.
     SIMULACIONES = os.getenv("SIMULACIONES", "true").lower() == "true"
+    # Sede donde trabaja quien no tiene otra asignada (sedes.py); es un hospital de la red del MSPAS.
+    SEDE_PRINCIPAL = os.getenv("SEDE_PRINCIPAL", "Hospital Pedro de Bethancourt")
 
     # Alertas de Seguridad que se muestran en el panel (zona del hospital)
     DEPARTAMENTO_ALERTAS = os.getenv("DEPARTAMENTO_ALERTAS", "Sacatepéquez")

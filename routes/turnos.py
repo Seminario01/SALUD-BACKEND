@@ -4,6 +4,7 @@ from extensions import db
 from models import Turno, Paciente
 from auth import validar_token, requiere_permiso, puede
 from validacion import entero, opcion, texto
+from sedes import de_la_sede, filtrar, sede_para_crear
 
 turnos_bp = Blueprint("turnos", __name__)
 
@@ -63,9 +64,11 @@ def generar_turno():
     # Los turnos usan la hora LOCAL del servidor (TZ=America/Guatemala en Docker).
     # Antes se guardaba en UTC pero se comparaba con la fecha local: después de
     # las 18:00 en Guatemala ya era "mañana" en UTC y la numeración volvía a 1.
+    # La numeración es de cada sede (cada una tiene su sala de espera).
     ahora = datetime.now()
     inicio_del_dia = datetime.combine(ahora.date(), datetime.min.time())
-    ultimo = Turno.query.filter(Turno.fecha_hora_ingreso >= inicio_del_dia) \
+    sede = sede_para_crear()
+    ultimo = Turno.query.filter(Turno.fecha_hora_ingreso >= inicio_del_dia, de_la_sede(Turno.sede_id, sede)) \
         .order_by(Turno.numero_turno.desc()).first()
     siguiente_numero = (ultimo.numero_turno + 1) if ultimo else 1
 
@@ -75,6 +78,7 @@ def generar_turno():
         prioridad=data.get("prioridad", "normal"),
         numero_turno=siguiente_numero,
         fecha_hora_ingreso=ahora,
+        sede_id=sede,
     )
     # El triage al generar el turno solo lo pone quien puede clasificar (Enfermería o Médico)
     if data.get("triage") is not None:
@@ -85,7 +89,8 @@ def generar_turno():
     db.session.add(turno)
     db.session.commit()
 
-    en_espera = Turno.query.filter_by(estado="en_espera").count()
+    en_espera = Turno.query.filter(Turno.estado == "en_espera", de_la_sede(Turno.sede_id, sede),
+                                   Turno.fecha_hora_ingreso >= inicio_del_dia).count()
 
     return jsonify(success=True, data={
         "numero_turno": turno.numero_turno,
@@ -98,8 +103,8 @@ def generar_turno():
 def turnos_activos():
     # Solo los de HOY: la numeración se reinicia cada día, así que un turno
     # olvidado de ayer mezclaría números repetidos en la sala de espera.
-    turnos = Turno.query.filter(Turno.estado.in_(["en_espera", "llamado", "en_atencion"]),
-                                Turno.fecha_hora_ingreso >= datetime.combine(date.today(), datetime.min.time())).all()
+    turnos = filtrar(Turno.query, Turno).filter(Turno.estado.in_(["en_espera", "llamado", "en_atencion"]),
+                                                Turno.fecha_hora_ingreso >= datetime.combine(date.today(), datetime.min.time())).all()
     turnos.sort(key=_orden_cola)
     ahora = datetime.now()
 
@@ -116,7 +121,8 @@ def turnos_activos():
                 "modulo_asignado": t.modulo_asignado,
                 # La pantalla de la sala anuncia por voz cada llamado nuevo (o cuando se vuelve a llamar)
                 "llamado_en": t.fecha_hora_llamado.isoformat(timespec="seconds") if t.fecha_hora_llamado else None,
-                "triage": t.triage, "triage_nombre": TRIAGE[t.triage]["nombre"] if t.triage in TRIAGE else None}
+                "triage": t.triage, "triage_nombre": TRIAGE[t.triage]["nombre"] if t.triage in TRIAGE else None,
+                "sede_id": t.sede_id}
         if personal:
             espera = max(0, int((ahora - t.fecha_hora_ingreso).total_seconds() // 60)) if t.fecha_hora_ingreso else None
             objetivo = TRIAGE[t.triage]["minutos"] if t.triage in TRIAGE else None

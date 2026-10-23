@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 import laboratorio
 
-from auth import validar_token, requiere_permiso, permisos_de, puede, PERMISOS
+from auth import es_personal, validar_token, requiere_permiso, permisos_de, puede, PERMISOS
 from extensions import db
 from routes.externos import calcular_indicadores
 
@@ -69,11 +69,28 @@ def panel():
         description: El usuario no es personal de Salud ni de Auditoría
     """
     datos = calcular_indicadores()
+    if es_personal():           # el personal ve su sede (o la que eligió); Auditoría, todo el módulo
+        datos.update(_de_la_sede())
     if not puede("presupuesto.ver"):          # matriz: solo Jefatura, Administración y Auditoría
         datos.pop("presupuesto_servicio_social", None)
     # Solo para la pantalla de inicio (no va en /indicadores, el contrato con Auditoría no cambia)
     datos["atencion_hoy"] = _atencion_hoy()
     return jsonify(success=True, data=datos), 200
+
+
+def _de_la_sede():
+    """Turnos, recursos y hospitalización de la sede actual (sedes.py)."""
+    from models import RecursoHospitalario, Turno
+    from routes.hospitalizacion import resumen_hospitalizacion
+    from sedes import filtrar
+    turnos = filtrar(Turno.query, Turno)
+    return {
+        "turnos": {"en_espera": turnos.filter_by(estado="en_espera").count(),
+                   "atendidos": turnos.filter_by(estado="atendido").count()},
+        "recursos_hospitalarios": [{"tipo": r.tipo, "descripcion": r.descripcion, "disponible": r.disponible, "total": r.total}
+                                   for r in filtrar(RecursoHospitalario.query, RecursoHospitalario).order_by(RecursoHospitalario.id)],
+        "hospitalizacion": resumen_hospitalizacion(filtrar),
+    }
 
 
 def _atencion_hoy():
@@ -85,7 +102,8 @@ def _atencion_hoy():
     ahora = datetime.now()
     resumen = {}
     if puede("turnos.ver_cola"):
-        espera = Turno.query.filter(Turno.estado == "en_espera", Turno.fecha_hora_ingreso >= hoy).all()
+        from sedes import filtrar
+        espera = filtrar(Turno.query, Turno).filter(Turno.estado == "en_espera", Turno.fecha_hora_ingreso >= hoy).all()
         urgentes = [t for t in espera if t.triage in ("ROJO", "NARANJA")]
         resumen["triage"] = {
             "urgentes_en_espera": len(urgentes),

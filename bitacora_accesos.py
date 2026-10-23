@@ -61,6 +61,7 @@ CAMBIOS = {
     ("POST", "/establecimientos"): ("crear", "Agregó un establecimiento a la red"),
     ("PUT", "/establecimientos/<int:id>"): ("modificar", "Actualizó el establecimiento No. {id}"),
     ("DELETE", "/puestos/asignados/<int:id>"): ("anular", "Quitó el puesto {detalle}"),
+    ("PUT", "/sedes/personal/<sub>"): ("modificar", "Asignó la sede {detalle}"),
     ("DELETE", "/pacientes/<int:id>/crecimiento/<int:mid>"): ("anular", "Anuló una medición de crecimiento"),
     ("PUT", "/citas/lista-espera/<int:id>"): ("modificar", "Actualizó la lista de espera No. {id}"),
     ("POST", "/citas/<int:id>/cobro"): ("modificar", "Generó el cobro de la cita No. {id}"),
