@@ -11,6 +11,7 @@ from auth import precargar_jwks
 from validacion import DatoInvalido
 from bitacora_accesos import registrar_acceso
 import auditoria_registro
+import establecimientos
 
 SWAGGER_TEMPLATE = {
     "swagger": "2.0",
@@ -49,6 +50,7 @@ def crear_app():
     with app.app_context():
         db.create_all()
         migraciones.aplicar(db)   # columnas nuevas en tablas que ya existían
+        establecimientos.cargar_red(db)   # los 45 hospitales públicos del MSPAS (datos/red_hospitalaria.json)
 
     # Descarga las llaves del Login Único al arrancar: así el backend sigue
     # validando tokens aunque el servidor de identidad se apague después.

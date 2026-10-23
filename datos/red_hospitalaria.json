@@ -1,0 +1,414 @@
+{
+ "fuente": "MSPAS, portal Establecimientos de Salud (listado de establecimientos, categoría Hospital, estado Funcionando), consultado el 23/10/2026",
+ "url": "https://establecimientosdesalud.mspas.gob.gt/establecimientos/listado-de-establecimientos.html",
+ "nota": "El portal no publica dirección ni teléfono de cada hospital: se dejan vacíos para que Administración los complete. El nivel sale del nombre oficial; el tipo de atención es el habitual de ese nivel y se puede ajustar.",
+ "hospitales": [
+  {
+   "nombre": "Hospital General San Juan de Dios",
+   "codigo_municipio": "0101",
+   "municipio": "Guatemala",
+   "departamento": "Guatemala",
+   "nivel": "Referencia nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Roosevelt",
+   "codigo_municipio": "0101",
+   "municipio": "Guatemala",
+   "departamento": "Guatemala",
+   "nivel": "Referencia nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Infantil de Infectología y Rehabilitación",
+   "codigo_municipio": "0101",
+   "municipio": "Guatemala",
+   "departamento": "Guatemala",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Ortopedia y Rehabilitación",
+   "codigo_municipio": "0101",
+   "municipio": "Guatemala",
+   "departamento": "Guatemala",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital San Vicente",
+   "codigo_municipio": "0101",
+   "municipio": "Guatemala",
+   "departamento": "Guatemala",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Salud Mental Federico Mora",
+   "codigo_municipio": "0101",
+   "municipio": "Guatemala",
+   "departamento": "Guatemala",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital de Amatitlán",
+   "codigo_municipio": "0114",
+   "municipio": "Amatitlán",
+   "departamento": "Guatemala",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Villa Nueva",
+   "codigo_municipio": "0115",
+   "municipio": "Villa Nueva",
+   "departamento": "Guatemala",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital El Progreso",
+   "codigo_municipio": "0201",
+   "municipio": "Guastatoya",
+   "departamento": "El Progreso",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Pedro de Bethancourt",
+   "codigo_municipio": "0301",
+   "municipio": "Antigua Guatemala",
+   "departamento": "Sacatepéquez",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": [
+    "Hospital Nacional Pedro de Bethancourt"
+   ]
+  },
+  {
+   "nombre": "Hospital Nacional Hogar de Ancianos",
+   "codigo_municipio": "0301",
+   "municipio": "Antigua Guatemala",
+   "departamento": "Sacatepéquez",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Chimaltenango",
+   "codigo_municipio": "0401",
+   "municipio": "Chimaltenango",
+   "departamento": "Chimaltenango",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Regional de Escuintla",
+   "codigo_municipio": "0501",
+   "municipio": "Escuintla",
+   "departamento": "Escuintla",
+   "nivel": "Regional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Tiquisate",
+   "codigo_municipio": "0506",
+   "municipio": "Tiquisate",
+   "departamento": "Escuintla",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Regional de Cuilapa",
+   "codigo_municipio": "0601",
+   "municipio": "Cuilapa",
+   "departamento": "Santa Rosa",
+   "nivel": "Regional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Departamental de Sololá",
+   "codigo_municipio": "0701",
+   "municipio": "Sololá",
+   "departamento": "Sololá",
+   "nivel": "Departamental",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Departamental de Totonicapán",
+   "codigo_municipio": "0801",
+   "municipio": "Totonicapán",
+   "departamento": "Totonicapán",
+   "nivel": "Departamental",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Regional de Occidente",
+   "codigo_municipio": "0901",
+   "municipio": "Quetzaltenango",
+   "departamento": "Quetzaltenango",
+   "nivel": "Regional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Rodolfo Robles",
+   "codigo_municipio": "0901",
+   "municipio": "Quetzaltenango",
+   "departamento": "Quetzaltenango",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Coatepeque",
+   "codigo_municipio": "0920",
+   "municipio": "Coatepeque",
+   "departamento": "Quetzaltenango",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Mazatenango",
+   "codigo_municipio": "1001",
+   "municipio": "Mazatenango",
+   "departamento": "Suchitepéquez",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Retalhuleu",
+   "codigo_municipio": "1101",
+   "municipio": "Retalhuleu",
+   "departamento": "Retalhuleu",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de San Marcos",
+   "codigo_municipio": "1201",
+   "municipio": "San Marcos",
+   "departamento": "San Marcos",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Malacatán",
+   "codigo_municipio": "1215",
+   "municipio": "Malacatán",
+   "departamento": "San Marcos",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Regional Dr. Jorge Vides Molina",
+   "codigo_municipio": "1301",
+   "municipio": "Huehuetenango",
+   "departamento": "Huehuetenango",
+   "nivel": "Regional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de San Pedro Necta",
+   "codigo_municipio": "1306",
+   "municipio": "San Pedro Necta",
+   "departamento": "Huehuetenango",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Barillas",
+   "codigo_municipio": "1326",
+   "municipio": "Barillas",
+   "departamento": "Huehuetenango",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional Santa Elena",
+   "codigo_municipio": "1401",
+   "municipio": "Santa Cruz del Quiché",
+   "departamento": "Quiché",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Joyabaj",
+   "codigo_municipio": "1412",
+   "municipio": "Joyabaj",
+   "departamento": "Quiché",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Nebaj",
+   "codigo_municipio": "1413",
+   "municipio": "Nebaj",
+   "departamento": "Quiché",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Uspantán",
+   "codigo_municipio": "1415",
+   "municipio": "Uspantán",
+   "departamento": "Quiché",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Salamá",
+   "codigo_municipio": "1501",
+   "municipio": "Salamá",
+   "departamento": "Baja Verapaz",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional Hellen Lossi de Laugerud",
+   "codigo_municipio": "1601",
+   "municipio": "Cobán",
+   "departamento": "Alta Verapaz",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital Fray Bartolomé de las Casas",
+   "codigo_municipio": "1615",
+   "municipio": "Fray Bartolomé de Las Casas",
+   "departamento": "Alta Verapaz",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital La Tinta",
+   "codigo_municipio": "1616",
+   "municipio": "Santa Catalina La Tinta",
+   "departamento": "Alta Verapaz",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Regional Dr. Antonio Penados",
+   "codigo_municipio": "1703",
+   "municipio": "San Benito",
+   "departamento": "Petén",
+   "nivel": "Regional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Sayaxché",
+   "codigo_municipio": "1710",
+   "municipio": "Sayaxché",
+   "departamento": "Petén",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital Melchor de Mencos",
+   "codigo_municipio": "1711",
+   "municipio": "Melchor de Mencos",
+   "departamento": "Petén",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Distrital de Poptún",
+   "codigo_municipio": "1712",
+   "municipio": "Poptún",
+   "departamento": "Petén",
+   "nivel": "Distrital",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital de La Amistad",
+   "codigo_municipio": "1801",
+   "municipio": "Puerto Barrios",
+   "departamento": "Izabal",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional Infantil Elisa Martínez",
+   "codigo_municipio": "1801",
+   "municipio": "Puerto Barrios",
+   "departamento": "Izabal",
+   "nivel": "Especializado",
+   "tipo_atencion": "ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Regional de Zacapa",
+   "codigo_municipio": "1901",
+   "municipio": "Zacapa",
+   "departamento": "Zacapa",
+   "nivel": "Regional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Modular Carlos Arana Osorio",
+   "codigo_municipio": "2001",
+   "municipio": "Chiquimula",
+   "departamento": "Chiquimula",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional Nicolasa Cruz",
+   "codigo_municipio": "2101",
+   "municipio": "Jalapa",
+   "departamento": "Jalapa",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  },
+  {
+   "nombre": "Hospital Nacional de Jutiapa",
+   "codigo_municipio": "2201",
+   "municipio": "Jutiapa",
+   "departamento": "Jutiapa",
+   "nivel": "Nacional",
+   "tipo_atencion": "EMERGENCIA,CONSULTA_GENERAL,ESPECIALIDAD",
+   "otros_nombres": []
+  }
+ ]
+}

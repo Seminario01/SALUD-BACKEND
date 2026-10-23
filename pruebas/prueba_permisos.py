@@ -68,6 +68,10 @@ MATRIZ = {
     "integraciones.demo":     {"JEF", "ADM"},
     "bitacora.ver":           {"ADM"},
     "puestos.asignar":        {"ADM"},
+    "establecimientos.gestionar": {"ADM"},
+    "referencias.ver":        {"MED", "ENF", "REC", "JEF", "ADM"},
+    "referencias.crear":      {"MED"},
+    "referencias.gestionar":  {"MED", "ENF", "JEF"},
     "pacientes.alergias":     {"MED", "ENF", "REC"},
     "reportes.ver":           {"MED", "JEF", "ADM", "AUD"},
     "constancias.ver":        {"MED", "ENF", "JEF", "ADM"},
@@ -150,6 +154,10 @@ PRUEBAS = {
     "integraciones.demo":     lambda u: not denegado(pedir(u, "POST", "/integraciones/simular/no-existe")),
     # las dos rutas de la bitácora deben dar lo mismo (si no, "distintas" no es True ni False y falla)
     "puestos.asignar":        lambda u: not denegado(pedir(u, "POST", "/puestos/asignados", json={})),
+    "establecimientos.gestionar": lambda u: not denegado(pedir(u, "PUT", "/establecimientos/999999", json={})),
+    "referencias.ver":        lambda u: not denegado(pedir(u, "GET", "/referencias?limite=1")),
+    "referencias.crear":      lambda u: not denegado(pedir(u, "POST", "/referencias", json={})),
+    "referencias.gestionar":  lambda u: not denegado(pedir(u, "PUT", "/referencias/999999", json={})),
     "bitacora.ver":           lambda u: (lambda a, b: a if a == b else "distintas")(
                                   not denegado(pedir(u, "GET", "/bitacora/accesos?limite=1")),
                                   not denegado(pedir(u, "GET", "/bitacora/inusuales?dias=1"))),

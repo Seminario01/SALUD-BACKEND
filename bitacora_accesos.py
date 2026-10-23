@@ -21,7 +21,7 @@ from sqlalchemy import select
 from bitacora import enmascarar
 from extensions import db
 from models import (BitacoraAcceso, CitaMedica, ConstanciaMedica, CuentaPaciente, Hospitalizacion, ListaEspera,
-                    OrdenLaboratorio, PersonalSalud, Receta, Turno, UsuarioReciente)
+                    OrdenLaboratorio, PersonalSalud, Receta, Referencia, Turno, UsuarioReciente)
 
 log = logging.getLogger(__name__)
 PREFIJO = "/api/v1/salud"
@@ -42,6 +42,8 @@ VER = {
     "/laboratorio/ordenes/<int:id>": "Vio la orden de laboratorio No. {id}",
     "/vigilancia/pacientes": "Consultó la lista de casos de vigilancia epidemiológica",
     "/pacientes/<int:id>/crecimiento": "Vio las curvas de crecimiento",
+    "/pacientes/<int:id>/referencias": "Vio las referencias del paciente",
+    "/referencias/<int:id>": "Vio la referencia No. {id}",
 }
 
 CAMBIOS = {
@@ -54,6 +56,10 @@ CAMBIOS = {
     ("POST", "/citas/lista-espera"): ("crear", "Agregó al paciente a la lista de espera"),
     ("POST", "/pacientes/<int:id>/crecimiento"): ("crear", "Registró una medición de crecimiento"),
     ("POST", "/puestos/asignados"): ("crear", "Asignó el puesto {detalle}"),
+    ("POST", "/referencias"): ("crear", "Refirió al paciente a otro establecimiento (referencia No. {nuevo})"),
+    ("PUT", "/referencias/<int:id>"): ("modificar", "Actualizó la referencia No. {id}"),
+    ("POST", "/establecimientos"): ("crear", "Agregó un establecimiento a la red"),
+    ("PUT", "/establecimientos/<int:id>"): ("modificar", "Actualizó el establecimiento No. {id}"),
     ("DELETE", "/puestos/asignados/<int:id>"): ("anular", "Quitó el puesto {detalle}"),
     ("DELETE", "/pacientes/<int:id>/crecimiento/<int:mid>"): ("anular", "Anuló una medición de crecimiento"),
     ("PUT", "/citas/lista-espera/<int:id>"): ("modificar", "Actualizó la lista de espera No. {id}"),
@@ -96,7 +102,7 @@ CAMBIOS = {
 # Para las rutas cuyo número no es el del paciente: de qué tabla se saca el paciente
 DUENO = {"/citas/lista-espera": ListaEspera, "/citas": CitaMedica, "/turnos": Turno, "/recetas": Receta, "/constancias": ConstanciaMedica,
          "/laboratorio/ordenes": OrdenLaboratorio,
-         "/hospitalizaciones": Hospitalizacion, "/cuentas": CuentaPaciente}
+         "/hospitalizaciones": Hospitalizacion, "/cuentas": CuentaPaciente, "/referencias": Referencia}
 
 PUESTOS = [("salud:jefatura", "Jefatura médica"), ("salud:admin", "Administración"), ("salud:medico", "Médico"),
            ("salud:enfermeria", "Enfermería"), ("salud:recepcion", "Recepción"), ("salud:farmacia", "Farmacia"),

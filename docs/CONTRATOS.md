@@ -252,7 +252,7 @@ Errores (todos con `{"success": false, "error": "<codigo>", "message": "..."}`):
 | 405 | `metodo_no_permitido` | Se usó otro método (solo `GET`) |
 | 500 | `error_interno` | Falla de Salud (se puede reintentar) |
 
-Datos de prueba (ficticios): `departamento=Sacatepéquez&municipio=Antigua Guatemala&tipoAtencion=EMERGENCIA` devuelve 1 hospital; `departamento=Sacatepéquez` devuelve 3; `departamento=Guatemala&tipoAtencion=EMERGENCIA` devuelve el Hospital Roosevelt; `departamento=Petén` devuelve `disponible: false`.
+Desde el 23/10/2026 la tabla trae la **red pública**: los 45 hospitales del MSPAS (portal Establecimientos de Salud, estado Funcionando) en los 22 departamentos, más los establecimientos que agregue Administración. Cada uno trae además `nivel` (Referencia nacional, Regional, Departamental, Distrital, Especializado o Nacional) y `codigoMunicipio` (INE). El tipo de atención es el habitual de su nivel; los especializados (Federico Mora, Ortopedia, Infectología...) solo `ESPECIALIDAD`. Dirección y teléfono pueden venir vacíos (el portal del MSPAS no los publica). Ejemplos: `departamento=Petén&tipoAtencion=EMERGENCIA` devuelve 4 hospitales (San Benito, Sayaxché, Melchor de Mencos y Poptún); `departamento=Guatemala&tipoAtencion=EMERGENCIA` devuelve San Juan de Dios, Roosevelt, Amatitlán y Villa Nueva; un establecimiento INACTIVO o EN_MANTENIMIENTO no se devuelve.
 
 Ejemplo, desde el servidor de Seguridad:
 

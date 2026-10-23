@@ -122,6 +122,32 @@ class Establecimiento(db.Model):
     telefono = db.Column(db.String(20))
     estado_servicio = db.Column(db.String(50), default="ACTIVO")
     tipo_atencion_disponible = db.Column(db.String(150))
+    codigo_municipio = db.Column(db.String(4), index=True)    # código INE (el mismo del mapa de vigilancia)
+    nivel = db.Column(db.String(40))                          # Referencia nacional, Regional, Departamental, Distrital...
+    fuente = db.Column(db.String(200))                        # de dónde salió el dato (red: portal del MSPAS)
+
+
+class Referencia(db.Model):
+    """Referencia de un paciente a otro establecimiento de la red (routes/red.py).
+    La hace el médico; Enfermería, Jefatura o el médico la confirman (llegó / fue recibido) o la cancelan."""
+    __tablename__ = "referencias_pacientes"
+    id = db.Column(db.Integer, primary_key=True)
+    paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False, index=True)
+    establecimiento_id = db.Column(db.Integer, db.ForeignKey("establecimientos.id_establecimiento"), nullable=False)
+    tipo = db.Column(db.String(20), nullable=False, default="REFERENCIA")      # REFERENCIA (envío) o CONTRARREFERENCIA (regreso)
+    prioridad = db.Column(db.String(10), nullable=False, default="NORMAL")      # URGENTE o NORMAL
+    motivo = db.Column(db.String(500), nullable=False)
+    codigo_cie10 = db.Column(db.String(8))
+    diagnostico = db.Column(db.String(255))
+    resumen = db.Column(db.Text)                                               # resumen clínico para el que recibe
+    estado = db.Column(db.String(12), nullable=False, default="ENVIADA", index=True)   # ENVIADA, RECIBIDA, CANCELADA
+    medico_sub = db.Column(db.String(SUB_LEN))
+    medico_nombre = db.Column(db.String(150))
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False, index=True)
+    fecha_cierre = db.Column(db.DateTime)
+    cerrada_por = db.Column(db.String(150))
+    nota_cierre = db.Column(db.String(500))
+    establecimiento = db.relationship("Establecimiento", lazy="joined")
 
 
 class Practicante(db.Model):

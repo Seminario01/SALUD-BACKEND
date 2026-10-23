@@ -98,6 +98,10 @@ PERMISOS = {
     "integraciones.demo":     (JEF, ADM),
     "bitacora.ver":           (ADM,),                # quién vio o modificó cada expediente
     "puestos.asignar":        (ADM,),                # dar un puesto de Salud a una cuenta del Login Único
+    "establecimientos.gestionar": (ADM,),            # completar dirección, teléfono y estado de la red
+    "referencias.ver":        (MED, ENF, REC, JEF, ADM),   # Recepción coordina el traslado
+    "referencias.crear":      (MED,),                # referir a un paciente a otro establecimiento
+    "referencias.gestionar":  (MED, ENF, JEF),       # marcar recibida o cancelada
     "reportes.ver":           (MED, JEF, ADM, *ROLES_AUDITORIA),  # diagnósticos más frecuentes (solo cifras)
     "vigilancia.ver":         (MED, ENF, JEF, ADM, *ROLES_AUDITORIA),  # mapa de casos por municipio (cifras)
     "vigilancia.pacientes":   (MED, JEF),            # quiénes son los casos de una zona (datos clínicos)

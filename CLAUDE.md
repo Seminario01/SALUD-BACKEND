@@ -236,6 +236,19 @@ rechazos de 7 días agrupados con su explicación en `MOTIVOS`) y `POST /integra
 (indicadores con la clave de Auditoría o la común, cálculo del tablero del mes y llaves del Login
 Único; queda marcado como prueba y no cuenta como consulta real).
 
+## Red de establecimientos y referencias
+
+`establecimientos.py` + `datos/red_hospitalaria.json`: los 45 hospitales públicos del MSPAS (portal
+Establecimientos de Salud, estado Funcionando, consultado el 23/10/2026; cubre los 22 departamentos). Al
+arrancar se agregan los que falten y se completa municipio (INE), nivel y fuente, sin pisar lo que
+Administración editó. El portal no publica dirección ni teléfono: quedan vacíos. `routes/red.py`:
+`GET /establecimientos` (personal), `POST/PUT /establecimientos` (`establecimientos.gestionar`, Administración);
+referencias `GET/POST /referencias`, `PUT /referencias/{id}` (RECIBIDA o CANCELADA con motivo) y
+`GET /pacientes/{id}/referencias`. Refiere el Médico (`referencias.crear`); las cierran Médico, Enfermería o
+Jefatura (`referencias.gestionar`); las ven también Recepción y Administración; el ciudadano las suyas. No se
+refiere a un establecimiento inactivo. WS-SALUD-02 (Seguridad) usa la misma tabla: solo los ACTIVOS, con `nivel`
+y `codigoMunicipio`.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:

@@ -1090,6 +1090,67 @@ pa2 = requests.get(API + "/integraciones/auditoria", headers=H("jefatura1")).jso
 dato("la prueba del panel no cuenta como consulta real de Auditoría",
      pa2["ultima_exitosa"]["fecha"] == pa["ultima_exitosa"]["fecha"])
 
+print("--- Red de establecimientos (45 hospitales del MSPAS) y referencias de pacientes")
+red = check("medico1 ve la red", "GET", "/establecimientos", T["medico1"], 200).json()["data"]
+hosp = [e for e in red["establecimientos"] if e["tipo"] == "HOSPITAL"]
+dato("trae los 45 hospitales públicos en los 22 departamentos, con municipio y nivel",
+     len([e for e in hosp if e["fuente"] == "MSPAS"]) >= 45 and len({e["codigo_municipio"][:2] for e in hosp if e["codigo_municipio"]}) == 22
+     and all(e["nivel"] for e in hosp) and "mspas.gob.gt" in red["fuente"]["url"])
+peten = check("filtra por departamento (17 = Petén)", "GET", "/establecimientos?departamento=17", T["medico1"], 200).json()["data"]["establecimientos"]
+dato("Petén tiene 4 hospitales", len(peten) == 4 and all(e["departamento"] == "Petén" for e in peten))
+check("ciudadano1 NO consulta la red", "GET", "/establecimientos", T["ciudadano1"], 403)
+clave_seg = {"X-API-Key": os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar"), "X-Modulo-Origen": "Seguridad"}
+ws = requests.get(API + "/establecimientos/disponibilidad?departamento=Pet%C3%A9n&tipoAtencion=EMERGENCIA", headers=clave_seg).json()
+dato("WS-SALUD-02 (Seguridad): Petén con emergencia ya responde 4 hospitales, con nivel y municipio",
+     ws["disponible"] and len(ws["establecimientos"]) == 4 and all(e["nivel"] and e["codigoMunicipio"] for e in ws["establecimientos"]))
+ws = requests.get(API + "/establecimientos/disponibilidad?departamento=Guatemala&tipoAtencion=EMERGENCIA", headers=clave_seg).json()
+dato("WS-SALUD-02: Guatemala con emergencia da San Juan de Dios, Roosevelt, Amatitlán y Villa Nueva",
+     {e["nombreEstablecimiento"] for e in ws["establecimientos"]} >= {"Hospital General San Juan de Dios", "Hospital Roosevelt",
+                                                                      "Hospital de Amatitlán", "Hospital Nacional de Villa Nueva"})
+zac = next(e for e in hosp if e["nombre"] == "Hospital Regional de Zacapa")
+check("medico1 NO edita la red", "PUT", f"/establecimientos/{zac['id']}", T["medico1"], 403, json={"telefono": "79410000"})
+check("teléfono inválido", "PUT", f"/establecimientos/{zac['id']}", T["admin.salud"], 400, json={"telefono": "abc"})
+check("tipo de atención que no existe", "PUT", f"/establecimientos/{zac['id']}", T["admin.salud"], 400, json={"tipo_atencion": ["MAGIA"]})
+check("admin.salud lo pone en mantenimiento", "PUT", f"/establecimientos/{zac['id']}", T["admin.salud"], 200, json={"estado_servicio": "EN_MANTENIMIENTO"})
+ws = requests.get(API + "/establecimientos/disponibilidad?departamento=Zacapa", headers=clave_seg).json()
+dato("en mantenimiento ya no se le ofrece a Seguridad", not any(e["nombreEstablecimiento"] == "Hospital Regional de Zacapa" for e in ws["establecimientos"]))
+check("ni se le puede referir", "POST", "/referencias", T["medico1"], 409, json={"paciente_id": p1, "establecimiento_id": zac["id"], "motivo": "Valoración"})
+check("admin.salud lo vuelve a activar y completa el teléfono", "PUT", f"/establecimientos/{zac['id']}", T["admin.salud"], 200,
+      json={"estado_servicio": "ACTIVO", "telefono": "7941 0000"})
+check("municipio inválido al agregar", "POST", "/establecimientos", T["admin.salud"], 400,
+      json={"nombre": "Centro de Salud Prueba", "tipo": "CENTRO_SALUD", "codigo_municipio": "9999"})
+check("nombre repetido", "POST", "/establecimientos", T["admin.salud"], 409, json={"nombre": "hospital roosevelt", "tipo": "HOSPITAL", "codigo_municipio": "0101"})
+roo = next(e for e in hosp if e["nombre"] == "Hospital Roosevelt")
+check("enfermera1 NO refiere (lo hace el médico)", "POST", "/referencias", T["enfermera1"], 403,
+      json={"paciente_id": p1, "establecimiento_id": roo["id"], "motivo": "Valoración"})
+check("referencia sin motivo", "POST", "/referencias", T["medico1"], 400, json={"paciente_id": p1, "establecimiento_id": roo["id"]})
+check("código CIE-10 que no está en el catálogo", "POST", "/referencias", T["medico1"], 400,
+      json={"paciente_id": p1, "establecimiento_id": roo["id"], "motivo": "Valoración", "codigo_cie10": "ZZ9"})
+check("establecimiento que no existe", "POST", "/referencias", T["medico1"], 404, json={"paciente_id": p1, "establecimiento_id": 999999, "motivo": "Valoración"})
+ref = check("medico1 refiere a p1 al Roosevelt (urgente, apendicitis)", "POST", "/referencias", T["medico1"], 201,
+            json={"paciente_id": p1, "establecimiento_id": roo["id"], "prioridad": "URGENTE", "codigo_cie10": "k35.8",
+                  "motivo": "Abdomen agudo: requiere valoración por cirugía", "resumen": "Dolor en fosa ilíaca derecha de 12 horas, Blumberg positivo."}).json()
+dato("queda ENVIADA, con el diagnóstico del catálogo y el aviso de urgencia", ref["data"]["estado"] == "ENVIADA"
+     and ref["data"]["codigo_cie10"] == "K35.8" and "apendicitis" in (ref["data"]["diagnostico"] or "").lower() and "urgente" in ref["message"])
+rid = ref["data"]["id"]
+check("recepcion1 ve las referencias (coordina el traslado)", "GET", "/referencias?estado=ENVIADA", T["recepcion1"], 200)
+check("caja1 NO ve las referencias", "GET", "/referencias", T["caja1"], 403)
+check("recepcion1 NO la marca recibida", "PUT", f"/referencias/{rid}", T["recepcion1"], 403, json={"estado": "RECIBIDA"})
+check("cancelar sin motivo", "PUT", f"/referencias/{rid}", T["enfermera1"], 400, json={"estado": "CANCELADA"})
+check("enfermera1 la marca recibida", "PUT", f"/referencias/{rid}", T["enfermera1"], 200,
+      json={"estado": "RECIBIDA", "nota": "Confirmado por teléfono con emergencia del Roosevelt"})
+check("ya no se puede cerrar otra vez", "PUT", f"/referencias/{rid}", T["enfermera1"], 409, json={"estado": "CANCELADA", "nota": "x"})
+pr = check("las referencias del paciente", "GET", f"/pacientes/{p1}/referencias", T["medico1"], 200).json()["data"]
+dato("trae la referencia recibida, con quién la cerró", pr and pr[0]["id"] == rid and pr[0]["estado"] == "RECIBIDA" and pr[0]["cerrada_por"])
+check("ciudadano1 ve SU referencia (p1 es suyo)", "GET", f"/referencias/{rid}", T["ciudadano1"], 200)
+check("ciudadano2 NO ve la referencia de otro", "GET", f"/referencias/{rid}", T["ciudadano2"], 403)
+check("ciudadano2 NO ve las referencias de otro paciente", "GET", f"/pacientes/{p1}/referencias", T["ciudadano2"], 403)
+red2 = requests.get(API + "/establecimientos?q=Roosevelt", headers=H("medico1")).json()["data"]["establecimientos"]
+dato("la red cuenta las referencias recibidas por cada hospital (90 días)", red2 and red2[0]["referencias_90_dias"] >= 1)
+bit = requests.get(API + f"/bitacora/accesos?paciente_id={p1}&limite=100", headers=H("admin.salud")).json()["data"]
+dato("la bitácora anota la referencia y su cierre", any(x["descripcion"].startswith("Refirió al paciente") for x in bit)
+     and any(x["descripcion"] == f"Actualizó la referencia No. {rid}" for x in bit))
+
 print("--- Servicios que consume Educación (WS-SALUD-01 y WS-SALUD-06)")
 clave_edu = {"X-API-Key": os.getenv("CLAVE_ENTRADA_EDUCACION") or os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar"),
              "X-Modulo-Origen": "Educación"}

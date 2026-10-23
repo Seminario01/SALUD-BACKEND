@@ -15,6 +15,10 @@ log = logging.getLogger(__name__)
 
 COLUMNAS = [
     # (tabla, columna, definición SQL)
+    # Red de establecimientos (establecimientos.py)
+    ("establecimientos", "codigo_municipio", "VARCHAR(4) NULL"),
+    ("establecimientos", "nivel", "VARCHAR(40) NULL"),
+    ("establecimientos", "fuente", "VARCHAR(200) NULL"),
     ("citas_medicas", "numero_referencia", "VARCHAR(20) NULL UNIQUE"),
     ("citas_medicas", "estado_cobro", "VARCHAR(20) NULL"),
     ("citas_medicas", "fecha_vencimiento", "DATE NULL"),

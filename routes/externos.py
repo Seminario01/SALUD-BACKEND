@@ -178,7 +178,7 @@ def establecimientos_disponibilidad():
     # porque el catálogo de establecimientos aún no clasifica por urgencia.
     request.args.get("nivelUrgencia")
 
-    query = Establecimiento.query
+    query = Establecimiento.query.filter(Establecimiento.estado_servicio == "ACTIVO")   # contrato: solo los activos
     if departamento:
         query = query.filter(Establecimiento.departamento == departamento)
     if municipio:
@@ -196,6 +196,8 @@ def establecimientos_disponibilidad():
         "estadoServicio": e.estado_servicio,
         "tipoAtencionDisponible": e.tipo_atencion_disponible,
         "telefono": e.telefono,
+        "nivel": e.nivel,                            # Referencia nacional, Regional, Departamental, Distrital...
+        "codigoMunicipio": e.codigo_municipio,       # código INE de 4 dígitos
     } for e in establecimientos]
 
     disponible = len(data) > 0
