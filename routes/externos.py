@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import datetime, timedelta
 
@@ -13,8 +14,10 @@ from services_externos import coordinar_jornada
 from routes.hospitalizacion import resumen_hospitalizacion
 from routes.caja import resumen_cuentas
 from routes.integraciones import _error_modulo
+from routes.jornadas import guardar_jornada
 
 externos_bp = Blueprint("externos", __name__)
+log = logging.getLogger(__name__)
 
 OPERACIONES = {
     "externos.coordinar_jornada_vacunacion": "Coordinar jornada de vacunación (WS-SALUD-01)",
@@ -121,6 +124,13 @@ def coordinar_jornada_vacunacion():
                        message="Educación debe responder una lista de estudiantes"), 424
     if not estudiantes:
         return jsonify(success=False, error="no_encontrado", message="No se encontraron estudiantes para la jornada"), 404
+
+    # Salud guarda la jornada para que el personal la vea en Vacunación → Jornadas (si falla, la respuesta sigue)
+    try:
+        guardar_jornada(tipo_jornada, lugar, fecha, hora, estudiantes, "Educación")
+    except Exception as error:  # noqa: BLE001
+        db.session.rollback()
+        log.warning("No se pudo guardar la jornada coordinada por Educación: %s", error)
 
     return jsonify(success=True, data=estudiantes), 200
 

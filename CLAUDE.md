@@ -291,6 +291,15 @@ guarda con los datos personales enmascarados (DPI con sus últimos 4 dígitos, n
 si está junto a un DPI/CUI) y recortados (10 elementos por lista, 8000 caracteres). La API key nunca se guarda.
 `/integraciones/estado` dice además la ruta y el HTTP de los indicadores de cada módulo.
 
+## Jornadas de vacunación con Educación
+
+`routes/jornadas.py` (tablas `jornadas_vacunacion` y `jornadas_estudiantes`): una jornada llega de Educación por
+WS-SALUD-01 (`routes/externos.py` llama a `guardar_jornada`; si falla al guardar, la respuesta a Educación sigue) o la
+coordina el personal con `POST /jornadas` (`vacunacion.registrar`: Salud llama a E2 y guarda a los convocados). Volver a
+coordinar la misma (tipo, lugar, fecha, hora) agrega estudiantes nuevos y conserva los ya vacunados. `GET /jornadas` y
+`GET /jornadas/<id>` (`vacunacion.ver`): estudiantes con su paciente de Salud por DPI y su esquema;
+`PUT /jornadas/<id>/estudiantes/<eid>` {vacunado} los marca.
+
 ## Vacunación: un registro por paciente
 
 `migraciones._vacunacion_unica`: si un paciente tiene más de un registro (bases de antes de la regla), deja el más

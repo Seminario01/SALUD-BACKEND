@@ -330,6 +330,37 @@ class MedicionCrecimiento(db.Model):
     fecha_registro = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
 
+
+class JornadaVacunacion(db.Model):
+    """Jornada de vacunación coordinada con Educación (routes/jornadas.py): la pide Educación por
+    WS-SALUD-01 o el personal de Salud; Educación devuelve los estudiantes convocados."""
+    __tablename__ = "jornadas_vacunacion"
+    id = db.Column(db.Integer, primary_key=True)
+    tipo_jornada = db.Column(db.String(150), nullable=False)
+    lugar = db.Column(db.String(200), nullable=False)
+    fecha = db.Column(db.String(10), nullable=False, index=True)     # AAAA-MM-DD, como lo manda Educación
+    hora = db.Column(db.String(5), nullable=False)
+    origen = db.Column(db.String(20), nullable=False)               # "Educación" (WS-SALUD-01) o "Salud"
+    coordinada_por = db.Column(db.String(150))
+    fecha_registro = db.Column(db.DateTime, default=datetime.now, nullable=False)
+    fecha_actualizacion = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+
+class EstudianteJornada(db.Model):
+    """Estudiante convocado a una jornada, tal como lo devolvió Educación."""
+    __tablename__ = "jornadas_estudiantes"
+    id = db.Column(db.Integer, primary_key=True)
+    jornada_id = db.Column(db.Integer, db.ForeignKey("jornadas_vacunacion.id"), nullable=False, index=True)
+    cui = db.Column(db.String(20), index=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    establecimiento = db.Column(db.String(200))
+    grado = db.Column(db.String(120))
+    seccion = db.Column(db.String(20))
+    jornada_escolar = db.Column(db.String(50))
+    vacunado = db.Column(db.Boolean, default=False, nullable=False)
+    fecha_vacunado = db.Column(db.DateTime)
+    vacunado_por = db.Column(db.String(150))
+
 class ListaEspera(db.Model):
     """Paciente que espera un espacio para cita (routes/lista_espera.py)."""
     __tablename__ = "lista_espera_citas"

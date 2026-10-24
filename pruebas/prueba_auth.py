@@ -1201,6 +1201,21 @@ dato("responde la lista de estudiantes convocados (cui, nombreCompleto, establec
      isinstance(j.get("data"), list) and len(j["data"]) > 0
      and all({"cui", "nombreCompleto", "establecimiento", "grado", "seccion", "jornada"} <= set(e) for e in j["data"]))
 check("jornada sin la hora", "POST", "/jornadas/coordinar", None, 400, headers=clave_edu, json={**jornada, "hora": ""})
+guardadas = check("la jornada queda en Vacunación → Jornadas", "GET", "/jornadas", T["enfermera1"], 200).json()["data"]
+gj = next((x for x in guardadas if x["origen"] == "Educación" and x["tipo_jornada"] == jornada["tipo_jornada"]
+           and x["fecha"] == jornada["fecha"]), None)
+dato("guardada como pedida por Educación, con sus convocados", gj is not None and gj["convocados"] >= len(j.get("data") or []))
+if gj:
+    det = check("detalle de la jornada", "GET", f"/jornadas/{gj['id']}", T["enfermera1"], 200).json()["data"]
+    est = det["estudiantes"][0]
+    check("Enfermería marca a un estudiante vacunado", "PUT", f"/jornadas/{gj['id']}/estudiantes/{est['id']}",
+          T["enfermera1"], 200, json={"vacunado": True})
+    check("Recepción no marca vacunados", "PUT", f"/jornadas/{gj['id']}/estudiantes/{est['id']}",
+          T["recepcion1"], 403, json={"vacunado": False})
+    check("estudiante de otra jornada -> 404", "PUT", f"/jornadas/{gj['id']}/estudiantes/999999", T["enfermera1"], 404, json={})
+check("Salud coordina una jornada con fecha pasada -> 400", "POST", "/jornadas", T["enfermera1"], 400,
+      json={**jornada, "fecha": "2020-01-01"})
+check("Recepción no coordina jornadas", "POST", "/jornadas", T["recepcion1"], 403, json=jornada)
 check("jornada sin API key", "POST", "/jornadas/coordinar", None, 401, json=jornada)
 check("jornada con una clave que no es", "POST", "/jornadas/coordinar", None, 403, headers={"X-API-Key": "no-es-la-clave"}, json=jornada)
 h = check("Educación consulta horas de práctica (WS-SALUD-06)", "GET", "/practicantes/2520123450106/horas", None, 200, headers=clave_edu).json()["data"]
