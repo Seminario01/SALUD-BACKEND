@@ -6,6 +6,7 @@ recibe aquí un puesto que vale solo dentro de este módulo. auth.py lo suma a l
 
   GET    /puestos/asignados        puestos asignados y personas que entraron sin puesto de Salud
   POST   /puestos/asignados        asignar  {usuario_sub, rol, nota?}
+  PUT    /puestos/asignados/<id>   cambiar el puesto  {rol}
   DELETE /puestos/asignados/<id>   quitar
 
 Nadie puede asignarse ni quitarse su propio puesto. Cada cambio queda en la bitácora de accesos.
@@ -126,6 +127,59 @@ def asignar_puesto():
     quien = p.usuario or p.nombre or sub[:8]
     return jsonify(success=True, data={**_persona(p), "detalle": f"{NOMBRES[rol]} a {quien}"},
                    message=f"Puesto {NOMBRES[rol]} asignado. Lo verá al recargar la página."), 201
+
+
+@puestos_bp.route("/api/v1/salud/puestos/asignados/<int:id>", methods=["PUT"])
+@validar_token
+@requiere_permiso("puestos.asignar")
+def cambiar_puesto(id):
+    """
+    Cambiar un puesto asignado en Salud por otro (por ejemplo, de Administración a Enfermería)
+    ---
+    tags:
+      - Puestos
+    security:
+      - BearerAuth: []
+    parameters:
+      - {name: id, in: path, type: integer, required: true}
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required: [rol]
+          properties:
+            rol: {type: string, example: "salud:enfermeria"}
+    responses:
+      200:
+        description: Cambiado
+      400:
+        description: Puesto inválido
+      403:
+        description: Es su propio puesto
+      404:
+        description: No existe
+      409:
+        description: Ya tiene ese puesto
+    """
+    p = PuestoAsignado.query.get(id)
+    if not p:
+        return _error(404, "no_encontrado", "Ese puesto asignado no existe")
+    if p.usuario_sub == g.usuario["sub"].lower():
+        return _error(403, "propio_usuario", "No puede cambiar su propio puesto: pídaselo a otra persona de Administración")
+    rol = texto(request.get_json(silent=True) or {}, "rol", 40, obligatorio=True, etiqueta="El puesto")
+    if rol not in PUESTOS_ASIGNABLES:
+        return _error(400, "datos_invalidos", f"El puesto debe ser uno de: {', '.join(PUESTOS_ASIGNABLES)}")
+    if rol == p.rol:
+        return _error(409, "ya_existe", "Ya tiene ese puesto")
+    if PuestoAsignado.query.filter_by(usuario_sub=p.usuario_sub, rol=rol).first():
+        return _error(409, "ya_existe", "Esa persona ya tiene ese puesto: quite este en lugar de cambiarlo")
+    antes = NOMBRES.get(p.rol, p.rol)
+    p.rol, p.asignado_por, p.asignado_por_sub, p.fecha = rol, _yo(), g.usuario["sub"], datetime.now()
+    db.session.commit()
+    quien = p.usuario or p.nombre or p.usuario_sub[:8]
+    return jsonify(success=True, data={**_persona(p), "detalle": f"de {quien}: {antes} → {NOMBRES[rol]}"},
+                   message=f"{quien} ahora es {NOMBRES[rol]}. Lo verá al recargar la página."), 200
 
 
 @puestos_bp.route("/api/v1/salud/puestos/asignados/<int:id>", methods=["DELETE"])

@@ -7,7 +7,7 @@ from sqlalchemy import text
 
 import laboratorio
 
-from auth import es_personal, validar_token, requiere_permiso, permisos_de, puede, PERMISOS
+from auth import es_personal, matriz_vigente, validar_token, requiere_permiso, permisos_de, puede, PERMISOS
 from extensions import db
 from routes.externos import calcular_indicadores
 
@@ -170,5 +170,7 @@ def mis_permisos():
         # Puestos que le dio Administración dentro de Salud (además de los de su cuenta del Login Único)
         "asignados": g.usuario.get("asignados", []),
         "permisos": permisos_de(roles),
-        "matriz": {p: list(r) for p, r in PERMISOS.items()},
+        # La matriz vigente (con los ajustes de Administración) y la original
+        "matriz": {p: list(r) for p, r in matriz_vigente().items()},
+        "matriz_original": {p: list(r) for p, r in PERMISOS.items()},
     }), 200

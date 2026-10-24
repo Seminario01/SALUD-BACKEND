@@ -224,6 +224,19 @@ class PuestoAsignado(db.Model):
     fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)
 
 
+class PermisoAjuste(db.Model):
+    """Permiso agregado (concedido=True) o quitado (False) a un puesto de Salud, respecto de la matriz
+    original de auth.PERMISOS. Lo cambia Administración en "Puestos y permisos" (routes/permisos.py)."""
+    __tablename__ = "permisos_ajustes"
+    __table_args__ = (db.UniqueConstraint("permiso", "rol", name="uq_permiso_rol"),)
+    id = db.Column(db.Integer, primary_key=True)
+    permiso = db.Column(db.String(60), nullable=False)
+    rol = db.Column(db.String(40), nullable=False)
+    concedido = db.Column(db.Boolean, nullable=False)
+    cambiado_por = db.Column(db.String(150))
+    fecha = db.Column(db.DateTime, default=datetime.now, nullable=False)
+
+
 class SedeUsuario(db.Model):
     """Sede donde trabaja una persona del personal (la asigna Administración en "Asignar puestos").
     Sin fila, trabaja en la sede principal (sedes.py)."""

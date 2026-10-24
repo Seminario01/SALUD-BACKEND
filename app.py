@@ -1,4 +1,6 @@
-from flask import Flask, jsonify, request
+import hmac
+
+from flask import Flask, Response, jsonify, request
 from flasgger import Swagger
 from sqlalchemy.exc import DataError, IntegrityError
 from werkzeug.exceptions import HTTPException
@@ -72,6 +74,21 @@ def crear_app():
     @app.errorhandler(405)
     def metodo_no_permitido(_e):
         return jsonify(success=False, error="metodo_no_permitido", message="Método HTTP no permitido en esta ruta"), 405
+
+    # La documentación (/apidocs) solo con usuario y clave en producción (Config.APIDOCS)
+    @app.before_request
+    def proteger_documentacion():
+        if Config.APIDOCS == "publico" or not request.path.startswith(("/apidocs", "/apispec", "/flasgger_static")):
+            return None
+        if not Config.APIDOCS_CLAVE:
+            return no_encontrado(None)
+        datos = request.authorization
+        if datos and datos.type == "basic" and hmac.compare_digest((datos.username or "").encode(), Config.APIDOCS_USUARIO.encode()) \
+                and hmac.compare_digest((datos.password or "").encode(), Config.APIDOCS_CLAVE.encode()):
+            return None
+        return Response("Documentación de la API del Módulo de Salud: pida el usuario y la clave al equipo de Salud.",
+                        401, {"WWW-Authenticate": 'Basic realm="API Modulo de Salud", charset="UTF-8"'},
+                        content_type="text/plain; charset=utf-8")
 
     # Un cuerpo que no es un objeto JSON ({...}) se rechaza antes de llegar a la ruta:
     # null, [], texto suelto o JSON mal escrito responden 400 y no 500.

@@ -1062,13 +1062,53 @@ dato("mis-permisos dice el puesto asignado y sus permisos", mp["asignados"] == [
      and "vigilancia.pacientes" in mp["permisos"] and "salud:jefatura" in mp["roles"])
 check("ciudadano2 (Jefatura) sigue viendo SU expediente", "GET", f"/expedientes/{p2}", T["ciudadano2"], 200)
 check("ciudadano2 (Jefatura) tampoco asigna puestos", "POST", PU, T["ciudadano2"], 403, json={"usuario_sub": sub(T["ciudadano1"]), "rol": "salud:admin"})
+check("ciudadano2 NO se cambia el puesto", "PUT", f"{PU}/{asig['id']}", T["ciudadano2"], 403, json={"rol": "salud:admin"})
+check("cambiar a un puesto que no es de Salud", "PUT", f"{PU}/{asig['id']}", T["admin.salud"], 400, json={"rol": "auditoria:admin"})
+check("cambiar al mismo puesto", "PUT", f"{PU}/{asig['id']}", T["admin.salud"], 409, json={"rol": "salud:jefatura"})
+check("admin.salud le cambia el puesto a Enfermería", "PUT", f"{PU}/{asig['id']}", T["admin.salud"], 200, json={"rol": "salud:enfermeria"})
+mp = requests.get(API + "/mis-permisos", headers=H("ciudadano2")).json()["data"]
+dato("con el mismo token ya es Enfermería y no Jefatura", mp["asignados"] == ["salud:enfermeria"] and "vigilancia.pacientes" not in mp["permisos"])
+check("y lo regresa a Jefatura", "PUT", f"{PU}/{asig['id']}", T["admin.salud"], 200, json={"rol": "salud:jefatura"})
 check("admin.salud le quita el puesto", "DELETE", f"{PU}/{asig['id']}", T["admin.salud"], 200)
 check("ciudadano2 vuelve a no ver el tablero", "GET", "/panel", T["ciudadano2"], 403)
 check("quitar uno que ya no existe", "DELETE", f"{PU}/{asig['id']}", T["admin.salud"], 404)
 bit = requests.get(API + "/bitacora/accesos?usuario=admin.salud&limite=200", headers=H("admin.salud")).json()["data"]
 dato("la bitácora dice qué puesto se asignó y se quitó, y a quién",
      any(x["descripcion"] == "Asignó el puesto Jefatura médica a ciudadano2" for x in bit)
-     and any(x["descripcion"] == "Quitó el puesto Jefatura médica a ciudadano2" for x in bit))
+     and any(x["descripcion"] == "Quitó el puesto Jefatura médica a ciudadano2" for x in bit)
+     and any(x["descripcion"] == "Cambió el puesto de ciudadano2: Jefatura médica → Enfermería" for x in bit))
+
+print("--- Ajustes a la matriz de permisos (Administración agrega o quita permisos a un puesto)")
+requests.delete(API + "/permisos/ajustes", headers=H("admin.salud"))       # de una corrida anterior
+ant = f"/pacientes/{p2}/antecedentes"
+check("admin.salud NO consulta antecedentes en Seguridad (matriz original)", "GET", ant, T["admin.salud"], 403)
+check("enfermera1 NO cambia permisos", "PUT", "/permisos", T["enfermera1"], 403, json={"permiso": "pacientes.antecedentes", "rol": "salud:admin", "concedido": True})
+check("permiso que no existe", "PUT", "/permisos", T["admin.salud"], 400, json={"permiso": "no.existe", "rol": "salud:admin", "concedido": True})
+check("puesto que no es de Salud", "PUT", "/permisos", T["admin.salud"], 400, json={"permiso": "pacientes.ver", "rol": "auditoria:analista", "concedido": True})
+check("concedido debe ser true o false", "PUT", "/permisos", T["admin.salud"], 400, json={"permiso": "pacientes.ver", "rol": "salud:caja", "concedido": "si"})
+check("a Administración no se le quita cambiar permisos", "PUT", "/permisos", T["admin.salud"], 409, json={"permiso": "permisos.editar", "rol": "salud:admin", "concedido": False})
+check("ni asignar puestos", "PUT", "/permisos", T["admin.salud"], 409, json={"permiso": "puestos.asignar", "rol": "salud:admin", "concedido": False})
+check("Administración se agrega consultar antecedentes", "PUT", "/permisos", T["admin.salud"], 200, json={"permiso": "pacientes.antecedentes", "rol": "salud:admin", "concedido": True})
+r = requests.get(API + ant, headers=H("admin.salud"))
+dato("con el mismo token ya consulta antecedentes (no 403)", r.status_code != 403)
+check("se le quita a Recepción", "PUT", "/permisos", T["admin.salud"], 200, json={"permiso": "pacientes.antecedentes", "rol": "salud:recepcion", "concedido": False})
+check("recepcion1 ya NO consulta antecedentes", "GET", ant, T["recepcion1"], 403)
+vista = check("enfermera1 ve la matriz y los ajustes", "GET", "/permisos", T["enfermera1"], 200).json()["data"]
+dato("la matriz vigente tiene los dos cambios y la original no",
+     "salud:admin" in vista["vigente"]["pacientes.antecedentes"] and "salud:recepcion" not in vista["vigente"]["pacientes.antecedentes"]
+     and "salud:recepcion" in vista["original"]["pacientes.antecedentes"] and len(vista["ajustes"]) == 2)
+mp = requests.get(API + "/mis-permisos", headers=H("admin.salud")).json()["data"]
+dato("mis-permisos usa la matriz vigente", "pacientes.antecedentes" in mp["permisos"] and "salud:admin" in mp["matriz"]["pacientes.antecedentes"])
+check("ciudadano1 NO ve la matriz", "GET", "/permisos", T["ciudadano1"], 403)
+check("devolverle el permiso a Recepción borra el ajuste", "PUT", "/permisos", T["admin.salud"], 200, json={"permiso": "pacientes.antecedentes", "rol": "salud:recepcion", "concedido": True})
+dato("queda un solo ajuste", len(requests.get(API + "/permisos", headers=H("admin.salud")).json()["data"]["ajustes"]) == 1)
+check("enfermera1 NO restablece la matriz", "DELETE", "/permisos/ajustes", T["enfermera1"], 403)
+check("admin.salud restablece la matriz original", "DELETE", "/permisos/ajustes", T["admin.salud"], 200)
+check("admin.salud vuelve a NO consultar antecedentes", "GET", ant, T["admin.salud"], 403)
+bit = requests.get(API + "/bitacora/accesos?usuario=admin.salud&limite=200", headers=H("admin.salud")).json()["data"]
+dato("la bitácora dice qué permiso se cambió y el restablecimiento",
+     any(x["descripcion"] == "Cambió un permiso: Administración agregó pacientes.antecedentes" for x in bit)
+     and any(x["descripcion"] == "Restableció la matriz de permisos original" for x in bit))
 
 print("--- Panel de Auditoría Social (cada consulta queda registrada, también las rechazadas)")
 requests.get(API + "/indicadores", headers={"User-Agent": "curl/prueba"})                    # sin clave ni token

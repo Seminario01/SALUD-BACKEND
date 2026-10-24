@@ -60,6 +60,10 @@ services:
       URL_SEGURIDAD: ${URL_SEGURIDAD:-}
       URL_TRIBUTARIO: ${URL_TRIBUTARIO:-}
       SIMULACIONES: "false"
+      # /apidocs solo con usuario y clave (APIDOCS_CLAVE en el .env; sin ella no se muestra)
+      APIDOCS: clave
+      APIDOCS_USUARIO: ${APIDOCS_USUARIO:-modulos}
+      APIDOCS_CLAVE: ${APIDOCS_CLAVE:-}
       API_KEY_EDUCACION: ${API_KEY_EDUCACION:-}
       API_KEY_SEGURIDAD: ${API_KEY_SEGURIDAD:-}
       API_KEY_TRIBUTARIO: ${API_KEY_TRIBUTARIO:-}

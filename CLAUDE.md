@@ -221,8 +221,25 @@ que se pueden cambiar allá). Tabla `puestos_asignados`; `auth.validar_token` lo
 (`g.usuario["roles"]`; los del token quedan en `roles_token` y los asignados en `asignados`), leídos en
 cada petición (sin memoria: con varios procesos, quitar un puesto vale al instante). Solo vale en Salud. Nadie puede asignarse ni quitarse su
 propio puesto; cada cambio queda en la bitácora ("Asignó el puesto Jefatura médica a ...").
+`PUT /puestos/asignados/<id>` {rol} cambia un puesto asignado por otro (no el propio).
 `usuarios_recientes` guarda a quien entra (cualquier cuenta) para listar "Entraron sin puesto".
 `GET /mis-permisos` devuelve `asignados`, que el frontend suma al menú.
+
+## Ajustes a la matriz de permisos
+
+`auth.PERMISOS` es la matriz original; la vigente (`matriz_vigente()`, leída una vez por petición) le aplica la
+tabla `permisos_ajustes` (permiso, rol, concedido). `puede()` y `permisos_de()` usan la vigente. `routes/permisos.py`:
+`GET /permisos` (personal: original, vigente, ajustes), `PUT /permisos` {permiso, rol, concedido} y
+`DELETE /permisos/ajustes` (restablecer), con `permisos.editar` (Administración). Solo puestos de Salud; si el
+cambio deja el permiso como el original, el ajuste se borra. `PROTEGIDOS`: a Administración no se le quitan
+`permisos.editar` ni `puestos.asignar`. Cada cambio queda en la bitácora. Las reglas por rol escritas en el código
+(por ejemplo, "Jefatura anula cualquiera") no cambian con esto.
+
+## Documentación de la API (/apidocs)
+
+`app.py` `proteger_documentacion`: con `APIDOCS=clave` (producción, en el compose) `/apidocs`, `/apispec_1.json` y
+`/flasgger_static` piden usuario y clave (HTTP Basic: `APIDOCS_USUARIO`, por defecto "modulos", y `APIDOCS_CLAVE`
+del `.env`). Sin `APIDOCS_CLAVE` no se muestra (404). En la PC queda `publico`.
 
 ## Panel de Auditoría Social
 

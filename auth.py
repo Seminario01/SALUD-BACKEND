@@ -17,7 +17,7 @@ import logging
 from functools import wraps
 
 import jwt
-from flask import request, jsonify, g
+from flask import request, jsonify, g, has_request_context
 from jwt import PyJWKClient
 
 from config import Config
@@ -100,6 +100,7 @@ PERMISOS = {
     "puestos.asignar":        (ADM,),                # dar un puesto de Salud a una cuenta del Login Único
     "establecimientos.gestionar": (ADM,),            # completar dirección, teléfono y estado de la red
     "sedes.cambiar":          (JEF, ADM),            # ver otra sede o todas (encabezado X-Sede, sedes.py)
+    "permisos.editar":        (ADM,),                # agregar o quitar permisos a un puesto (routes/permisos.py)
     "referencias.ver":        (MED, ENF, REC, JEF, ADM),   # Recepción coordina el traslado
     "referencias.crear":      (MED,),                # referir a un paciente a otro establecimiento
     "referencias.gestionar":  (MED, ENF, JEF),       # marcar recibida o cancelada
@@ -259,14 +260,51 @@ def tiene_rol(*roles):
     return any(r in g.usuario["roles"] for r in roles)
 
 
+# ---------------------------------------------------------------------------
+# Ajustes a la matriz: Administración agrega o quita un permiso a un puesto de Salud desde
+# "Puestos y permisos" (tabla permisos_ajustes, routes/permisos.py). PERMISOS es la matriz
+# original; la vigente es PERMISOS con los ajustes. Se leen una vez por petición (sin memoria
+# entre peticiones, como los puestos asignados). A Administración nunca se le quitan los
+# permisos con que se administran los permisos y los puestos (para no quedar sin acceso).
+# ---------------------------------------------------------------------------
+PROTEGIDOS = {("permisos.editar", ADM), ("puestos.asignar", ADM)}
+
+
+def ajustes_permisos():
+    """{(permiso, rol): concedido} de la tabla permisos_ajustes (solo los válidos)."""
+    try:
+        from models import PermisoAjuste
+        return {(a.permiso, a.rol): a.concedido for a in PermisoAjuste.query.all()
+                if a.permiso in PERMISOS and a.rol in ROLES_PERSONAL and (a.permiso, a.rol) not in PROTEGIDOS}
+    except Exception as error:  # noqa: BLE001  (sin base de datos: la matriz original)
+        logging.getLogger(__name__).warning("No se pudieron leer los ajustes de permisos: %s", error)
+        return {}
+
+
+def matriz_vigente():
+    """Matriz con los ajustes de Administración: {permiso: (roles...)}."""
+    if has_request_context() and "matriz_vigente" in g:
+        return g.matriz_vigente
+    ajustes = ajustes_permisos()
+    matriz = {}
+    for permiso, roles in PERMISOS.items():
+        vigentes = [r for r in roles if ajustes.get((permiso, r), True)]
+        vigentes += [r for r in ROLES_PERSONAL if ajustes.get((permiso, r)) and r not in vigentes]
+        matriz[permiso] = tuple(vigentes)
+    if has_request_context():
+        g.matriz_vigente = matriz
+    return matriz
+
+
 def puede(*permisos):
-    """True si el usuario tiene AL MENOS UNO de los permisos de la matriz."""
-    return any(tiene_rol(*PERMISOS[p]) for p in permisos)
+    """True si el usuario tiene AL MENOS UNO de los permisos de la matriz (con sus ajustes)."""
+    matriz = matriz_vigente()
+    return any(tiene_rol(*matriz[p]) for p in permisos)
 
 
 def permisos_de(roles):
     """Lista de permisos que dan estos roles (para GET /mis-permisos)."""
-    return sorted(p for p, permitidos in PERMISOS.items() if any(r in roles for r in permitidos))
+    return sorted(p for p, permitidos in matriz_vigente().items() if any(r in roles for r in permitidos))
 
 
 def es_personal():

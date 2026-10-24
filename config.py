@@ -44,6 +44,11 @@ class Config:
     SIMULACIONES = os.getenv("SIMULACIONES", "true").lower() == "true"
     # Sede donde trabaja quien no tiene otra asignada (sedes.py); es un hospital de la red del MSPAS.
     SEDE_PRINCIPAL = os.getenv("SEDE_PRINCIPAL", "Hospital Pedro de Bethancourt")
+    # Documentación de la API (/apidocs): "publico" en la PC; en producción "clave" (usuario y clave
+    # que se comparten con los otros grupos). Con "clave" y sin APIDOCS_CLAVE, la documentación no se muestra.
+    APIDOCS = os.getenv("APIDOCS", "publico").lower()
+    APIDOCS_USUARIO = os.getenv("APIDOCS_USUARIO", "modulos")
+    APIDOCS_CLAVE = os.getenv("APIDOCS_CLAVE") or None
 
     # Alertas de Seguridad que se muestran en el panel (zona del hospital)
     DEPARTAMENTO_ALERTAS = os.getenv("DEPARTAMENTO_ALERTAS", "Sacatepéquez")
