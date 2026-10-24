@@ -500,6 +500,120 @@ def bitacora_integraciones():
     } for r in registros], totales=totales), 200
 
 
+# Contrato de integración: cada servicio que Salud consume (saliente) o expone (entrante).
+# Se reconocen en la bitácora por su "operacion" (el nombre fijo con que se anota cada llamada)
+# o, si no tiene nombre propio, por el inicio de la ruta.
+SERVICIOS = [
+    # --- Salud consume ---
+    {"clave": "edu-estudiante", "direccion": "saliente", "modulo": "Educación", "codigo": "E1",
+     "nombre": "Consultar si un paciente es estudiante", "metodo": "GET", "ruta": "/api/v1/educacion/estudiantes/{cui}",
+     "operaciones": ["Consultar estudiante"], "donde": "Vacunación → Verificar en Educación"},
+    {"clave": "edu-jornada", "direccion": "saliente", "modulo": "Educación", "codigo": "E2",
+     "nombre": "Estudiantes convocados a una jornada", "metodo": "POST", "ruta": "/api/v1/educacion/jornadas/coordinar",
+     "operaciones": ["Coordinar jornada de vacunación (WS-SALUD-01)"], "donde": "Cuando Educación coordina una jornada (WS-SALUD-01)"},
+    {"clave": "edu-indicadores", "direccion": "saliente", "modulo": "Educación", "codigo": "E3",
+     "nombre": "Indicadores de Educación", "metodo": "GET", "ruta": "/api/v1/educacion/indicadores",
+     "prefijo": "/api/v1/educacion/indicadores", "conexion": "educacion", "donde": "Tarjeta de Educación (arriba)"},
+    {"clave": "seg-antecedentes", "direccion": "saliente", "modulo": "Seguridad", "codigo": "WS-SALUD-08",
+     "nombre": "Antecedentes del paciente y custodia", "metodo": "GET", "ruta": "/api/v1/seguridad/ciudadanos/antecedentes/{cui}",
+     "operaciones": ["Consultar antecedentes (WS-SALUD-08)"], "donde": "Pacientes → Consultar"},
+    {"clave": "seg-alertas", "direccion": "saliente", "modulo": "Seguridad", "codigo": None,
+     "nombre": "Alertas de seguridad", "metodo": "GET", "ruta": "/api/v1/seguridad/alertas",
+     "operaciones": ["Consultar alertas"], "donde": "Inicio (alertas de seguridad)"},
+    {"clave": "seg-indicadores", "direccion": "saliente", "modulo": "Seguridad", "codigo": None,
+     "nombre": "Indicadores de Seguridad", "metodo": "GET", "ruta": "/api/v1/seguridad/indicadores",
+     "prefijo": "/api/v1/seguridad/indicadores", "conexion": "seguridad", "donde": "Tarjeta de Seguridad (arriba)"},
+    {"clave": "tri-obligacion", "direccion": "saliente", "modulo": "Tributario", "codigo": None,
+     "nombre": "Registrar el cobro (obligación de pago)", "metodo": "POST", "ruta": "/api/v1/integraciones/salud/obligaciones",
+     "operaciones": ["Registrar obligación de pago"], "donde": "Citas o Caja → Enviar cobro"},
+    {"clave": "tri-consulta", "direccion": "saliente", "modulo": "Tributario", "codigo": None,
+     "nombre": "Consultar si el cobro ya se pagó", "metodo": "GET", "ruta": "/api/v1/integraciones/salud/obligaciones/{referencia}",
+     "operaciones": ["Consultar obligación de pago"], "donde": "Citas o Caja → Verificar pago"},
+    {"clave": "tri-indicadores", "direccion": "saliente", "modulo": "Tributario", "codigo": None,
+     "nombre": "Indicadores de Tributario", "metodo": "GET", "ruta": "/api/v1/tributario/indicadores",
+     "prefijo": "/api/v1/tributario/indicadores", "conexion": "tributario", "donde": "Tarjeta de Tributario (arriba)"},
+    # --- Le consumen a Salud ---
+    {"clave": "s-jornada", "direccion": "entrante", "modulo": "Educación", "codigo": "WS-SALUD-01",
+     "nombre": "Coordinar una jornada de vacunación", "metodo": "POST", "ruta": "/api/v1/salud/jornadas/coordinar",
+     "operaciones": ["Coordinar jornada de vacunación (WS-SALUD-01)"]},
+    {"clave": "s-horas", "direccion": "entrante", "modulo": "Educación", "codigo": "WS-SALUD-06",
+     "nombre": "Horas de práctica de un practicante", "metodo": "GET", "ruta": "/api/v1/salud/practicantes/{cui}/horas",
+     "operaciones": ["Horas de práctica (WS-SALUD-06)"]},
+    {"clave": "s-establecimientos", "direccion": "entrante", "modulo": "Seguridad", "codigo": "WS-SALUD-02",
+     "nombre": "Establecimientos disponibles ante una emergencia", "metodo": "GET", "ruta": "/api/v1/salud/establecimientos/disponibilidad",
+     "operaciones": ["Disponibilidad de establecimientos (WS-SALUD-02)"]},
+    {"clave": "s-costo", "direccion": "entrante", "modulo": "Tributario", "codigo": None,
+     "nombre": "Costo y estado de pago de una cita", "metodo": "GET", "ruta": "/api/v1/salud/citas/{id}/costo",
+     "operaciones": ["Costo y pago de una cita"]},
+    {"clave": "s-aviso-pago", "direccion": "entrante", "modulo": "Tributario", "codigo": None,
+     "nombre": "Aviso o confirmación de pago de una obligación", "metodo": "POST", "ruta": "/api/v1/salud/pagos/notificacion (y /pagos/confirmacion)",
+     "operaciones": ["Aviso de pago de una obligación", "Confirmación de pago (Tributario)"]},
+    {"clave": "s-indicadores", "direccion": "entrante", "modulo": "Auditoría", "codigo": None,
+     "nombre": "Indicadores agregados", "metodo": "GET", "ruta": "/api/v1/salud/indicadores",
+     "operaciones": ["Indicadores agregados"]},
+    {"clave": "s-presupuesto", "direccion": "entrante", "modulo": "Auditoría", "codigo": None,
+     "nombre": "Ejecución presupuestaria", "metodo": "GET", "ruta": "/api/v1/salud/presupuesto/ejecucion",
+     "operaciones": ["Ejecución presupuestaria"]},
+    {"clave": "s-tablero", "direccion": "entrante", "modulo": "Auditoría", "codigo": None,
+     "nombre": "Tablero de Auditoría (indicadores por rango)", "metodo": "GET", "ruta": "/api/v1/salud/auditoria/indicadores",
+     "operaciones": ["Tablero de Auditoría (indicadores por rango)"]},
+]
+
+
+# "no_encontrado" también es una respuesta válida del otro módulo (por ejemplo, "ese CUI no es estudiante")
+RESPUESTAS_VALIDAS = ("ok", "no_encontrado")
+
+
+def _registro(r):
+    return r and {"fecha": r.fecha.isoformat(timespec="seconds"), "modulo": r.modulo, "resultado": r.resultado,
+                  "estadoHttp": r.estado_http, "duracionMs": r.duracion_ms, "detalle": r.detalle,
+                  "usuario": r.usuario, "simulado": r.simulado}
+
+
+@integraciones_bp.route("/api/v1/salud/integraciones/servicios", methods=["GET"])
+@validar_token
+@requiere_permiso("integraciones.ver")
+def servicios_integracion():
+    """
+    Mapa de servicios entre Salud y los otros módulos, con la prueba de que funcionan
+    ---
+    tags:
+      - Integraciones
+    security:
+      - BearerAuth: []
+    description: >
+      Cada servicio que Salud consume (saliente) o que otro módulo le consume (entrante), con la
+      última respuesta válida (OK, o "no encontrado" cuando el dato no existe), la última llamada
+      (aunque haya fallado) y cuántas hubo en 30 días,
+      tomadas de la bitácora de integraciones. En producción no cuentan las pruebas ni simulaciones.
+    responses:
+      200:
+        description: Lista de servicios
+    """
+    desde = datetime.now() - timedelta(days=30)
+    datos = []
+    for s in SERVICIOS:
+        base = BitacoraIntegracion.query.filter(BitacoraIntegracion.direccion == s["direccion"])
+        if not Config.SIMULACIONES:
+            base = base.filter(BitacoraIntegracion.simulado.is_(False))
+        if s.get("operaciones"):
+            base = base.filter(BitacoraIntegracion.operacion.in_(s["operaciones"]))
+        else:
+            base = base.filter(BitacoraIntegracion.ruta.like(f"{s['prefijo']}%"))
+        if s["direccion"] == "saliente":
+            base = base.filter(BitacoraIntegracion.modulo == s["modulo"])
+        ultimo_ok = base.filter(BitacoraIntegracion.resultado.in_(RESPUESTAS_VALIDAS)).order_by(BitacoraIntegracion.id.desc()).first()
+        ultimo = base.order_by(BitacoraIntegracion.id.desc()).first()
+        recientes = base.filter(BitacoraIntegracion.fecha >= desde)
+        ok_30 = recientes.filter(BitacoraIntegracion.resultado.in_(RESPUESTAS_VALIDAS)).count()
+        datos.append({
+            **{k: s.get(k) for k in ("clave", "direccion", "modulo", "codigo", "nombre", "metodo", "ruta", "donde", "conexion")},
+            "ultimoOk": _registro(ultimo_ok), "ultimo": _registro(ultimo),
+            "llamadasOk30": ok_30, "llamadasError30": recientes.count() - ok_30,
+        })
+    return jsonify(success=True, data=datos), 200
+
+
 CASOS_SIMULADOS = {
     # caso: (módulo simulado que hace la consulta, URL de ese módulo)
     "seguridad-establecimientos": "URL_SEGURIDAD",

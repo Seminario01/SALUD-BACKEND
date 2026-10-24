@@ -132,6 +132,7 @@ def aplicar(db):
             log.warning("Migración: columna %s.%s ahora admite NULL", tabla, columna)
 
     _codigos_de_recetas(db, tablas)
+    _vacunacion_unica(db, tablas)
 
 
 def codigo_receta():
@@ -151,3 +152,28 @@ def _codigos_de_recetas(db, tablas):
                              {"c": codigo_receta(), "i": id_receta})
     if ids:
         log.warning("Migración: %s receta(s) recibieron su código de verificación", len(ids))
+
+
+def _vacunacion_unica(db, tablas):
+    """Un solo registro de vacunación por paciente. Las bases de antes de esa regla pueden tener
+    dos: se deja el más reciente (el último que se guardó) y se borran los anteriores. Después se
+    crea el índice único para que no vuelva a pasar (si falla, solo se avisa: la API ya lo impide)."""
+    if "vacunacion" not in tablas:
+        return
+    with db.engine.begin() as conexion:
+        sobran = [fila[0] for fila in conexion.execute(text(
+            "SELECT v.id FROM vacunacion v JOIN vacunacion w ON w.paciente_id = v.paciente_id "
+            "AND (COALESCE(w.fecha_actualizacion, '1970-01-01') > COALESCE(v.fecha_actualizacion, '1970-01-01') "
+            "OR (COALESCE(w.fecha_actualizacion, '1970-01-01') = COALESCE(v.fecha_actualizacion, '1970-01-01') AND w.id > v.id))"))]
+        for id_registro in set(sobran):
+            conexion.execute(text("DELETE FROM vacunacion WHERE id = :i"), {"i": id_registro})
+    if sobran:
+        log.warning("Migración: %s registro(s) de vacunación repetidos unificados (queda el más reciente)", len(set(sobran)))
+    indices = {i["name"] for i in inspect(db.engine).get_indexes("vacunacion")}
+    if "ux_vacunacion_paciente" not in indices:
+        try:
+            with db.engine.begin() as conexion:
+                conexion.execute(text("CREATE UNIQUE INDEX ux_vacunacion_paciente ON vacunacion (paciente_id)"))
+            log.warning("Migración: índice único vacunacion.paciente_id creado")
+        except Exception as error:   # noqa: BLE001 - no impedir el arranque
+            log.warning("Migración: no se pudo crear el índice único de vacunación (%s)", error.__class__.__name__)

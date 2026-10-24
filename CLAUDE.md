@@ -279,6 +279,19 @@ misma sede. `GET /sedes` (sedes, mi_sede, actual, puede_cambiar). `/panel` da tu
 de la sede al personal; `/indicadores` y el tablero de Auditoría siguen con todo el módulo. La sede principal no
 se quita, ni una sede con personal o camas. `datos_demo.sql` agrega la segunda sede (Hospital Roosevelt) con camas.
 
+## Mapa de servicios integrados
+
+`routes/integraciones.py` `SERVICIOS`: el contrato de integración (lo que Salud consume y lo que le consumen),
+cada servicio reconocido en la bitácora por su `operacion` (o por el inicio de la ruta). `GET /integraciones/servicios`
+(`integraciones.ver`) da por servicio la última respuesta válida (`ok` o `no_encontrado`), la última llamada y las de
+30 días; en producción sin pruebas ni simulaciones. Al agregar un servicio entre módulos, agregarlo ahí con el mismo
+nombre de operación con que se anota.
+
+## Vacunación: un registro por paciente
+
+`migraciones._vacunacion_unica`: si un paciente tiene más de un registro (bases de antes de la regla), deja el más
+reciente y crea el índice único `ux_vacunacion_paciente`.
+
 ## Bitácora de accesos
 
 `bitacora_accesos.py` (after_request en `app.py`) anota quién vio o modificó datos de pacientes:
