@@ -19,6 +19,10 @@ COLUMNAS = [
     ("establecimientos", "codigo_municipio", "VARCHAR(4) NULL"),
     ("establecimientos", "nivel", "VARCHAR(40) NULL"),
     ("establecimientos", "fuente", "VARCHAR(200) NULL"),
+    # Detalle de cada llamada entre módulos (bitacora.py)
+    ("bitacora_integraciones", "url", "VARCHAR(500) NULL"),
+    ("bitacora_integraciones", "solicitud", "TEXT NULL"),
+    ("bitacora_integraciones", "respuesta", "TEXT NULL"),
     # Sedes (sedes.py)
     ("establecimientos", "es_sede", "TINYINT(1) NOT NULL DEFAULT 0"),
     ("turnos", "sede_id", "INT NULL"),

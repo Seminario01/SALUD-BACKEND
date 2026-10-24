@@ -8,7 +8,7 @@ from models import (
     Vacunacion, Establecimiento, Practicante, HorasPractica, Receta, Medicamento,
 )
 from auth import validar_api_key, validar_api_key_o_token, ROLES_AUDITORIA
-from bitacora import registrar, resumir
+from bitacora import registrar, resumir, solicitud_entrante
 from services_externos import coordinar_jornada
 from routes.hospitalizacion import resumen_hospitalizacion
 from routes.caja import resumen_cuentas
@@ -53,6 +53,7 @@ def _registrar_entrante(respuesta):
             round((time.perf_counter() - getattr(request, "_inicio_bitacora", time.perf_counter())) * 1000),
             request.headers.get("X-Simulado", "").lower() == "true",
             resumir(datos if datos is not None else cuerpo) or cuerpo.get("message"),
+            *solicitud_entrante(), cuerpo,
         )
     return respuesta
 

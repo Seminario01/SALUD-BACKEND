@@ -14,7 +14,7 @@ import time
 from flask import g, request
 
 from auth import _sin_verificar, modulo_de_la_clave
-from bitacora import registrar, resumir
+from bitacora import registrar, resumir, solicitud_entrante
 
 RUTAS = {
     "/api/v1/salud/indicadores": "Indicadores agregados",
@@ -75,7 +75,7 @@ def registrar_consulta(respuesta):
         inicio_ms = getattr(g, "_inicio_auditoria", None)
         registrar("entrante", modulo, RUTAS[request.path], "GET", request.full_path.rstrip("?"), respuesta.status_code,
                   resultado, round((time.perf_counter() - inicio_ms) * 1000) if inicio_ms else None, prueba,
-                  " · ".join(p for p in partes if p))
+                  " · ".join(p for p in partes if p), *solicitud_entrante(), cuerpo)
     except Exception:  # noqa: BLE001 - registrar nunca debe romper la respuesta
         pass
     return respuesta

@@ -60,11 +60,16 @@ def _llamar(metodo, base_url, path, operacion=None, registrar=True, timeout=TIME
                 "message": "La URL del módulo no está configurada en el .env"}
 
     inicio = time.perf_counter()
-    estado_http, simulado, detalle = None, False, None
+    estado_http, simulado, detalle, cuerpo_respuesta = None, False, None, None
+    url = f"{base_url.rstrip('/')}{path}"
+    headers = _headers(_modulo_de(path))
     try:
-        respuesta = requests.request(metodo, f"{base_url.rstrip('/')}{path}", headers=_headers(_modulo_de(path)),
-                                     timeout=timeout, **kwargs)
+        respuesta = requests.request(metodo, url, headers=headers, timeout=timeout, **kwargs)
         estado_http = respuesta.status_code
+        try:
+            cuerpo_respuesta = respuesta.json()
+        except ValueError:
+            cuerpo_respuesta = respuesta.text[:1000] or None
         resultado = _interpretar(respuesta)
         if not resultado["success"]:
             try:
@@ -75,6 +80,7 @@ def _llamar(metodo, base_url, path, operacion=None, registrar=True, timeout=TIME
     except requests.exceptions.RequestException as error:
         resultado = {"success": False, "error": "modulo_no_disponible",
                      "message": f"No se pudo conectar ({error.__class__.__name__})"}
+        cuerpo_respuesta = {"sin_respuesta": resultado["message"]}
 
     if resultado["success"]:
         simulado = resultado.get("simulado", False)
@@ -86,9 +92,14 @@ def _llamar(metodo, base_url, path, operacion=None, registrar=True, timeout=TIME
             detalle = f"{detalle}: {resultado['detalle']}"
     resultado["estado_http"] = estado_http
     if registrar:
+        # Lo enviado, sin la clave: solo se anota que se mandó
+        solicitud = {"encabezados": {"X-API-Key": "(enviada, no se guarda)", "X-Modulo-Origen": headers.get("X-Modulo-Origen"),
+                                     **({"Authorization": "Bearer (token del usuario, no se guarda)"} if "Authorization" in headers else {})},
+                     "parametros": kwargs.get("params") or None, "cuerpo": kwargs.get("json")}
         registrar_bitacora("saliente", _modulo_de(path), operacion or path, metodo, path, estado_http,
                            "ok" if resultado["success"] else resultado["error"],
-                           round((time.perf_counter() - inicio) * 1000), simulado, detalle)
+                           round((time.perf_counter() - inicio) * 1000), simulado, detalle,
+                           url=url, solicitud=solicitud, respuesta=cuerpo_respuesta)
     return resultado
 
 

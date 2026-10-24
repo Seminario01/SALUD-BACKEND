@@ -192,6 +192,10 @@ class BitacoraIntegracion(db.Model):
     simulado = db.Column(db.Boolean, default=False, nullable=False)
     usuario = db.Column(db.String(100))
     detalle = db.Column(db.String(255))
+    # Detalle de la llamada (bitacora.limpiar: sin claves y con los datos personales enmascarados)
+    url = db.Column(db.String(500))          # a dónde se hizo
+    solicitud = db.Column(db.Text)           # JSON: encabezados (sin la clave), parámetros y cuerpo enviado
+    respuesta = db.Column(db.Text)           # JSON de la respuesta
 
 
 class PersonalSalud(db.Model):

@@ -6,6 +6,7 @@ usuario, y el backend de Salud llama al módulo destino (servidor a servidor).
 Si el otro módulo no está configurado o no responde, se devuelve un error
 claro (503) y la operación propia de Salud no se ve afectada.
 """
+import json
 import re
 from datetime import date, datetime, timedelta
 
@@ -59,6 +60,10 @@ def _error_modulo(resultado, modulo):
     return jsonify(success=False, error=codigo, modulo=modulo, message=mensaje), status
 
 
+RUTA_INDICADORES = {"educacion": "/api/v1/educacion/indicadores", "seguridad": "/api/v1/seguridad/indicadores",
+                    "tributario": "/api/v1/tributario/indicadores"}
+
+
 @integraciones_bp.route("/api/v1/salud/integraciones/estado", methods=["GET"])
 @validar_token
 @requiere_permiso("integraciones.ver")
@@ -90,7 +95,8 @@ def estado_integraciones():
             if simulado and not Config.SIMULACIONES:
                 estado[nombre] = {"estado": "no_configurado", "simulado": False}
                 continue
-            estado[nombre] = {"estado": "conectado", "simulado": simulado, "indicadores": indicadores}
+            estado[nombre] = {"estado": "conectado", "simulado": simulado, "indicadores": indicadores,
+                              "estadoHttp": r.get("estado_http"), "ruta": RUTA_INDICADORES[nombre]}
         elif r.get("error") == "no_configurado":
             estado[nombre] = {"estado": "no_configurado", "simulado": False}
         else:
@@ -570,6 +576,76 @@ def _registro(r):
                   "usuario": r.usuario, "simulado": r.simulado}
 
 
+def _llamadas_de(s):
+    """Consulta de la bitácora con las llamadas de un servicio del contrato."""
+    base = BitacoraIntegracion.query.filter(BitacoraIntegracion.direccion == s["direccion"])
+    if not Config.SIMULACIONES:
+        base = base.filter(BitacoraIntegracion.simulado.is_(False))
+    if s.get("operaciones"):
+        base = base.filter(BitacoraIntegracion.operacion.in_(s["operaciones"]))
+    else:
+        base = base.filter(BitacoraIntegracion.ruta.like(f"{s['prefijo']}%"))
+    if s["direccion"] == "saliente":
+        base = base.filter(BitacoraIntegracion.modulo == s["modulo"])
+    return base
+
+
+def _json(texto):
+    if not texto:
+        return None
+    try:
+        return json.loads(texto)
+    except ValueError:
+        return texto
+
+
+@integraciones_bp.route("/api/v1/salud/integraciones/servicios/<string:clave>/llamadas", methods=["GET"])
+@validar_token
+@requiere_permiso("integraciones.ver")
+def llamadas_servicio(clave):
+    """
+    Últimas llamadas de un servicio, con su detalle
+    ---
+    tags:
+      - Integraciones
+    security:
+      - BearerAuth: []
+    description: >
+      A dónde se hizo cada llamada, qué se envió (encabezados sin la clave, parámetros y cuerpo) y
+      qué se respondió. Los datos personales quedan enmascarados (DPI con sus últimos 4 dígitos,
+      nombres como iniciales). Las llamadas de antes de guardar el detalle solo traen el resumen.
+    parameters:
+      - name: clave
+        in: path
+        type: string
+        required: true
+      - name: limite
+        in: query
+        type: integer
+        default: 10
+    responses:
+      200:
+        description: Servicio y sus llamadas, de la más reciente a la más antigua
+      404:
+        description: No existe ese servicio
+    """
+    servicio = next((s for s in SERVICIOS if s["clave"] == clave), None)
+    if not servicio:
+        return jsonify(success=False, error="no_encontrado", message="No existe ese servicio"), 404
+    try:
+        limite = max(1, min(int(request.args.get("limite", 10)), 50))
+    except ValueError:
+        limite = 10
+    llamadas = _llamadas_de(servicio).order_by(BitacoraIntegracion.id.desc()).limit(limite).all()
+    return jsonify(success=True, data={
+        "servicio": {k: servicio.get(k) for k in ("clave", "direccion", "modulo", "codigo", "nombre", "metodo", "ruta", "donde")},
+        "llamadas": [{
+            **_registro(b), "id": b.id, "operacion": b.operacion, "metodo": b.metodo, "ruta": b.ruta,
+            "url": b.url, "solicitud": _json(b.solicitud), "respuesta": _json(b.respuesta),
+        } for b in llamadas],
+    }), 200
+
+
 @integraciones_bp.route("/api/v1/salud/integraciones/servicios", methods=["GET"])
 @validar_token
 @requiere_permiso("integraciones.ver")
@@ -593,15 +669,7 @@ def servicios_integracion():
     desde = datetime.now() - timedelta(days=30)
     datos = []
     for s in SERVICIOS:
-        base = BitacoraIntegracion.query.filter(BitacoraIntegracion.direccion == s["direccion"])
-        if not Config.SIMULACIONES:
-            base = base.filter(BitacoraIntegracion.simulado.is_(False))
-        if s.get("operaciones"):
-            base = base.filter(BitacoraIntegracion.operacion.in_(s["operaciones"]))
-        else:
-            base = base.filter(BitacoraIntegracion.ruta.like(f"{s['prefijo']}%"))
-        if s["direccion"] == "saliente":
-            base = base.filter(BitacoraIntegracion.modulo == s["modulo"])
+        base = _llamadas_de(s)
         ultimo_ok = base.filter(BitacoraIntegracion.resultado.in_(RESPUESTAS_VALIDAS)).order_by(BitacoraIntegracion.id.desc()).first()
         ultimo = base.order_by(BitacoraIntegracion.id.desc()).first()
         recientes = base.filter(BitacoraIntegracion.fecha >= desde)

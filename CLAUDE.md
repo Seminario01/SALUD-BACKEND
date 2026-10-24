@@ -285,7 +285,11 @@ se quita, ni una sede con personal o camas. `datos_demo.sql` agrega la segunda s
 cada servicio reconocido en la bitácora por su `operacion` (o por el inicio de la ruta). `GET /integraciones/servicios`
 (`integraciones.ver`) da por servicio la última respuesta válida (`ok` o `no_encontrado`), la última llamada y las de
 30 días; en producción sin pruebas ni simulaciones. Al agregar un servicio entre módulos, agregarlo ahí con el mismo
-nombre de operación con que se anota.
+nombre de operación con que se anota. `GET /integraciones/servicios/<clave>/llamadas` da las últimas llamadas con su detalle:
+`url` (a dónde), `solicitud` (encabezados sin la clave, parámetros y cuerpo) y `respuesta`, que `bitacora.limpiar`
+guarda con los datos personales enmascarados (DPI con sus últimos 4 dígitos, nombres como iniciales; "nombre" solo
+si está junto a un DPI/CUI) y recortados (10 elementos por lista, 8000 caracteres). La API key nunca se guarda.
+`/integraciones/estado` dice además la ruta y el HTTP de los indicadores de cada módulo.
 
 ## Vacunación: un registro por paciente
 
