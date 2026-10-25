@@ -311,6 +311,14 @@ coordinar la misma (tipo, lugar, fecha, hora) agrega estudiantes nuevos y conser
 `GET /jornadas/<id>` (`vacunacion.ver`): estudiantes con su paciente de Salud por DPI y su esquema;
 `PUT /jornadas/<id>/estudiantes/<eid>` {vacunado} los marca.
 
+## Datos de otros módulos: Salud no los inventa
+
+Lo que le pertenece a otro módulo se consulta en vivo y no se guarda como dato propio de Salud. Si es estudiante lo
+responde Educación (E1) en el momento: `vacunacion.es_estudiante` ya no se recibe ni se devuelve (la columna queda en
+la base sin usarse). El indicador `estudiantes_vacunados` cuenta solo a los estudiantes que Educación convocó a una
+jornada (`jornadas_estudiantes`) y que se marcaron vacunados. Antecedentes (Seguridad) no se guardan; los pagos
+(Tributario) se guardan como la respuesta de Tributario, con su número de referencia.
+
 ## Vacunación: un registro por paciente
 
 `migraciones._vacunacion_unica`: si un paciente tiene más de un registro (bases de antes de la regla), deja el más

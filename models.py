@@ -107,6 +107,8 @@ class Vacunacion(db.Model):
     __tablename__ = "vacunacion"
     id = db.Column(db.Integer, primary_key=True)
     paciente_id = db.Column(db.Integer, db.ForeignKey("pacientes.id"), nullable=False)
+    # Ya no se usa: si alguien es estudiante lo responde Educación en el momento (E1). Se deja la
+    # columna para no borrar datos de bases existentes.
     es_estudiante = db.Column(db.Boolean, default=False)
     esquema_completo = db.Column(db.Boolean, default=False)
     vacunas_pendientes = db.Column(db.Text)

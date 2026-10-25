@@ -12,7 +12,6 @@ def _serializar(registro):
     return {
         "id": registro.id,
         "paciente_id": registro.paciente_id,
-        "es_estudiante": registro.es_estudiante,
         "esquema_completo": registro.esquema_completo,
         "vacunas_pendientes": registro.vacunas_pendientes,
         "fecha_actualizacion": registro.fecha_actualizacion.isoformat() if registro.fecha_actualizacion else None,
@@ -41,8 +40,6 @@ def registrar_vacunacion():
           properties:
             paciente_id:
               type: integer
-            es_estudiante:
-              type: boolean
             esquema_completo:
               type: boolean
             vacunas_pendientes:
@@ -66,7 +63,6 @@ def registrar_vacunacion():
 
     registro = Vacunacion(
         paciente_id=paciente_id,
-        es_estudiante=booleano(data, "es_estudiante"),
         esquema_completo=booleano(data, "esquema_completo"),
         vacunas_pendientes=texto(data, "vacunas_pendientes", 2000, etiqueta="vacunas_pendientes"),
     )
@@ -151,8 +147,6 @@ def actualizar_vacunacion(paciente_id):
         schema:
           type: object
           properties:
-            es_estudiante:
-              type: boolean
             esquema_completo:
               type: boolean
             vacunas_pendientes:
@@ -168,8 +162,6 @@ def actualizar_vacunacion(paciente_id):
         return jsonify(success=False, error="no_encontrado", message="Sin registro de vacunación"), 404
 
     data = request.get_json(silent=True) or {}
-    if "es_estudiante" in data:
-        registro.es_estudiante = booleano(data, "es_estudiante")
     if "esquema_completo" in data:
         registro.esquema_completo = booleano(data, "esquema_completo")
     if "vacunas_pendientes" in data:

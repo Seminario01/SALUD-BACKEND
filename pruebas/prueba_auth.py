@@ -253,7 +253,9 @@ check("receta con un medicamento que no es objeto", "POST", "/recetas", T["medic
       json={"paciente_id": p2, "items": [5]})
 check("receta con cantidad 0", "POST", "/recetas", T["medico1"], 400,
       json={"paciente_id": p2, "items": [{"medicamento_id": 1, "cantidad": 0}]})
-check("vacunación con es_estudiante de texto", "PUT", f"/vacunacion/{p2}", T["medico1"], 400, json={"es_estudiante": "si"})
+r = check("vacunación ignora es_estudiante (lo confirma Educación)", "PUT", f"/vacunacion/{p2}", T["medico1"], 200, json={"es_estudiante": "si"})
+dato("vacunación ya no devuelve es_estudiante",
+     "es_estudiante" not in requests.get(API + f"/vacunacion/{p2}", headers={"Authorization": f"Bearer {T['medico1']}"}).json().get("data", {}))
 
 print("--- Documentos para imprimir: receta y estado de cuenta (GET /recetas/{id}, /cuentas/{id})")
 recetas_p2 = requests.get(API + "/recetas", params={"paciente_id": p2},

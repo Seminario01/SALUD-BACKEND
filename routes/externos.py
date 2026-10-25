@@ -6,7 +6,7 @@ from flask import Blueprint, g, request, jsonify
 from extensions import db
 from models import (
     Paciente, CitaMedica, RecursoHospitalario, Turno, PresupuestoHospitalario,
-    Vacunacion, Establecimiento, Practicante, HorasPractica, Receta, Medicamento,
+    Vacunacion, Establecimiento, Practicante, HorasPractica, Receta, Medicamento, EstudianteJornada,
 )
 from auth import validar_api_key, validar_api_key_o_token, ROLES_AUDITORIA
 from bitacora import registrar, resumir, solicitud_entrante
@@ -309,7 +309,10 @@ def calcular_indicadores():
 
     vacunacion_esquema_completo = Vacunacion.query.filter_by(esquema_completo=True).count()
     vacunacion_pendiente = Vacunacion.query.filter_by(esquema_completo=False).count()
-    estudiantes_vacunados = Vacunacion.query.filter_by(es_estudiante=True, esquema_completo=True).count()
+    # Estudiantes vacunados: solo los que Educación convocó a una jornada (su lista) y Enfermería marcó.
+    # Salud no guarda por su cuenta quién es estudiante: eso lo confirma Educación.
+    estudiantes_vacunados = (db.session.query(db.func.count(db.distinct(EstudianteJornada.cui)))
+                             .filter(EstudianteJornada.vacunado.is_(True), EstudianteJornada.cui.isnot(None)).scalar() or 0)
 
     recursos = RecursoHospitalario.query.all()
     recursos_resumen = [{
