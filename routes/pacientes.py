@@ -6,6 +6,7 @@ from auth import validar_token, requiere_permiso, puede
 from validacion import DatoInvalido, cui, fecha_pasada, opcion, telefono, texto
 from alertas_clinicas import parecido_nombre
 import ubicaciones
+from validacion import ESCAPE_LIKE, contiene, empieza
 
 GENEROS = ("M", "F", "Otro")
 SEGUROS = ("IGSS", "Privado", "Ninguno")
@@ -116,10 +117,11 @@ def listar_pacientes():
         description: El usuario no es personal de Salud
     """
     query = Paciente.query
-    q = request.args.get("q", "").strip()
+    q = request.args.get("q", "").strip()[:100]
     if q:
-        like = f"%{q}%"
-        query = query.filter(db.or_(Paciente.nombre_completo.like(like), Paciente.cui.like(like)))
+        like = contiene(q)
+        query = query.filter(db.or_(Paciente.nombre_completo.like(like, escape=ESCAPE_LIKE),
+                                    Paciente.cui.like(like, escape=ESCAPE_LIKE)))
     pacientes = query.order_by(Paciente.nombre_completo).all()
     return jsonify(success=True, data=[serializar_paciente(p) for p in pacientes]), 200
 
@@ -283,7 +285,7 @@ def posibles_duplicados():
     # Para el mismo nombre sin fecha basta con revisar los que comparten alguna palabra larga
     palabras = sorted((w for w in nombre.split() if len(w) >= 3), key=len, reverse=True)[:3]
     if palabras:
-        filtro.append(db.or_(*[Paciente.nombre_completo.like(f"%{w}%") for w in palabras]))
+        filtro.append(db.or_(*[Paciente.nombre_completo.like(contiene(w), escape=ESCAPE_LIKE) for w in palabras]))
     if not filtro and not candidatos:
         return jsonify(success=True, data=[]), 200
     for p in (Paciente.query.filter(db.or_(*filtro)).limit(500) if filtro else []):

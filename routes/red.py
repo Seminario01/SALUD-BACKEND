@@ -26,6 +26,7 @@ from models import Establecimiento, Paciente, Referencia
 from routes.externos import TIPOS_ATENCION
 from routes.pacientes import puede_ver_paciente
 from validacion import DatoInvalido, booleano, entero, opcion, telefono, texto
+from validacion import ESCAPE_LIKE, contiene, empieza
 
 red_bp = Blueprint("red", __name__)
 ESTADOS_SERVICIO = ("ACTIVO", "INACTIVO", "EN_MANTENIMIENTO")
@@ -100,7 +101,8 @@ def listar_establecimientos():
         query = query.filter(Establecimiento.tipo == request.args["tipo"])
     q = (request.args.get("q") or "").strip()[:80]
     if q:
-        query = query.filter(db.or_(Establecimiento.nombre.ilike(f"%{q}%"), Establecimiento.municipio.ilike(f"%{q}%")))
+        query = query.filter(db.or_(Establecimiento.nombre.ilike(contiene(q), escape=ESCAPE_LIKE),
+                                    Establecimiento.municipio.ilike(contiene(q), escape=ESCAPE_LIKE)))
     lista = query.order_by(Establecimiento.departamento, Establecimiento.nombre).all()
     desde = datetime.now() - timedelta(days=90)
     conteo = dict(db.session.query(Referencia.establecimiento_id, db.func.count(Referencia.id))

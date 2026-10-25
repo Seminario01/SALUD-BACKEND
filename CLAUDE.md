@@ -94,6 +94,17 @@ pasaron, medido con un dato ancla de fecha conocida; solo datos demo, nunca bit�
 Tributario) y carga los turnos de hoy. Correrlo el día de la presentación. Si se agrega un bloque demo
 nuevo con fechas relativas, agregarle su ancla en `demo_refrescar_fechas.sql`.
 
+## Endurecimiento de seguridad
+
+- **Inyección SQL:** todas las consultas con datos del usuario van por SQLAlchemy con parámetros. Los `text(f"...")`
+  de `migraciones.py` y `sedes.py` solo arman nombres de tabla fijos del código. Las búsquedas con LIKE usan
+  `validacion.contiene()` / `empieza()` con `escape=ESCAPE_LIKE`: `%` y `_` escritos por el usuario son texto, no comodines.
+- `Config.MAX_CONTENT_LENGTH` = 1 MB (nginx también): más grande -> 413 en JSON.
+- `app.py` `cabeceras_api`: toda respuesta de `/api/` lleva `Cache-Control: no-store` y `nosniff` (datos de pacientes).
+- `config._clave`: en producción (`SIMULACIONES=false`) una clave con valor de ejemplo (`CLAVES_DE_EJEMPLO`) cuenta como si
+  no estuviera, y al arrancar queda un aviso en el log.
+- Las API keys se comparan en tiempo constante (`hmac.compare_digest`).
+
 ## Validación de datos
 
 Los datos que llegan en el cuerpo se validan con `validacion.py` (`texto`, `cui`, `monto`,

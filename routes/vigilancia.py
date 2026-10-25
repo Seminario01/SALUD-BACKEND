@@ -23,6 +23,7 @@ import ubicaciones
 from auth import puede, requiere_permiso, validar_token
 from extensions import db
 from models import ExpedienteClinico, Paciente
+from validacion import ESCAPE_LIKE, contiene, empieza
 
 vigilancia_bp = Blueprint("vigilancia", __name__)
 
@@ -110,11 +111,11 @@ class _Filtros:
         if municipio:
             q = q.filter(Paciente.municipio == municipio)
         elif self.departamento:
-            q = q.filter(Paciente.municipio.like(f"{self.departamento}%"))
+            q = q.filter(Paciente.municipio.like(empieza(self.departamento), escape=ESCAPE_LIKE))
         if self.genero:
             q = q.filter(Paciente.genero == self.genero)
         if self.codigo:
-            q = q.filter(ExpedienteClinico.codigo_cie10.like(f"{self.codigo}%"))
+            q = q.filter(ExpedienteClinico.codigo_cie10.like(empieza(self.codigo), escape=ESCAPE_LIKE))
         salida = []
         for (aid, fecha, codigo, diagnostico, pid, mun, genero, nacimiento, nombre, zona) in q.all():
             if self.grupo and grupo_de(codigo) != self.grupo:

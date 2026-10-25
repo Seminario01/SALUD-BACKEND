@@ -131,3 +131,22 @@ def entero(data, campo, minimo, maximo, obligatorio=False, etiqueta=None):
     if not minimo <= valor <= maximo:
         raise DatoInvalido(f"{nombre} debe estar entre {minimo} y {maximo}")
     return valor
+
+
+# Búsquedas con LIKE: los datos ya van como parámetro (no hay inyección SQL), pero "%" y "_"
+# escritos por el usuario serían comodines. Se escapan; se usa con .like(..., escape="\\").
+ESCAPE_LIKE = "\\"
+
+
+def escapar_like(valor):
+    return str(valor).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def contiene(valor):
+    """Patrón LIKE para "contiene este texto" (literal)."""
+    return f"%{escapar_like(valor)}%"
+
+
+def empieza(valor):
+    """Patrón LIKE para "empieza con este texto" (literal)."""
+    return f"{escapar_like(valor)}%"

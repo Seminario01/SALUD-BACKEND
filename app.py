@@ -1,4 +1,5 @@
 import hmac
+import os
 
 from flask import Flask, Response, jsonify, request
 from flasgger import Swagger
@@ -59,6 +60,23 @@ def crear_app():
     # Descarga las llaves del Login Único al arrancar: así el backend sigue
     # validando tokens aunque el servidor de identidad se apague después.
     precargar_jwks()
+
+    # Una clave de ejemplo en el .env de producción no se acepta (config._clave): avisarlo en el log
+    import config as configuracion
+    if configuracion._PRODUCCION:
+        for nombre in ("MODULOS_API_KEY", "CLAVE_ENTRADA_SEGURIDAD", "CLAVE_ENTRADA_EDUCACION",
+                       "CLAVE_ENTRADA_TRIBUTARIO", "CLAVE_ENTRADA_AUDITORIA"):
+            if (os.getenv(nombre) or "").strip() in configuracion.CLAVES_DE_EJEMPLO:
+                app.logger.warning("%s tiene un valor de ejemplo: no se acepta. Póngale una clave propia en el .env", nombre)
+
+    # Las respuestas de la API traen datos de pacientes: que ningún navegador, proxy ni
+    # Cloudflare las guarde en caché, y que el navegador no adivine otro tipo de contenido.
+    @app.after_request
+    def cabeceras_api(respuesta):
+        if request.path.startswith("/api/"):
+            respuesta.headers.setdefault("Cache-Control", "no-store")
+            respuesta.headers.setdefault("X-Content-Type-Options", "nosniff")
+        return respuesta
 
     # Bitácora de accesos: quién vio o modificó datos de pacientes (bitacora_accesos.py)
     app.after_request(registrar_acceso)

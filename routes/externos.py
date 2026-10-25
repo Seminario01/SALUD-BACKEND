@@ -15,6 +15,7 @@ from routes.hospitalizacion import resumen_hospitalizacion
 from routes.caja import resumen_cuentas
 from routes.integraciones import _error_modulo
 from routes.jornadas import guardar_jornada
+from validacion import ESCAPE_LIKE, contiene, empieza
 
 externos_bp = Blueprint("externos", __name__)
 log = logging.getLogger(__name__)
@@ -195,7 +196,7 @@ def establecimientos_disponibilidad():
     if municipio:
         query = query.filter(Establecimiento.municipio == municipio)
     if tipo_atencion:
-        query = query.filter(Establecimiento.tipo_atencion_disponible.ilike(f"%{tipo_atencion}%"))
+        query = query.filter(Establecimiento.tipo_atencion_disponible.ilike(contiene(tipo_atencion), escape=ESCAPE_LIKE))
 
     establecimientos = query.all()
     data = [{

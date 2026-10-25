@@ -5,6 +5,7 @@ from flask import Blueprint, jsonify, request
 from auth import requiere_permiso, validar_token
 from extensions import db
 from models import BitacoraAcceso, Paciente
+from validacion import ESCAPE_LIKE, contiene, empieza
 
 accesos_bp = Blueprint("accesos", __name__)
 ACCIONES = ("ver", "crear", "modificar", "anular")
@@ -56,8 +57,9 @@ def bitacora_accesos():
         q = q.filter(BitacoraAcceso.paciente_id == int(paciente))
     usuario = request.args.get("usuario", "").strip()[:100]
     if usuario:
-        patron = f"%{usuario}%"
-        q = q.filter(db.or_(BitacoraAcceso.usuario.like(patron), BitacoraAcceso.nombre.like(patron)))
+        patron = contiene(usuario)
+        q = q.filter(db.or_(BitacoraAcceso.usuario.like(patron, escape=ESCAPE_LIKE),
+                            BitacoraAcceso.nombre.like(patron, escape=ESCAPE_LIKE)))
     desde, hasta = _fecha("desde"), _fecha("hasta")
     if desde is False or hasta is False:
         return jsonify(success=False, error="datos_invalidos", message="Las fechas van como AAAA-MM-DD"), 400

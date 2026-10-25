@@ -3,12 +3,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Valores de ejemplo que están a la vista en GitHub: en producción no sirven como clave.
+CLAVES_DE_EJEMPLO = {"clave-temporal-cambiar", "cambiar_clave_larga", "cambiar", "changeme"}
+_PRODUCCION = os.getenv("SIMULACIONES", "true").lower() != "true"
+
+
+def _clave(valor):
+    """Una clave del .env; en producción, una de ejemplo cuenta como si no estuviera."""
+    if not valor or (_PRODUCCION and valor.strip() in CLAVES_DE_EJEMPLO):
+        return None
+    return valor
+
+
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
         "mysql+pymysql://usuario:password@localhost/salud_db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # Ninguna petición a la API pasa de 1 MB (nginx también lo corta); más grande -> 413 en JSON
+    MAX_CONTENT_LENGTH = 1024 * 1024
 
     # Login Único (Keycloak). El issuer cambia cada día mientras el servicio corra
     # sobre un túnel temporal: se configura SOLO en el .env, nunca en el código.
@@ -18,7 +32,7 @@ class Config:
     AUTH_JWKS_URL = f"{AUTH_ISSUER}/protocol/openid-connect/certs"
 
     # API Key para comunicación server-to-server con otros módulos
-    MODULOS_API_KEY = os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar")
+    MODULOS_API_KEY = _clave(os.getenv("MODULOS_API_KEY", "clave-temporal-cambiar"))
 
     # Orígenes permitidos para CORS (frontend en desarrollo con Vite)
     CORS_ORIGINS = os.getenv(
@@ -59,10 +73,10 @@ class Config:
     # demás. MODULOS_API_KEY se sigue aceptando (simuladores y pruebas internas).
     CLAVES_ENTRADA = {
         modulo: clave for modulo, clave in {
-            "Seguridad": os.getenv("CLAVE_ENTRADA_SEGURIDAD"),
-            "Educación": os.getenv("CLAVE_ENTRADA_EDUCACION"),
-            "Tributario": os.getenv("CLAVE_ENTRADA_TRIBUTARIO"),
-            "Auditoría": os.getenv("CLAVE_ENTRADA_AUDITORIA"),
+            "Seguridad": _clave(os.getenv("CLAVE_ENTRADA_SEGURIDAD")),
+            "Educación": _clave(os.getenv("CLAVE_ENTRADA_EDUCACION")),
+            "Tributario": _clave(os.getenv("CLAVE_ENTRADA_TRIBUTARIO")),
+            "Auditoría": _clave(os.getenv("CLAVE_ENTRADA_AUDITORIA")),
         }.items() if clave
     }
     # Tributario: tipo_obligacion que Salud envía en cada cobro. Si Tributario no

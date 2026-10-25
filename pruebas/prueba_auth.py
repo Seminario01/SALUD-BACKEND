@@ -1426,5 +1426,18 @@ if os.getenv("CLAVE_ENTRADA_SEGURIDAD"):     # clave propia de Seguridad (la mis
               None, 200, headers={"X-API-Key": os.getenv("CLAVE_ENTRADA_SEGURIDAD")})
     dato("acepta mayúsculas sin tilde y encuentra establecimientos", r.json().get("disponible") is True)
 
+print("--- Endurecimiento: búsquedas, caché y tamaño de las peticiones")
+r = check("buscar el signo de porcentaje en pacientes", "GET", "/pacientes?q=%25", T["recepcion1"], 200)
+dato("el % es un carácter, no un comodín (no devuelve a todos)", len(r.json()["data"]) == 0)
+r = check("buscar el guion bajo en pacientes", "GET", "/pacientes?q=_", T["recepcion1"], 200)
+dato("el _ es un carácter, no un comodín", len(r.json()["data"]) == 0)
+r = check("buscar con texto de inyección SQL", "GET", "/pacientes?q=%27%20OR%201%3D1%20--", T["recepcion1"], 200)
+dato("la inyección es solo texto: no devuelve a todos", len(r.json()["data"]) == 0)
+dato("las respuestas con datos de pacientes no se guardan en caché",
+     r.headers.get("Cache-Control") == "no-store" and r.headers.get("X-Content-Type-Options") == "nosniff")
+r = check("cuerpo de más de 1 MB -> 413", "POST", "/pacientes", T["recepcion1"], 413,
+          data=b'{"nombre_completo": "' + b"x" * (1024 * 1024 + 10) + b'"}', headers={"Content-Type": "application/json"})
+dato("el 413 también llega en JSON", r.headers.get("Content-Type", "").startswith("application/json"))
+
 print(f"\n{sum(resultados)}/{len(resultados)} pruebas OK")
 sys.exit(0 if all(resultados) else 1)

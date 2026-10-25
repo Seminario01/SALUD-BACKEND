@@ -23,6 +23,7 @@ from extensions import db
 from models import DetalleReceta, ExpedienteClinico, LoteMedicamento, Medicamento, MovimientoInventario, Paciente, Receta
 from migraciones import codigo_receta
 from validacion import DatoInvalido, booleano, monto, texto
+from validacion import ESCAPE_LIKE, contiene, empieza
 
 farmacia_bp = Blueprint("farmacia", __name__)
 
@@ -146,9 +147,10 @@ def listar_medicamentos():
         description: "Medicamentos con existencia, stock mínimo, bajo_minimo, vencidas, por_vencer, disponible y proximo_vencimiento"
     """
     query = Medicamento.query
-    q = (request.args.get("q") or "").strip()
+    q = (request.args.get("q") or "").strip()[:100]
     if q:
-        query = query.filter(db.or_(Medicamento.nombre.ilike(f"%{q}%"), Medicamento.codigo.ilike(f"%{q}%")))
+        query = query.filter(db.or_(Medicamento.nombre.ilike(contiene(q), escape=ESCAPE_LIKE),
+                                    Medicamento.codigo.ilike(contiene(q), escape=ESCAPE_LIKE)))
     if request.args.get("bajo_minimo") in ("1", "true"):
         query = query.filter(Medicamento.existencia <= Medicamento.stock_minimo)
     lista = query.order_by(Medicamento.nombre).all()
